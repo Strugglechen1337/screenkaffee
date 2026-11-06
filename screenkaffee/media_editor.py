@@ -1,11 +1,232 @@
 from pathlib import Path
-from PySide6.QtCore import Qt, QUrl, QThread, Signal, Slot
+from PIL import Image
+from PySide6.QtCore import Qt, QPointF, QRectF, QUrl, QThread, Signal, Slot
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QDoubleSpinBox, QSpinBox, QCheckBox, QFileDialog, QSlider, QFormLayout, QMessageBox,
-    QDialog, QDialogButtonBox, QTableWidget, QTableWidgetItem, QInputDialog, QComboBox)
+    QDialog, QDialogButtonBox, QTableWidget, QTableWidgetItem, QInputDialog, QComboBox, QListWidget)
 from .media import probe_media, edit_video, merge_videos, extract_frame, export_html_page, VIDEO_SIZES
+
+CROP_RATIOS = [("Frei", None), ("16:9", (16, 9)), ("4:3", (4, 3)), ("1:1", (1, 1)), ("9:16", (9, 16))]
+CORNER_HANDLES = ("nw", "ne", "sw", "se")
+
+
+def even_value(value, minimum=0):
+    """Gerade Pixelzahl für H.264-Kompatibilität."""
+    return max(minimum, int(round(value)) // 2 * 2)
+
+
+def crop_corners(rect):
+    x, y, w, h = rect
+    return {"nw": (x, y), "ne": (x + w, y), "sw": (x, y + h), "se": (x + w, y + h)}
+
+
+def crop_hit_test(rect, point, margin=10):
+    """Eckgriff ('nw', 'ne', 'sw', 'se') unter dem Punkt oder None."""
+    for name, (hx, hy) in crop_corners(rect).items():
+        if abs(point[0] - hx) <= margin and abs(point[1] - hy) <= margin:
+            return name
+    return None
+
+
+def constrain_crop(rect, bounds, ratio=None, min_size=2):
+    """Begrenzt (x, y, w, h) auf `bounds` (Breite, Höhe), rundet alle Werte gerade (H.264) und wendet optional `ratio` an."""
+    max_bw = max(min_size, int(bounds[0]) // 2 * 2)
+    max_bh = max(min_size, int(bounds[1]) // 2 * 2)
+    x = max(0, min(max_bw - min_size, even_value(rect[0], 0)))
+    y = max(0, min(max_bh - min_size, even_value(rect[1], 0)))
+    avail_w = max(min_size, max_bw - x)
+    avail_h = max(min_size, max_bh - y)
+    w = max(min_size, min(avail_w, even_value(rect[2], min_size)))
+    h = max(min_size, min(avail_h, even_value(rect[3], min_size)))
+    if ratio is not None:
+        rw, rh = ratio
+        scale = min(w / rw, h / rh, avail_w / rw, avail_h / rh)
+        max_k = int(min(avail_w // (2 * rw), avail_h // (2 * rh)))
+        if max_k >= 1:
+            k = max(1, min(max_k, int(round(scale / 2))))
+            w, h = 2 * k * rw, 2 * k * rh
+        else:
+            full_k = int(min(max_bw // (2 * rw), max_bh // (2 * rh)))
+            if full_k >= 1:
+                k = max(1, min(full_k, int(round(min(w / rw, h / rh) / 2))))
+                w, h = 2 * k * rw, 2 * k * rh
+            else:
+                scale = min(max_bw / rw, max_bh / rh)
+                w = max(min_size, int(round(scale * rw)) // 2 * 2)
+                h = max(min_size, int(round(scale * rh)) // 2 * 2)
+            x = max(0, min(x, (max_bw - w) // 2 * 2))
+            y = max(0, min(y, (max_bh - h) // 2 * 2))
+    return (int(x), int(y), int(w), int(h))
+
+
+def drag_crop_rect(anchor, target, bounds, ratio=None, mode="new", min_size=2):
+    """Berechnet (x, y, w, h) beim Aufziehen oder Ziehen eines Eckgriffs von `anchor` nach `target`."""
+    max_bw = max(min_size, int(bounds[0]) // 2 * 2)
+    max_bh = max(min_size, int(bounds[1]) // 2 * 2)
+    ax = max(0, min(max_bw, even_value(anchor[0], 0)))
+    ay = max(0, min(max_bh, even_value(anchor[1], 0)))
+    tx = max(0, min(max_bw, float(target[0])))
+    ty = max(0, min(max_bh, float(target[1])))
+    if mode == "se":
+        sx, sy = 1, 1
+    elif mode == "nw":
+        sx, sy = -1, -1
+    elif mode == "ne":
+        sx, sy = 1, -1
+    elif mode == "sw":
+        sx, sy = -1, 1
+    else:
+        sx = 1 if tx >= ax else -1
+        sy = 1 if ty >= ay else -1
+    avail_w = max(min_size, ((max_bw - ax) if sx > 0 else ax) // 2 * 2)
+    avail_h = max(min_size, ((max_bh - ay) if sy > 0 else ay) // 2 * 2)
+    raw_w = max(min_size, min(avail_w, sx * (tx - ax)))
+    raw_h = max(min_size, min(avail_h, sy * (ty - ay)))
+    if ratio is None:
+        w = max(min_size, min(avail_w, even_value(raw_w, min_size)))
+        h = max(min_size, min(avail_h, even_value(raw_h, min_size)))
+    else:
+        rw, rh = ratio
+        scale = min(avail_w / rw, avail_h / rh, max(raw_w / rw, raw_h / rh))
+        max_k = int(min(avail_w // (2 * rw), avail_h // (2 * rh)))
+        if max_k >= 1:
+            k = max(1, min(max_k, int(round(scale / 2))))
+            w, h = 2 * k * rw, 2 * k * rh
+        else:
+            w = max(min_size, min(avail_w, even_value(scale * rw, min_size)))
+            h = max(min_size, min(avail_h, even_value(scale * rh, min_size)))
+    left = ax if sx > 0 else max(0, ax - w)
+    top = ay if sy > 0 else max(0, ay - h)
+    return constrain_crop((left, top, w, h), bounds, ratio=ratio, min_size=min_size)
+
+
+class VideoCropWidget(QWidget):
+    """Interaktiver Zuschnittsrahmen mit Eckgriffen über einem Standbild der aktuellen Videoposition."""
+    cropChanged = Signal(tuple)
+
+    def __init__(self, width, height, parent=None):
+        super().__init__(parent)
+        self.video_size = (even_value(width, 2), even_value(height, 2))
+        self.ratio = None
+        self.crop_rect = (0, 0, self.video_size[0], self.video_size[1])
+        self.pixmap = QPixmap()
+        self._drag = None
+        self.setMinimumSize(220, 140)
+        self.setMouseTracking(True)
+
+    def set_frame(self, image):
+        if isinstance(image, Image.Image):
+            rgb = image.convert("RGB")
+            qimg = QImage(rgb.tobytes("raw", "RGB"), rgb.width, rgb.height, rgb.width * 3, QImage.Format.Format_RGB888).copy()
+            self.pixmap = QPixmap.fromImage(qimg)
+        elif isinstance(image, QImage):
+            self.pixmap = QPixmap.fromImage(image)
+        elif isinstance(image, QPixmap):
+            self.pixmap = image
+        self.update()
+
+    def image_rect(self):
+        pad = 8.0
+        avail_w = max(20.0, self.width() - 2 * pad)
+        avail_h = max(20.0, self.height() - 2 * pad)
+        vw, vh = self.video_size
+        scale = min(avail_w / max(1, vw), avail_h / max(1, vh))
+        dw, dh = vw * scale, vh * scale
+        return QRectF((self.width() - dw) / 2, (self.height() - dh) / 2, dw, dh)
+
+    def video_to_widget(self, vx, vy):
+        rect = self.image_rect()
+        vw, vh = self.video_size
+        return QPointF(rect.left() + (vx / max(1, vw)) * rect.width(),
+                       rect.top() + (vy / max(1, vh)) * rect.height())
+
+    def widget_to_video(self, point):
+        rect = self.image_rect()
+        vw, vh = self.video_size
+        px = point.x() if hasattr(point, "x") else point[0]
+        py = point.y() if hasattr(point, "y") else point[1]
+        vx = (px - rect.left()) / max(1.0, rect.width()) * vw
+        vy = (py - rect.top()) / max(1.0, rect.height()) * vh
+        return (max(0.0, min(float(vw), vx)), max(0.0, min(float(vh), vy)))
+
+    def view_crop_rect(self):
+        x, y, w, h = self.crop_rect
+        tl = self.video_to_widget(x, y)
+        br = self.video_to_widget(x + w, y + h)
+        return QRectF(tl, br)
+
+    def corner_handles(self):
+        x, y, w, h = self.crop_rect
+        return {name: self.video_to_widget(cx, cy) for name, (cx, cy) in crop_corners((x, y, w, h)).items()}
+
+    def set_crop(self, rect, emit=False):
+        self.crop_rect = constrain_crop(rect, self.video_size, self.ratio)
+        self.update()
+        if emit:
+            self.cropChanged.emit(self.crop_rect)
+        return self.crop_rect
+
+    def set_ratio(self, ratio, emit=True):
+        self.ratio = ratio
+        return self.set_crop(self.crop_rect, emit=emit)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(self.rect(), QColor("#1f1f1f"))
+        img_rect = self.image_rect()
+        if not self.pixmap.isNull():
+            painter.drawPixmap(img_rect.toRect(), self.pixmap)
+        else:
+            painter.fillRect(img_rect, QColor("#353535"))
+        vr = self.view_crop_rect()
+        overlay = QPainterPath()
+        overlay.addRect(img_rect)
+        overlay.addRect(vr)
+        overlay.setFillRule(Qt.FillRule.OddEvenFill)
+        painter.fillPath(overlay, QColor(0, 0, 0, 130))
+        painter.setPen(QPen(QColor("#e5332a"), 2))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(vr)
+        painter.setBrush(QColor("#ffffff"))
+        for pt in self.corner_handles().values():
+            painter.drawRect(QRectF(pt.x() - 4, pt.y() - 4, 8, 8))
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        pos = event.position()
+        vr = self.view_crop_rect()
+        hit = crop_hit_test((vr.x(), vr.y(), vr.width(), vr.height()), (pos.x(), pos.y()), margin=10)
+        if hit in CORNER_HANDLES:
+            x, y, w, h = self.crop_rect
+            opp = {"nw": (x + w, y + h), "ne": (x, y + h), "sw": (x + w, y), "se": (x, y)}[hit]
+            self._drag = (hit, opp)
+        else:
+            vx, vy = self.widget_to_video(pos)
+            self._drag = ("new", (even_value(vx, 0), even_value(vy, 0)))
+
+    def mouseMoveEvent(self, event):
+        pos = event.position()
+        if self._drag is None:
+            vr = self.view_crop_rect()
+            hit = crop_hit_test((vr.x(), vr.y(), vr.width(), vr.height()), (pos.x(), pos.y()), margin=10)
+            cursors = {"nw": Qt.CursorShape.SizeFDiagCursor, "se": Qt.CursorShape.SizeFDiagCursor,
+                       "ne": Qt.CursorShape.SizeBDiagCursor, "sw": Qt.CursorShape.SizeBDiagCursor}
+            self.setCursor(cursors.get(hit, Qt.CursorShape.CrossCursor))
+            return
+        mode, anchor = self._drag
+        target = self.widget_to_video(pos)
+        if mode == "new" and abs(target[0] - anchor[0]) < 2 and abs(target[1] - anchor[1]) < 2:
+            return
+        self.set_crop(drag_crop_rect(anchor, target, self.video_size, self.ratio, mode=mode), emit=True)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag = None
 
 
 class MediaJob(QThread):
@@ -38,6 +259,8 @@ class VideoEditor(QMainWindow):
         self.job = None
         self.captions = []
         self.captions_dirty = False
+        self.cuts = []
+        self._syncing_crop = False
         root = QWidget()
         layout = QVBoxLayout(root)
         from .linux_audio_guard import prepare_audio
@@ -88,6 +311,31 @@ class VideoEditor(QMainWindow):
         end_button = QPushButton("Aktuelle Position als Ende")
         end_button.clicked.connect(lambda: self.end.setValue(self.player.position() / 1000))
         form.addRow(end_button)
+        self.cut_start = QDoubleSpinBox()
+        self.cut_end = QDoubleSpinBox()
+        for widget in (self.cut_start, self.cut_end):
+            widget.setRange(0, max(1, self.info.duration))
+            widget.setDecimals(3)
+            widget.setSuffix(" s")
+        form.addRow("Schnitt-Beginn", self.cut_start)
+        form.addRow("Schnitt-Ende", self.cut_end)
+        self.cut_start_button = QPushButton("Aktuelle Position als Schnitt-Beginn")
+        self.cut_start_button.clicked.connect(lambda: self.set_cut_start())
+        form.addRow(self.cut_start_button)
+        self.cut_end_button = QPushButton("Aktuelle Position als Schnitt-Ende")
+        self.cut_end_button.clicked.connect(lambda: self.set_cut_end())
+        form.addRow(self.cut_end_button)
+        cut_buttons = QHBoxLayout()
+        self.add_cut_button = QPushButton("Schnitt hinzufügen")
+        self.add_cut_button.clicked.connect(self._on_add_cut_clicked)
+        cut_buttons.addWidget(self.add_cut_button)
+        self.remove_cut_button = QPushButton("Schnitt entfernen")
+        self.remove_cut_button.clicked.connect(lambda: self.remove_cut())
+        cut_buttons.addWidget(self.remove_cut_button)
+        form.addRow(cut_buttons)
+        self.cut_list = QListWidget()
+        self.cut_list.setMaximumHeight(72)
+        form.addRow("Entfernte Abschnitte", self.cut_list)
         options.addLayout(form)
         form2 = QFormLayout()
         self.speed = QDoubleSpinBox()
@@ -132,16 +380,32 @@ class VideoEditor(QMainWindow):
         form3 = QFormLayout()
         self.crop_enabled = QCheckBox("Bild zuschneiden")
         form3.addRow(self.crop_enabled)
+        self.crop_ratio = QComboBox()
+        for label, value in CROP_RATIOS:
+            self.crop_ratio.addItem(label, value)
+        form3.addRow("Seitenverhältnis", self.crop_ratio)
         self.crop = []
-        for name, default, maximum in [("X", 0, self.info.width), ("Y", 0, self.info.height),
-            ("Breite", self.info.width, self.info.width), ("Höhe", self.info.height, self.info.height)]:
+        even_w, even_h = even_value(self.info.width, 2), even_value(self.info.height, 2)
+        for name, default, maximum in [("X", 0, even_w), ("Y", 0, even_h),
+            ("Breite", even_w, even_w), ("Höhe", even_h, even_h)]:
             widget = QSpinBox()
             widget.setRange(0, maximum)
+            widget.setSingleStep(2)
             widget.setValue(default)
+            widget.valueChanged.connect(self._on_crop_spinbox_changed)
             self.crop.append(widget)
             form3.addRow(name, widget)
+        self.crop_widget = VideoCropWidget(self.info.width, self.info.height, self)
+        self.crop_widget.cropChanged.connect(self._on_crop_widget_changed)
+        self.video.videoSink().videoFrameChanged.connect(self._crop_video_frame)
+        self.crop_ratio.currentIndexChanged.connect(lambda: self.crop_widget.set_ratio(self.crop_ratio.currentData(), emit=True))
+        form3.addRow(self.crop_widget)
+        self.refresh_crop_frame_button = QPushButton("Standbild an aktueller Position")
+        self.refresh_crop_frame_button.clicked.connect(lambda: self.update_crop_frame())
+        form3.addRow(self.refresh_crop_frame_button)
         options.addLayout(form3)
         layout.addLayout(options)
+        self.update_crop_frame(0)
         actions = QHBoxLayout()
         self.apply_button = QPushButton("Bearbeitetes Video exportieren …")
         self.apply_button.setObjectName("primary")
@@ -163,6 +427,78 @@ class VideoEditor(QMainWindow):
         layout.addLayout(subtitles)
         self.setCentralWidget(root)
         self.player.errorOccurred.connect(lambda error, message: self.status.setText(message))
+
+    def set_cut_start(self, seconds=None):
+        self.cut_start.setValue(self.player.position() / 1000 if seconds is None else float(seconds))
+
+    def set_cut_end(self, seconds=None):
+        self.cut_end.setValue(self.player.position() / 1000 if seconds is None else float(seconds))
+
+    def add_cut(self, start=None, end=None):
+        start = self.cut_start.value() if start is None else float(start)
+        end = self.cut_end.value() if end is None else float(end)
+        if start < 0 or end <= start or (self.info.duration > 0 and end > self.info.duration + .1):
+            raise ValueError("Ungültiger Schnittbereich: Ende muss nach Beginn liegen.")
+        self.cuts.append((start, end))
+        self._refresh_cut_list()
+        return (start, end)
+
+    def _on_add_cut_clicked(self):
+        try:
+            self.add_cut()
+        except ValueError as exc:
+            self.status.setText(str(exc))
+
+    def remove_cut(self, index=None):
+        if index is None:
+            index = self.cut_list.currentRow()
+        if 0 <= index < len(self.cuts):
+            removed = self.cuts.pop(index)
+            self._refresh_cut_list()
+            return removed
+        return None
+
+    def _refresh_cut_list(self):
+        self.cut_list.clear()
+        for start, end in self.cuts:
+            self.cut_list.addItem(f"{start:.3f} s – {end:.3f} s")
+
+    def _on_crop_widget_changed(self, rect):
+        self._syncing_crop = True
+        try:
+            for widget, value in zip(self.crop, rect):
+                widget.setValue(value)
+            self.crop_enabled.setChecked(True)
+        finally:
+            self._syncing_crop = False
+
+    def _on_crop_spinbox_changed(self, *_):
+        if self._syncing_crop:
+            return
+        raw = tuple(w.value() for w in self.crop)
+        constrained = self.crop_widget.set_crop(raw, emit=False)
+        if constrained != raw:
+            self._syncing_crop = True
+            try:
+                for widget, value in zip(self.crop, constrained):
+                    widget.setValue(value)
+            finally:
+                self._syncing_crop = False
+
+    def _crop_video_frame(self, frame):
+        """Standbild beim Abspielen und beim Springen synchron halten."""
+        if frame.isValid():
+            self.crop_widget.set_frame(frame.toImage())
+
+    def update_crop_frame(self, seconds=None):
+        if seconds is None:
+            seconds = self.player.position() / 1000
+        try:
+            frame = extract_frame(self.path, max(0.0, min(max(0.0, self.info.duration - 0.05), float(seconds))))
+        except Exception:
+            frame = Image.new("RGB", (max(2, self.info.width), max(2, self.info.height)), "#2d2d2d")
+        self.crop_widget.set_frame(frame)
+        return frame
 
     def toggle_play(self):
         if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
@@ -218,16 +554,16 @@ class VideoEditor(QMainWindow):
             "GIF (*.gif);;Animiertes PNG (*.apng);;Animiertes WebP (*.webp);;HTML5-Webseite (*.html)")
         if not path:
             return
-        if path.lower().endswith(".html"):
-            quality = self.quality.currentData()
-            self.submit(lambda: export_html_page(self.path, path, quality))
-            return
         options = {"start": self.start.value(), "end": self.end.value(), "speed": self.speed.value(),
             "mute": self.mute.isChecked(), "volume": self.volume.value(), "width": self.width.value(),
             "crop": tuple(w.value() for w in self.crop) if self.crop_enabled.isChecked() else None,
             "size": self.size_box.currentData(), "resize_mode": self.resize_mode.currentData(),
-            "quality": self.quality.currentData(), "fps": self.fps.value(), "loops": self.animation_loops}
-        self.submit(lambda: edit_video(self.path, path, **options))
+            "quality": self.quality.currentData(), "fps": self.fps.value(), "loops": self.animation_loops,
+            "cuts": list(self.cuts)}
+        if path.lower().endswith(".html"):
+            self.submit(lambda: export_html_page(self.path, path, **options))
+        else:
+            self.submit(lambda: edit_video(self.path, path, **options))
 
     def merge(self):
         paths, _ = QFileDialog.getOpenFileNames(self, "Videos in Reihenfolge anhängen", "", "Videos (*.mp4 *.webm *.mov *.mkv *.avi)")

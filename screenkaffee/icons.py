@@ -299,7 +299,7 @@ def header_icon(name, color="#d0d0d0"):
     return QIcon(pix)
 
 
-def styled_thumbnail(pixmap, kind="image", width=164, height=104):
+def styled_thumbnail(pixmap, kind="image", width=164, height=104, favorite=False):
     """Thumbnail card with subtle shadow, white border, and media badge for videos/documents."""
     dpr = 2
     canvas = QPixmap(width * dpr, height * dpr)
@@ -338,5 +338,17 @@ def styled_thumbnail(pixmap, kind="image", width=164, height=104):
         p.drawRoundedRect(QRectF(cx - 16, cy - 20, 32, 40), 3, 3)
         for dy in (-6, 1, 8):
             p.drawLine(QPointF(cx - 9, cy + dy), QPointF(cx + 9, cy + dy))
+    if favorite:
+        sx, sy = x + sw - 12, y + 12
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(25, 25, 25, 210))
+        p.drawEllipse(QRectF(sx - 10, sy - 10, 20, 20))
+        p.setBrush(QColor("#f5b82e"))
+        star = []
+        for idx in range(10):
+            ang = math.radians(-90 + idx * 36)
+            r = 7.5 if idx % 2 == 0 else 3.2
+            star.append((sx + r * math.cos(ang), sy + r * math.sin(ang)))
+        p.drawPolygon(_poly(*star))
     p.end()
     return QIcon(canvas)

@@ -477,6 +477,8 @@ class MainWindow(QMainWindow):
             menu.addAction("Drucken …", self.print_selected)
             menu.addAction("E-Mail-Entwurf speichern …", self.mail_draft)
             menu.addSeparator()
+            all_fav = all(self.workspace.get(i)["favorite"] for i in ids)
+            menu.addAction("★ Favorit entfernen" if all_fav else "★ Als Favorit markieren", self.toggle_favorite_selected)
             menu.addAction("Umbenennen / Tags / Sammlung (F2)", self.edit_details)
             menu.addAction("Auto-Umbenennen (screenshot_1, …)", self.renumber_selected)
             menu.addAction("Neu komprimieren (verlustfrei)", self.recompress_selected)
@@ -1323,12 +1325,13 @@ class MainWindow(QMainWindow):
         rows = self.workspace.rows(self.search.text(), self.collection.currentText(), kind=self.type_filter.currentData(),
             sort=self.sort_order.currentData(), days=self.time_filter.currentData())
         for row in rows:
-            item = QListWidgetItem(row["title"])
+            fav = bool(row["favorite"])
+            item = QListWidgetItem(("★ " + row["title"]) if fav else row["title"])
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             item.setData(Qt.ItemDataRole.UserRole, row["id"])
             item.setToolTip(f"{row['title']}\n{row['width']} × {row['height']} px\n{row['tags']}".strip())
             pixmap = QPixmap(str(self.workspace.thumbnail_path(row["id"])))
-            item.setIcon(styled_thumbnail(pixmap, row["kind"], 172, 118))
+            item.setIcon(styled_thumbnail(pixmap, row["kind"], 172, 118, favorite=fav))
             self.list.addItem(item)
             item.setSelected(row["id"] in selected)
         self.count_label.setText(f"{len(rows)} Aufnahmen")
@@ -1890,29 +1893,31 @@ class MainWindow(QMainWindow):
         self.quick_view.show()
         self.quick_view.activateWindow()
 
-    def edit_details(self):
-        ident = self.require_one()
-        if not ident:
+    def toggle_favorite_selected(self):
+        ids = self.selected_ids()
+        if not ids:
             return
-        row = self.workspace.get(ident)
-        title, ok = QInputDialog.getText(self, "Titel", "Titel der Aufnahme", text=row["title"])
-        if not ok:
-            return
-        tags, ok = QInputDialog.getText(self, "Tags", "Suchbegriffe / Tags", text=row["tags"])
-        if not ok:
-            return
-        collection, ok = QInputDialog.getText(self, "Sammlung", "Sammlung", text=row["collection"])
-        if not ok:
-            return
-        from .batch import split_title_extension
-        title, extension = split_title_extension(title)
-        if extension and row["kind"] == "image":
-            answer = QMessageBox.question(self, "Endung erkannt", f"Zusätzlich eine Kopie als {extension[1:].upper()} speichern?")
-            if answer == QMessageBox.StandardButton.Yes:
-                self.export_copy(ident, title, extension)
-        self.workspace.update(ident, title or row["title"], tags, collection or "Alle Aufnahmen")
-        self.refresh_collections()
+        all_fav = all(self.workspace.get(i)["favorite"] for i in ids)
+        self.workspace.set_favorite(ids, not all_fav)
         self.refresh()
+        self.show_preview()
+
+    def edit_details(self):
+        ids = self.selected_ids()
+        if not ids:
+            self.statusBar().showMessage("Bitte zuerst eine Aufnahme auswählen.")
+            return None
+        from .workspace import details_dialog
+        def ask_copy(ident, title, extension):
+            if QMessageBox.question(self, "Endung erkannt", f"Zusätzlich eine Kopie als {extension[1:].upper()} speichern?") == QMessageBox.StandardButton.Yes:
+                self.export_copy(ident, title, extension)
+        dialog = details_dialog(self, self.workspace, ids, on_export_copy=ask_copy)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            dialog.apply()
+            self.refresh_collections()
+            self.refresh()
+            self.show_preview()
+        return dialog
 
     def show_media_properties(self):
         ident = self.require_one()

@@ -168,8 +168,45 @@ def _render(args, destination, inputs, timeout=3600):
         temporary.unlink(missing_ok=True)
 
 
+def kept_segments(start=0, end=None, cuts=None, duration=0):
+    """Verbleibende (Start, Ende)-Abschnitte in Sekunden nach dem Entfernen von `cuts` aus [start, end]."""
+    clip_end = float(end if end is not None else duration)
+    start = float(start)
+    if clip_end <= start:
+        raise ValueError("Ungültiger Endzeitpunkt.")
+    if not cuts:
+        return [(start, clip_end)]
+    clamped = []
+    for item in cuts:
+        if item is None or len(item) != 2:
+            raise ValueError("Ungültiger Schnittbereich.")
+        cs, ce = float(item[0]), float(item[1])
+        if not (math.isfinite(cs) and math.isfinite(ce)) or cs < 0 or ce <= cs or (duration > 0 and ce > duration + .1):
+            raise ValueError("Ungültiger Schnittbereich.")
+        cs, ce = max(start, cs), min(clip_end, ce)
+        if ce > cs:
+            clamped.append((cs, ce))
+    merged = []
+    for cs, ce in sorted(clamped):
+        if merged and cs <= merged[-1][1] + 1e-6:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], ce))
+        else:
+            merged.append((cs, ce))
+    segments = []
+    cursor = start
+    for cs, ce in merged:
+        if cs - cursor > 1e-3:
+            segments.append((cursor, cs))
+        cursor = max(cursor, ce)
+    if clip_end - cursor > 1e-3:
+        segments.append((cursor, clip_end))
+    if not segments:
+        raise ValueError("Die Schnitte entfernen das gesamte Video.")
+    return segments
+
+
 def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop=None, width=None, volume=1,
-               size=None, resize_mode="fitmax", quality="medium", fps=15, loops=0):
+               size=None, resize_mode="fitmax", quality="medium", fps=15, loops=0, cuts=None):
     info = probe_media(source)
     if not 1 <= int(fps) <= 60:
         raise ValueError("Bilder pro Sekunde müssen zwischen 1 und 60 liegen.")
@@ -182,10 +219,8 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
     if not math.isfinite(volume) or not 0 <= volume <= 4:
         raise ValueError("Lautstärke muss zwischen 0 und 4 liegen.")
     tempo = tempo_filters(speed)
-    args = ["-ss", f"{start:.6f}"]
-    if end is not None:
-        args += ["-t", f"{end - start:.6f}"]
-    args += ["-i", str(Path(source).resolve())]
+    cuts = list(cuts or [])
+    segments = kept_segments(start, end, cuts, info.duration) if cuts else None
     filters = []
     if crop is not None:
         x, y, w, h = map(int, crop)
@@ -209,6 +244,40 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
         filters.append(f"setpts=PTS/{speed:.8g}")
     filters.append("pad=ceil(iw/2)*2:ceil(ih/2)*2")
     suffix = Path(destination).suffix.lower()
+    if segments is not None:
+        args = ["-i", str(Path(source).resolve())]
+        graph = []
+        use_audio = info.has_audio and not mute and suffix not in ANIMATED_FORMATS
+        for i, (seg_start, seg_end) in enumerate(segments):
+            graph.append(f"[0:v:0]trim=start={seg_start:.6f}:end={seg_end:.6f},setpts=PTS-STARTPTS[v{i}]")
+            if use_audio:
+                graph.append(f"[0:a:0]atrim=start={seg_start:.6f}:end={seg_end:.6f},asetpts=PTS-STARTPTS[a{i}]")
+        if use_audio:
+            joined = "".join(f"[v{i}][a{i}]" for i in range(len(segments)))
+            graph.append(f"{joined}concat=n={len(segments)}:v=1:a=1[cv][ca]")
+        else:
+            joined = "".join(f"[v{i}]" for i in range(len(segments)))
+            graph.append(f"{joined}concat=n={len(segments)}:v=1:a=0[cv]")
+        if suffix == ".gif":
+            vchain = ",".join(filters + [f"fps={int(fps)}", "split[ga][gb];[ga]palettegen[gp];[gb][gp]paletteuse"])
+            graph.append(f"[cv]{vchain}[outv]")
+            args += ["-filter_complex", ";".join(graph), "-map", "[outv]", "-an", "-loop", str(int(loops))]
+        elif suffix in ANIMATED_FORMATS:
+            vchain = ",".join(filters + [f"fps={int(fps)}"])
+            graph.append(f"[cv]{vchain}[outv]")
+            args += ["-filter_complex", ";".join(graph), "-map", "[outv]", "-an"] + _codec_options(suffix, quality, loops)
+        else:
+            graph.append(f"[cv]{','.join(filters)}[outv]")
+            if use_audio:
+                graph.append(f"[ca]{tempo},volume={volume:.8g}[outa]")
+                args += ["-filter_complex", ";".join(graph), "-map", "[outv]", "-map", "[outa]"] + _codec_options(suffix, quality)
+            else:
+                args += ["-filter_complex", ";".join(graph), "-map", "[outv]", "-an"] + _codec_options(suffix, quality)
+        return _render(args, destination, [source])
+    args = ["-ss", f"{start:.6f}"]
+    if end is not None:
+        args += ["-t", f"{end - start:.6f}"]
+    args += ["-i", str(Path(source).resolve())]
     if suffix == ".gif":
         graph = ",".join(filters + [f"fps={int(fps)}", "split[a][b];[a]palettegen[p];[b][p]paletteuse"])
         args += ["-filter_complex", graph, "-an", "-loop", str(int(loops))]
@@ -224,7 +293,7 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
     return _render(args, destination, [source])
 
 
-def export_html_page(source, destination, quality="medium"):
+def export_html_page(source, destination, quality="medium", **edit_options):
     """HTML5 page that plays the video from a folder next to it ("<name>_dateien")."""
     import html
     import shutil
@@ -233,10 +302,10 @@ def export_html_page(source, destination, quality="medium"):
     folder = destination.with_name(destination.stem + "_dateien")
     folder.mkdir(parents=True, exist_ok=True)
     video = folder / (Path(source).stem + ".mp4")
-    if Path(source).suffix.lower() == ".mp4":
+    if Path(source).suffix.lower() == ".mp4" and not edit_options:
         shutil.copy2(source, video)
     else:
-        edit_video(source, video, quality=quality)
+        edit_video(source, video, quality=quality, **edit_options)
     info = probe_media(video)
     page = ("<!doctype html>\n<html lang=\"de\"><head><meta charset=\"utf-8\">"
             f"<title>{html.escape(Path(source).stem)}</title>"
