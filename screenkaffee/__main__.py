@@ -7,6 +7,18 @@ from pathlib import Path
 import sys
 
 
+def set_default_locale(lang=None):
+    """Zahlen- und Datumsformat der Qt-Eingabefelder passend zur Sprache (0,5 s bzw. 0.5 s)."""
+    from PySide6.QtCore import QLocale
+    from .i18n import language
+    if (lang or language()) == "en":
+        locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+    else:
+        locale = QLocale(QLocale.Language.German, QLocale.Country.Germany)
+    QLocale.setDefault(locale)
+    return locale
+
+
 def main():
     if "--apply-update" in sys.argv[1:]:          # neues Paket tauscht die alte Version aus (siehe updater.py)
         from .updater import run_helper
@@ -19,19 +31,20 @@ def main():
     code = dispatch(sys.argv[1:])
     if code is not None:
         return code
+    from .i18n import tr
     parser = argparse.ArgumentParser(description="screenkaffee — portable screenshot workspace",
-        epilog="Weitere Befehle: 'capture --screenshotregion --rect X;Y;W;H --filepath Datei' und 'videos --merge A B' (ohne Fenster).")
-    parser.add_argument("files", nargs="*", type=Path, help="Bilder, die im Editor geöffnet werden (Explorer: Öffnen mit)")
+        epilog=tr("Weitere Befehle: 'capture --screenshotregion --rect X;Y;W;H --filepath Datei' und 'videos --merge A B' (ohne Fenster)."))
+    parser.add_argument("files", nargs="*", type=Path, help=tr("Bilder, die im Editor geöffnet werden (Explorer: Öffnen mit)"))
     from .hotkeys import ACTIONS
-    parser.add_argument("--capture", choices=[action for action, _ in ACTIONS], help="Aufnahme oder Videoaktion auslösen (für Hyprland-Hotkeys)")
-    parser.add_argument("--data-dir", type=Path, help="Abweichender Datenordner")
-    parser.add_argument("--diagnose", action="store_true", help="Systemdaten anzeigen; keine Bilddaten speichern")
-    parser.add_argument("--minimized", action="store_true", help="Ohne Fenster im Infobereich starten (Autostart)")
-    parser.add_argument("--self-test", action="store_true", help="Portablen Start ohne Anzeige testen")
-    parser.add_argument("--speech-test", action="store_true", help="Mit --self-test: auch die Untertitel-Erweiterung laden und prüfen")
-    parser.add_argument("--newinstance", action="store_true", help="Neue Instanz starten und die laufende beenden")
-    parser.add_argument("--multiinstances", action="store_true", help="Weitere Instanz starten, ohne nach einer laufenden zu suchen (mit Vorsicht)")
-    parser.add_argument("--policies", nargs="?", const="", metavar="ORDNER", help="ADMX-, ADML- und REG-Vorlagen für Administratoren schreiben (Standard: Desktop)")
+    parser.add_argument("--capture", choices=[action for action, _ in ACTIONS], help=tr("Aufnahme oder Videoaktion auslösen (für Hyprland-Hotkeys)"))
+    parser.add_argument("--data-dir", type=Path, help=tr("Abweichender Datenordner"))
+    parser.add_argument("--diagnose", action="store_true", help=tr("Systemdaten anzeigen; keine Bilddaten speichern"))
+    parser.add_argument("--minimized", action="store_true", help=tr("Ohne Fenster im Infobereich starten (Autostart)"))
+    parser.add_argument("--self-test", action="store_true", help=tr("Portablen Start ohne Anzeige testen"))
+    parser.add_argument("--speech-test", action="store_true", help=tr("Mit --self-test: auch die Untertitel-Erweiterung laden und prüfen"))
+    parser.add_argument("--newinstance", action="store_true", help=tr("Neue Instanz starten und die laufende beenden"))
+    parser.add_argument("--multiinstances", action="store_true", help=tr("Weitere Instanz starten, ohne nach einer laufenden zu suchen (mit Vorsicht)"))
+    parser.add_argument("--policies", nargs="?", const="", metavar=tr("ORDNER"), help=tr("ADMX-, ADML- und REG-Vorlagen für Administratoren schreiben (Standard: Desktop)"))
     args = parser.parse_args()
     if args.policies is not None:
         from .policy import write_policy_templates
@@ -48,6 +61,7 @@ def main():
     from PySide6.QtNetwork import QLocalSocket, QLocalServer
     from .workspace import Workspace, portable_root
     from .app import MainWindow, STYLE, app_icon
+    set_default_locale()
     app = QApplication(sys.argv[:1])
     app.setApplicationName("screenkaffee")
     app.setOrganizationName("screenkaffee")
@@ -99,7 +113,7 @@ def main():
         from PySide6.QtPrintSupport import QPrinter
         player, video = QMediaPlayer(), QVideoWidget()
         player.setVideoOutput(video)
-        assert player.isAvailable(), "Qt-Multimedia-Backend fehlt"
+        assert player.isAvailable(), "Qt-Multimedia-Backend fehlt"  # i18n: ignore (Selbsttest beim Paketbau)
         assert QMediaDevices is not None and QLocalServer is not None and QPrinter is not None
         formats = {bytes(name).decode() for name in QImageReader.supportedImageFormats()}
         assert {"png", "jpg", "svg"} <= formats, formats
@@ -118,7 +132,7 @@ def main():
         if args.speech_test:
             from .subtitles import self_test_speech
             self_test_speech()
-            (portable_root() / "self-test-speech-ok.txt").write_text("Untertitel-Erweiterung OK\n", encoding="utf-8")
+            (portable_root() / "self-test-speech-ok.txt").write_text("Untertitel-Erweiterung OK\n", encoding="utf-8")  # i18n: ignore
         workspace.close()
         (portable_root() / "self-test-ok.txt").write_text("Portable runtime, Qt, Pillow and editor OK\n", encoding="utf-8")
         return 0
@@ -142,8 +156,9 @@ def main():
     server = QLocalServer()
     QLocalServer.removeServer(server_name)
     if not server.listen(server_name):
-        raise RuntimeError("Lokaler Steuerkanal konnte nicht geöffnet werden.")
+        raise RuntimeError(tr("Lokaler Steuerkanal konnte nicht geöffnet werden."))
     window = MainWindow(workspace)
+    window.control_server = server          # beim Neustart (Sprachwechsel) vor dem Start der neuen Instanz schließen
     clients = []
     def new_connection():
         while server.hasPendingConnections():

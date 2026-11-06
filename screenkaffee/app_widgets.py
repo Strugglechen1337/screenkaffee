@@ -23,9 +23,14 @@ from .hotkeys import DEFAULT_HOTKEYS, ACTIONS
 from .integrations import tool, omarchy_capture, VideoRecorder, android_capture, AndroidRecorder
 
 
+from .i18n import N_
+
 MEDIA_MIME = "application/x-screenkaffee-ids"
-COLLECTION_ICONS = {"document": "Dokument", "camera": "Kamera", "edit": "Stift", "copy": "Kopie", "export": "Export",
-                    "scan": "Rahmen", "video": "Video", "more": "Mehr"}
+COLLECTION_ICONS = {"document": N_("Dokument"), "camera": N_("Kamera"), "edit": N_("Stift"), "copy": N_("Kopie"),
+                    "export": N_("Export"), "scan": N_("Rahmen"), "video": N_("Video"), "more": N_("Mehr")}
+# Sammlungsliste und -auswahl zeigen übersetzte Namen; der echte Name steht als Schlüssel in einer eigenen Rolle.
+COLLECTION_KEY = Qt.ItemDataRole.UserRole + 1         # Auswahlfeld: Sammlungsname
+COLLECTION_KIND = Qt.ItemDataRole.UserRole + 2        # Seitenleiste: "collection", "trash" oder "new"
 
 
 LOG = logging.getLogger(__name__)
@@ -46,18 +51,18 @@ class CollectionList(QListWidget):
 
     def dragMoveEvent(self, event):
         item = self.itemAt(event.position().toPoint())
-        if event.mimeData().hasFormat(MEDIA_MIME) and item is not None and not item.text().startswith("+"):
+        if event.mimeData().hasFormat(MEDIA_MIME) and item is not None and item.data(COLLECTION_KIND) == "collection":
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
         item = self.itemAt(event.position().toPoint())
-        if item is None or item.text().startswith("+") or not event.mimeData().hasFormat(MEDIA_MIME):
+        if item is None or item.data(COLLECTION_KIND) != "collection" or not event.mimeData().hasFormat(MEDIA_MIME):
             event.ignore()
             return
         ids = bytes(event.mimeData().data(MEDIA_MIME)).decode().split(",")
-        self.mediaDropped.emit([i for i in ids if i], item.text())
+        self.mediaDropped.emit([i for i in ids if i], item.data(Qt.ItemDataRole.UserRole))
         event.acceptProposedAction()
 
 

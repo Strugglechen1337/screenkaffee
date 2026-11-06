@@ -10,13 +10,14 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from .hotkeys import display_hotkey
+from .i18n import tr
 
 MARGIN = 8          # Abstand des hellen Rahmens um die Schaltfläche
 GAP = 14            # Abstand zwischen Rahmen und Sprechblase
 
 
 def key(settings, action, fallback=""):
-    """Die eingestellte Taste für eine Aktion als deutscher Text, z. B. 'Strg+Alt+D'."""
+    """Die eingestellte Taste für eine Aktion in der Sprache der Oberfläche, z. B. 'Strg+Alt+D'."""
     value = (settings.get("hotkeys") or {}).get(action) or fallback
     return display_hotkey(value) if value else ""
 
@@ -25,41 +26,41 @@ def steps(settings):
     """Die Tour-Schritte: (Schlüssel, Ziel-Attribut am Hauptfenster oder None, Titel, Text)."""
     region = key(settings, "region")
     draw = key(settings, "draw")
-    region_hint = f"Noch schneller: Taste <b>{region}</b> – auch wenn screenkaffee nur im Tray läuft." if region else \
-        "In den Einstellungen kannst du dafür eine Taste festlegen."
-    draw_hint = f"<b>{draw}</b> schaltet es ein und aus." if draw else "Du findest es unter „Mehr → Aufnehmen“."
+    region_hint = tr("Noch schneller: Taste <b>{key}</b> – auch wenn screenkaffee nur im Tray läuft.", key=region) if region else \
+        tr("In den Einstellungen kannst du dafür eine Taste festlegen.")
+    draw_hint = tr("<b>{key}</b> schaltet es ein und aus.", key=draw) if draw else tr("Du findest es unter „Mehr → Aufnehmen“.")
     return [
-        ("welcome", None, "Willkommen bei screenkaffee ☕",
-         "In einer Minute zeige ich dir die besten Funktionen. Mit den Pfeiltasten blätterst du, "
-         "<b>Esc</b> beendet die Tour. Du findest sie jederzeit wieder unter „Mehr → Hilfe und Updates“."),
-        ("capture", "capture_button", "Aufnehmen",
-         "Bereich aufziehen, Fenster anklicken oder den ganzen Bildschirm nehmen. Beim Aufziehen rastet "
-         "die Auswahl an Fenstern ein, die Lupe hilft pixelgenau. " + region_hint),
-        ("palette", None, "Alles mit Strg+K finden",
-         "Du weißt nicht, wo eine Funktion steckt? <b>Strg+K</b> öffnet die Befehlssuche – ein paar "
-         "Buchstaben tippen, Eingabe drücken, fertig."),
-        ("compare", "list", "Screenshots vergleichen",
-         "Zwei Aufnahmen mit <b>Strg+Klick</b> markieren, Rechtsklick → <b>„Vergleichen (vorher ↔ nachher)“</b>. "
-         "Ein Schieberegler blendet zwischen beiden über, jede Änderung wird rot markiert – ideal, um "
-         "zu sehen, was sich an einer Seite oder einem Programm verändert hat."),
-        ("editor", "edit_button", "Bearbeiten wie ein Profi",
-         "Doppelklick auf eine Aufnahme öffnet den Editor: Pfeile, Text, Schrittnummern, Weichzeichnen, "
-         "Lineal und fertige Vorlagen. Alles bleibt später änderbar."),
-        ("beautify", "share_button", "Schicker Screenshot & aufs Handy",
-         "Unter <b>Teilen</b> bekommt dein Bild mit einem Klick Hintergrund, Rahmen und Schatten. "
-         "„Aufs Handy senden“ zeigt einen QR-Code – das Handy lädt das Bild direkt über dein WLAN, ohne Cloud."),
-        ("video", "video_button", "Videos mit Zoom und Tastendrücken",
-         "Bildschirmvideos mit Ton, Webcam, Klick-Kreisen und eingeblendeten Tastenkürzeln. Über den Pfeil "
-         "daneben gibt es auch Zeitraffer und Android-Video."),
-        ("steps", "more_button", "Anleitungen von selbst",
-         "<b>Mehr → Aufnehmen → Schritt-Anleitung</b>: Klick dich einfach durch ein Programm. Bei jedem Klick "
-         "entsteht ein Bild mit markierter Klickstelle – am Ende wird daraus ein fertiges Dokument."),
-        ("livedraw", None, "Live auf den Bildschirm zeichnen",
-         "Perfekt für Präsentationen und Bildschirmvideos: direkt über allen Fenstern zeichnen. " + draw_hint +
-         " Im selben Menü steckt auch das <b>Lineal</b> zum Ausmessen."),
-        ("version", "version_button", "Immer aktuell",
-         "Hier unten steht deine Version. Ein Klick sucht nach Updates – mit Fortschrittsbalken, und ohne "
-         "dass deine Aufnahmen angefasst werden. Viel Spaß mit screenkaffee!"),
+        ("welcome", None, tr("Willkommen bei screenkaffee ☕"),
+         tr("In einer Minute zeige ich dir die besten Funktionen. Mit den Pfeiltasten blätterst du, "
+            "<b>Esc</b> beendet die Tour. Du findest sie jederzeit wieder unter „Mehr → Hilfe und Updates“.")),
+        ("capture", "capture_button", tr("Aufnehmen"),
+         tr("Bereich aufziehen, Fenster anklicken oder den ganzen Bildschirm nehmen. Beim Aufziehen rastet "
+            "die Auswahl an Fenstern ein, die Lupe hilft pixelgenau. {hint}", hint=region_hint)),
+        ("palette", None, tr("Alles mit Strg+K finden"),
+         tr("Du weißt nicht, wo eine Funktion steckt? <b>Strg+K</b> öffnet die Befehlssuche – ein paar "
+            "Buchstaben tippen, Eingabe drücken, fertig.")),
+        ("compare", "list", tr("Screenshots vergleichen"),
+         tr("Zwei Aufnahmen mit <b>Strg+Klick</b> markieren, Rechtsklick → <b>„Vergleichen (vorher ↔ nachher)“</b>. "
+            "Ein Schieberegler blendet zwischen beiden über, jede Änderung wird rot markiert – ideal, um "
+            "zu sehen, was sich an einer Seite oder einem Programm verändert hat.")),
+        ("editor", "edit_button", tr("Bearbeiten wie ein Profi"),
+         tr("Doppelklick auf eine Aufnahme öffnet den Editor: Pfeile, Text, Schrittnummern, Weichzeichnen, "
+            "Lineal und fertige Vorlagen. Alles bleibt später änderbar.")),
+        ("beautify", "share_button", tr("Schicker Screenshot & aufs Handy"),
+         tr("Unter <b>Teilen</b> bekommt dein Bild mit einem Klick Hintergrund, Rahmen und Schatten. "
+            "„Aufs Handy senden“ zeigt einen QR-Code – das Handy lädt das Bild direkt über dein WLAN, ohne Cloud.")),
+        ("video", "video_button", tr("Videos mit Zoom und Tastendrücken"),
+         tr("Bildschirmvideos mit Ton, Webcam, Klick-Kreisen und eingeblendeten Tastenkürzeln. Über den Pfeil "
+            "daneben gibt es auch Zeitraffer und Android-Video.")),
+        ("steps", "more_button", tr("Anleitungen von selbst"),
+         tr("<b>Mehr → Aufnehmen → Schritt-Anleitung</b>: Klick dich einfach durch ein Programm. Bei jedem Klick "
+            "entsteht ein Bild mit markierter Klickstelle – am Ende wird daraus ein fertiges Dokument.")),
+        ("livedraw", None, tr("Live auf den Bildschirm zeichnen"),
+         tr("Perfekt für Präsentationen und Bildschirmvideos: direkt über allen Fenstern zeichnen. {hint}"
+            " Im selben Menü steckt auch das <b>Lineal</b> zum Ausmessen.", hint=draw_hint)),
+        ("version", "version_button", tr("Immer aktuell"),
+         tr("Hier unten steht deine Version. Ein Klick sucht nach Updates – mit Fortschrittsbalken, und ohne "
+            "dass deine Aufnahmen angefasst werden. Viel Spaß mit screenkaffee!")),
     ]
 
 
@@ -129,15 +130,15 @@ class TourOverlay(QWidget):
         self.text.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(self.text)
         buttons = QHBoxLayout()
-        self.skip_button = QPushButton("Tour beenden")
+        self.skip_button = QPushButton(tr("Tour beenden"))
         self.skip_button.setObjectName("tourSkip")
         self.skip_button.clicked.connect(lambda: self.end(False))
         buttons.addWidget(self.skip_button)
         buttons.addStretch(1)
-        self.back_button = QPushButton("Zurück")
+        self.back_button = QPushButton(tr("Zurück"))
         self.back_button.clicked.connect(self.back)
         buttons.addWidget(self.back_button)
-        self.next_button = QPushButton("Weiter")
+        self.next_button = QPushButton(tr("Weiter"))
         self.next_button.setObjectName("tourNext")
         self.next_button.clicked.connect(self.forward)
         buttons.addWidget(self.next_button)
@@ -167,11 +168,11 @@ class TourOverlay(QWidget):
         self.index = max(0, min(index, len(self.tour_steps) - 1))
         _, _, title, text = self.tour_steps[self.index]
         last = self.index == len(self.tour_steps) - 1
-        self.counter.setText(f"Schritt {self.index + 1} von {len(self.tour_steps)}")
+        self.counter.setText(tr("Schritt {number} von {total}", number=self.index + 1, total=len(self.tour_steps)))
         self.title.setText(title)
         self.text.setText(text)
         self.back_button.setVisible(self.index > 0)
-        self.next_button.setText("Los geht’s!" if last else "Weiter")
+        self.next_button.setText(tr("Los geht’s!") if last else tr("Weiter"))
         self.skip_button.setVisible(not last)
         self.place_bubble()
         self.update()
