@@ -10,7 +10,7 @@ mit korrekten (SDR-)Farben; Start ohne Installation. Sprache der UI/Doku: Deutsc
 - Vom Nutzer ausgeschlossen (nicht bauen): Cloud-Sharing, KI-Editor, weitere UI-Sprachen (nur Deutsch), Übersetzung von erkanntem Text, Schaltfläche „Text erkennen“ und „Sensible Daten erkennen“ (entfernt 28.10.2026).
 - Single Source of Truth für den Stand: `screenkaffee/parity.py` (`FEATURES`). Ein Eintrag wird
   nur `implemented`, wenn Code UND Test existieren. Nie schönreden; `FEATURES.md` stimmt dazu.
-- Tests: `.\.venv\Scripts\python.exe -m pytest -q` (aktuell 465 grün, 4 X11-Opt-in + test_ocr ohne tesserocr übersprungen). Neue Funktion = neuer Test.
+- Tests: `.\.venv\Scripts\python.exe -m pytest -q` (aktuell 488 grün, 4 X11-Opt-in + test_ocr ohne tesserocr übersprungen). Neue Funktion = neuer Test.
 - Dateien UTF-8 schreiben (Windows-Konsole zeigt Umlaute teils kaputt, Dateien sind ok).
 - Keine automatischen Uploads, keine Telemetrie. Alles lokal. Netzfunktionen gibt es nur zwei: den Updater (`updater.py`, standardmäßig aus, nur lesend gegen die öffentlichen GitHub-Releases, ohne Token) und „Aufs Handy senden“ (`lanshare.py`, lokaler Server nur im WLAN, nur auf Klick, endet beim Schließen).
 - Auf Windows nicht Python systemweit installieren; `.venv` im Projekt nutzen.
@@ -70,7 +70,7 @@ Mehrmonitor/gemischte DPI, Omarchy-Start, grim-HDR-Tonemapping, Mikrofon-/Loopba
 
 Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture.cli`, `video.formats`, `video.toolbar`, `workspace.quickview`, `workspace.batch`, `workspace.manage`, `editor.open`, `editor.helpers`, `export.formats`, `documents.templates` und `settings.advanced` stehen in `parity.py` als `implemented`. Ebenfalls ergänzt und getestet: interaktive Zuschneide-Griffe (8 Kanten-/Eckpunkte + Ziehen ab Bildrand + Live-Maßbadge + `Umschalt`-Quadrat) samt automatischer Vorschaubild-Aktualisierung im Arbeitsbereich beim Projektspeichern, interaktives Maus-Werkzeug für „Ausschneiden“ (waagerechte/senkrechte Bildstreifen direkt mit der Maus entfernen), Schnellschalter in der oberen Werkzeugleiste (`Schatten`, `Füllung`, `Linienart`, `Pfeilspitze`), Live-Vorschau in allen Effekt-/Rahmen-/Leinwand-/Ausschneidedialogen, Fadenkreuz-Pixel-Lupe mit Koordinatenanzeige im Aufnahme-Overlay, Schlagschatten an allen Zeichenobjekten, Dokument-Generator-Einstellungen (`Template.docx`, Seitenumbruch, Bild-vor-Text, Dateiname als Titel, GIF-Anzeigedauer, `Entf`-Taste), Shift-Ziehen/Import von `.screenkaffee.json`-Projektbündeln, Live-Mauszeiger-Umschaltung mit `M` im Aufnahmemodus, Aufnahmekontext (`{window}`, `{app}`, `{url}`), `LiveZoomPreview`, optionaler Löschabgleich in `sync_workspace`, schnelle WGC-Aufnahme (~0,2 s statt ~1,2 s) ohne gelben Rahmen (`is_border_required = False` + 16-Bit-scRGB-Lookup-Tabelle + Vorwärmen beim Start), High-DPI-Schärfe (1:1 physische Pixel im Editor/Overlay/QuickView + SmoothTransformation + 2× Retina-Vorschaubilder) sowie `scripts/package_windows_arm64.py` für native Windows-ARM64-Geräte. Nichts davon wurde an echter Hardware von Hand bedient.
 
-> **Neuester Stand: 06.11.2026, v1.1.0 (Editor-Ebenen/Ausrichten/Auto-Trim, Video-Schnitte, Favoriten/Suche, CLI-Richtlinien)** – siehe die Abschnitte „Stand 05.11.2026“, „Release machen“ und „Updater-Pflegeregeln“ weiter unten. Die folgenden Übergaben sind Verlauf.
+> **Neuester Stand: 06.11.2026, v1.1.1 (Papierkorb-Ansicht, 14 Review-Funde behoben)** – siehe die Abschnitte „Stand 05.11.2026“, „Release machen“ und „Updater-Pflegeregeln“ weiter unten. Die folgenden Übergaben sind Verlauf.
 
 ## Übergabe vom 29.10.2026 (Verlauf, erledigt)
 - **Bereits im Code umgesetzt & getestet (268 Tests grün):**
@@ -208,12 +208,23 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - Nur automatisch/offscreen geprüft; keine Handabnahme der neuen Bedienung.
 - **v1.1.0 ist als GitHub-Release (Latest) veröffentlicht** (465 Tests grün). SHA256: x64 `7b51afce9e9acf90eebabe224e583e4d5ca5f62c041a280a80633d8b0e3ce3e3` (117 MB), ARM64 `84f53829eeae6a08f3bb60de653d784ea37bfef2464b8505cbbb5a244cd0bf8d` (104 MB), Linux `77dc79591e6d6927b8190816333f2afa0387cbc6cc860157e649c425f2db35a0` (211 MB), Untertitel x64 `84942187aba3109e0d5fac03d12fc8d8561916326933e615d6547e05de5c0ad1`, Untertitel Linux `b8fd04c3dc44162c22bbcd42119f7cfaef92e48455f8597312a11959eb49a59f`.
 
+## Stand 06.11.2026 (1.1.1: Code-Reviews und Papierkorb – Claude koordiniert)
+- Zwei Nur-Lese-Reviews per Orca (claude Opus 5.5: 1.1.0-Diff; codex: Kernpfade), alle Funde mit Prüfskripten belegt und behoben, je ein Regressionstest (`tests/test_trash_sync_safety.py`, `tests/test_review_fixes.py`).
+- **Papierkorb-Ansicht:** eigener Eintrag „Papierkorb (N)“ mit Symbol (`icons`) in der Sammlungsleiste; Raster zeigt gelöschte Aufnahmen; Wiederherstellen (mehrfach), Endgültig löschen, Papierkorb leeren mit Rückfrage; normale Aktionen dort deaktiviert.
+- **Workspace.remove** transaktional mit Rückrollen; `empty_trash` löscht nie Dateien bestehender DB-Einträge.
+- **workspace_sync:** Export in neue Mediengenerationen + atomarer Manifest-Wechsel (Feld `media`), Wiederanlauf nach Abbruch; Import übernimmt den kompletten Dateisatz (entfernte Begleitdateien werden gesichert entfernt); `favorite` wird importiert (Digest unverändert). **Ältere Versionen verstehen das neue Manifest nicht** – alle Teilnehmer aktualisieren.
+- **lanshare:** eigener Server mit Anfrage-Zeitlimit, max. 16 Verbindungen, `stop()` trennt alle Clients (unter Windows weckt `shutdown()` blockiertes `recv` nicht – daher select-Schleife mit closing-Flag).
+- **timelapse:** `render` bricht ab, wenn der Aufnahmethread nach dem Join noch lebt; Einzelbilder bleiben.
+- **Video-Editor:** Zuschnitt-Spinboxen ohne keyboardTracking (Begrenzen erst nach Bestätigung), `kept_segments(min_length=1 Bild)`, Rückfall bei Quellen mit Startversatz (MPEG-TS). **Editor:** `GroupMoveCommand` für Mehrfachziehen, Menü-Leck in „Markierungen anordnen“ behoben. **Miniaturen:** Cache an aktuellen Arbeitsbereich gebunden, Platzhalter bei fehlender Datei, mehrere Cache-Treffer je Takt (8-ms-Budget). **CLI:** Ursprungsfehler wird nicht durch `stop()`-Fehler verdeckt.
+- Nur automatisch/offscreen geprüft; Handy-Freigabe nicht mit echtem Handy.
+- **v1.1.1 ist als GitHub-Release (Latest) veröffentlicht** (488 Tests grün). SHA256: x64 `860b4574a8550c8515e0bc54fb6734ff6e28d17835d49d504249e1e4b5be4c31` (117 MB), ARM64 `82dabeab2489579f2b31611736c5f8fe00f1873d7155e1d0ca6a3e8a735ca9f3` (104 MB), Linux `2ac3f28f56f8c8c776a63b8a1d116d855eb151e9a203641b4c752e3fa4ac44d6` (211 MB), Untertitel x64 `8134af2d477b7364dd198e898d57873fcae319befc0fdf05a48e23b0507a6d26`, Untertitel Linux `e3bc81ddba502452461ccc277ba3dae2da617dfba85e8d6714defd0a2560c7d4`.
+
 ## Funktions-Poster (README)
 - `docs/screenkaffee-features.png` steht oben in der README; Quelle ist `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
   `msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1.5 --window-size=1600,1500 --screenshot=<Ziel>.png file:///<Pfad>/docs/poster.html` (Höhe an den Inhalt anpassen), danach mit Pillow `optimize=True` speichern.
 
 ## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)
-Aktueller Stand: **v1.1.0** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
+Aktueller Stand: **v1.1.1** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
 1. Version an **drei** Stellen erhöhen: `pyproject.toml`, `screenkaffee/__init__.py` (`__version__`), `README.md` (Zeile 5). Der Updater vergleicht `__version__` numerisch mit dem Tag; ein Tag, der nicht größer ist, wird nicht angeboten.
 2. Tests: `QT_QPA_PLATFORM=offscreen` + `python -m pytest -q` (alle grün).
 3. Bauen und prüfen: `python scripts/release.py --tag vX.Y.Z` (Tests, drei Pakete, `verify_release.py`). Alle Werte in `dist/verification.json` müssen `true` sein (außer den `*_tested`-Hardwarefeldern). Bei laufender App Windows mit `--app-folder screenkaffee-update` separat bauen.
