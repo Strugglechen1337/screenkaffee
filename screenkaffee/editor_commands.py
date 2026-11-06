@@ -48,6 +48,22 @@ class DeleteCommand(QUndoCommand):
             self.view.scene().addItem(item)
 
 
+class ZOrderCommand(QUndoCommand):
+    """Neue Stapelreihenfolge der Markierungen (zValue 1..n, unten nach oben)."""
+    def __init__(self, view, ordered, text="Ebenenreihenfolge ändern"):
+        super().__init__(text)
+        self.before = [(item, item.zValue()) for item in view.annotations()]
+        self.after = [(item, float(index + 1)) for index, item in enumerate(ordered)]
+
+    def redo(self):
+        for item, z in self.after:
+            item.setZValue(z)
+
+    def undo(self):
+        for item, z in self.before:
+            item.setZValue(z)
+
+
 class CropCommand(QUndoCommand):
     def __init__(self, view, after):
         super().__init__("Zuschneiden")
