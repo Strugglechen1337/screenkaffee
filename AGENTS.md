@@ -1,0 +1,222 @@
+# AGENTS.md – Übergabe für Codex / andere Coding-Agenten
+
+Projekt **screenkaffee**: portable Screenshot-/Video-App (Windows + Linux/Omarchy), eigenständig
+entwickelt. Das Repository ist **öffentlich**: keine Tokens, Zugangsdaten, persönlichen Daten,
+fremden Handbücher/Programmdateien und keine Namen fremder Produkte in Code, Doku oder Commits.
+Nutzerziel: vollständige Screenshot-/Video-Werkzeuge; Screenshots auf HDR-Desktops als normale PNGs
+mit korrekten (SDR-)Farben; Start ohne Installation. Sprache der UI/Doku: Deutsch.
+
+## Arbeitsregeln
+- Vom Nutzer ausgeschlossen (nicht bauen): Cloud-Sharing, KI-Editor, weitere UI-Sprachen (nur Deutsch), Übersetzung von erkanntem Text, Schaltfläche „Text erkennen“ und „Sensible Daten erkennen“ (entfernt 28.10.2026).
+- Single Source of Truth für den Stand: `screenkaffee/parity.py` (`FEATURES`). Ein Eintrag wird
+  nur `implemented`, wenn Code UND Test existieren. Nie schönreden; `FEATURES.md` stimmt dazu.
+- Tests: `.\.venv\Scripts\python.exe -m pytest -q` (aktuell 400 grün, 4 X11-Opt-in übersprungen). Neue Funktion = neuer Test.
+- Dateien UTF-8 schreiben (Windows-Konsole zeigt Umlaute teils kaputt, Dateien sind ok).
+- Keine automatischen Uploads, keine Telemetrie. Alles lokal. Netzfunktionen gibt es nur zwei: den Updater (`updater.py`, standardmäßig aus, nur lesend gegen die öffentlichen GitHub-Releases, ohne Token) und „Aufs Handy senden“ (`lanshare.py`, lokaler Server nur im WLAN, nur auf Klick, endet beim Schließen).
+- Auf Windows nicht Python systemweit installieren; `.venv` im Projekt nutzen.
+
+## Struktur
+- `screenkaffee/app.py` Workspace-GUI (`MainWindow`), Menüs, Aufnahme-Auslöser, Einstellungen; `app_widgets.py` Listen-Widgets, `STYLE`, Worker (von `app.py` re-exportiert). `MainWindow` (~2100 Zeilen) ist weiter zu groß und der nächste Umbaukandidat – nur mit Handabnahme auf Windows anfassen.
+- `capture.py`, `windows_capture.py` (WGC/FP16 scRGB), `linux_capture.py` (grim/slurp/Portal), `color.py` (HDR→sRGB)
+- `editor.py` (Ansicht + Fenster), `editor_items.py` (Annotation, Geometrie, Move-/DataCommand), `editor_commands.py` (übrige Undo-Befehle) – `editor.py` re-exportiert alles, bestehende Importe bleiben gültig; `effects.py`, `richtext.py` Editor + Effekte + gemischte Textformatierung (Spans); Projekte als JSON neben dem Original
+- `autostart.py` Autostart beim Anmelden (Einstellungen → Checkbox; `--minimized` startet im Tray)
+- `batch.py` Stapelexport, Neu komprimieren, Auto-Umbenennen, Export als PDF/DOCX; `quickview.py` Schnellansicht
+- `capture_options.py` Titelmuster, Standardformat, Zwischenablage-Modus, Auto-Effekte; `cli.py` `capture`/`videos`-Befehle ohne Fenster
+- `videoextras.py` feste Aufnahmebereiche, Klickring, grüner Zoom-Rahmen; `regionadjust.py` Aufnahmebereich mit Griffen; `overlay.py` Aufnahmemodus mit Zoom, H und M
+- `policy.py` policy.json und Registry-Richtlinien, ADMX-Vorlagen; JPEG XL über `pillow-jxl-plugin` (in `color.py` registriert, im Paket per `--collect-all`)
+- `media.py`, `media_editor.py`, `audio.py`, `webcam.py`, `subtitles.py`, `ocr.py`
+- `documents.py`, `document_designer.py`, `printing.py`, `workspace.py` (SQLite), `integrations.py` (adb, ffmpeg, Sharing)
+- `scripts/` Paketbau (`package_windows.py`, `package_windows_arm64.py`, `package_linux.py`, `verify_release.py`), Modell-/Lizenz-Downloads
+- `.tools/`, `models/`, `build/`, `dist/` sind generiert/groß und git-ignoriert.
+
+## Bekannte Altlasten
+- Neue Projekte verwenden `.screenkaffee.json`; Alt-Projekte mit `.prism.json` bleiben kompatibel. Alte generierte PrismCapture-Pakete und Spec-Dateien sind veraltet.
+- `.tools/linux-build` und `build/` enthalten temporäre Ordner; vom Nutzer aufräumen lassen.
+- Git ist eingerichtet (siehe Git-Regel unten). Der Arbeitsordner liegt derzeit in OneDrive; `.venv` wurde dort am 28.10.2026 mit Python 3.12 (winget, Benutzerinstallation) neu angelegt, weil die alte von einem anderen Rechner stammte.
+- Tests brauchen `ffprobe` im PATH oder in `.tools`; ohne schlägt `test_subtitle_embedding_creates_a_real_mp4_track` fehl. Auf diesem Rechner ist ffmpeg per winget (Gyan.FFmpeg, Benutzerinstallation) vorhanden, dann alle 271 grün. Tests dürfen weder echte globale Hotkeys registrieren (`apply_hotkeys` patchen, sonst Absturz) noch den echten Autostart ändern. Unter Windows `QT_QPA_PLATFORM=offscreen` setzen.
+- Design-Prüfung ohne Display: Fenster mit `QT_QPA_PLATFORM=offscreen` und `QT_QPA_FONTDIR=C:\Windows\Fonts` per `widget.grab().save(...)` rendern (ohne Schriftordner erscheint Text als Kästchen); vorher `app.setStyle("Fusion")` und `app.setStyleSheet(STYLE)` aus `app.py` setzen. Design 29.10.2026: Arbeitsbereich und Editor kompakt gestaltet (kompakte Kopfleiste mit F10-Sammlungs-Umschalter, volle Breite für das Miniatur-Raster mit weißen Rahmen, Schlagschatten und Medien-Badges, untere Aktionsleiste mit linksbündigen farbigen Rundschaltflächen und rechtsbündigem „Schließen“; im Editor grüne Schaltfläche „Kopieren & Schließen“, eigene Symbole für Leinwand/Rahmen/Drehen/Vor/Zurück/100 %, runde Werkzeugknöpfe links, Bildgröße permanent links in der Statusleiste).
+
+## Nicht verifiziert (braucht echte Hardware)
+Mehrmonitor/gemischte DPI, Omarchy-Start, grim-HDR-Tonemapping, Mikrofon-/Loopback-Aufnahme, Drucker. (Windows-HDR am echten Display abgenommen am 02.11.2026.)
+
+## Offene Funktionen laut parity.py (alles außer `implemented`)
+
+| ID | Stand | Offen |
+| --- | --- | --- |
+| capture.region | partial | Pixelgenaue Feinauswahl mit Umschalt, Pfeiltasten und Enter getestet; gemischte DPI auf echter Hardware offen. |
+| capture.window | partial | Linux-Fensterauswahl und Kindfenster |
+| capture.monitor | partial | Mehrmonitorabnahme und Gesamtdesktop |
+| capture.magnifier | partial | Wayland-Lupe |
+| capture.scroll.auto | partial | Feste Leisten und horizontales Zusammenfügen getestet; native Zielprogramme und horizontale Hyprland-Steuerung abnehmen. |
+| capture.hdr | partial | Windows-HDR auf echter Hardware abgenommen (02.11.2026); Omarchy-HDR-Abnahme offen |
+| editor.effects | partial | Ausschneiden (inkl. Lücke/Risskante), Automatische Leinwandgröße (`auto_canvas`), Befehlsleiste, Leinwand-/Rahmen-Schaltflächen und Vor-/Zurück-Bild getestet; Live-Ansicht zeigt Drehung, Spiegeln, Graustufen/Helligkeit/Kontrast und Rahmen (01.11.2026); Schatten/Spiegelung/Außenrand/Größe/Wasserzeichen im Fenster „Ausgabe-Vorschau (live)“ (Menü „Weitere Bildaktionen“, `EditorWindow.preview_output`, nicht-modal, aktualisiert sich); visuelle Einzeleffekte gegen Referenz prüfen |
+| editor.ai | excluded | Vom Nutzer ausgeschlossen (27.10.2026) |
+| ocr.translation | excluded | Vom Nutzer ausgeschlossen (28.10.2026) |
+| ocr.text | excluded | Vom Nutzer entfernt (28.10.2026): Schaltfläche „Text erkennen“ entfernt, da die Erkennung im Test nicht funktionierte. Auch die OCR-Spracheinstellung ist entfernt. ocr.py/integrations.ocr bleiben als ungenutzter Code (Tesseract/Modelle weiter im Paket). Ursache des Fehlers ungeklärt. |
+| ocr.sensitive | excluded | Vom Nutzer entfernt (28.10.2026): Editor-Menüpunkt „Sensible Daten erkennen“ entfernt, da er auf der Texterkennung beruht. Mustererkennung in ocr.py (`is_sensitive`) bleibt getestet, aber ungenutzt. Manuelles Schwärzen bleibt. |
+| workspace.collections | partial | Ordnerbasierte Arbeitsbereiche, F10-Sammlungsleiste und manueller lokaler Austausch vorhanden; gleichzeitiger Zugriff mehrerer Rechner offen. |
+| workspace.sync | partial | Manueller lokaler Ordnerabgleich mit Hashprüfung, Versionssicherung, Konfliktkopien und optionalem Löschabgleich (`propagate_deletions`) getestet; Echtzeit-Hintergrundabgleich offen. |
+| video.audio | partial | Loopback, Mischung, Gerätewahl und Synchronität |
+| video.webcam | partial | Kamerawahl, Kreis/Rechteck, Größe, Position und Spiegelung vorhanden; Rendering ohne Kamera getestet, Einbrennen am echten Gerät offen. |
+| video.zoom | partial | Ausgabe-Zoom, Mausfokus, Pause-Zeitachse, Tonerhalt, grüner Live-Rahmen und `LiveZoomPreview` getestet; Hardware-Abnahme offen. |
+| android.image | partial | adb mitliefern und echtes Gerät prüfen |
+| android.video | partial | adb screenrecord Start/Stopp/Pull mit Fake-adb-Test; echtes Gerät und Vorschau prüfen |
+| share.cloud | excluded | Vom Nutzer ausgeschlossen (27.10.2026) |
+| settings.shortcuts | partial | Alle Aufnahme-, Scrollserien- und Videoaktionen konfigurierbar; Linux-Steuerung per CLI vorhanden. Native Omarchy-Belegung und weitere Sonderaktionen offen. |
+| settings.portable | partial | Windows-Paket samt Medienbibliotheken und Modellen; Linux-Paket wird mit denselben Funktionen gebaut. Echte Omarchy-Ausführung offen. |
+| settings.policies | partial | policy.json und Registry (HKCU/HKLM `Software\screenkaffee\Policies`) sperren Funktionen/Einstellungen; `--policies` schreibt ADMX/ADML/REG (XML getestet); Import in die Gruppenrichtlinien-Verwaltung ungeprüft |
+| settings.languages | excluded | Vom Nutzer ausgeschlossen: Deutsch reicht |
+| capture.browser_extension | missing | Browser-Erweiterung (Ganzseitenaufnahme läuft über lokales Chrome/Edge) |
+
+Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture.cli`, `video.formats`, `video.toolbar`, `workspace.quickview`, `workspace.batch`, `workspace.manage`, `editor.open`, `editor.helpers`, `export.formats`, `documents.templates` und `settings.advanced` stehen in `parity.py` als `implemented`. Ebenfalls ergänzt und getestet: interaktive Zuschneide-Griffe (8 Kanten-/Eckpunkte + Ziehen ab Bildrand + Live-Maßbadge + `Umschalt`-Quadrat) samt automatischer Vorschaubild-Aktualisierung im Arbeitsbereich beim Projektspeichern, interaktives Maus-Werkzeug für „Ausschneiden“ (waagerechte/senkrechte Bildstreifen direkt mit der Maus entfernen), Schnellschalter in der oberen Werkzeugleiste (`Schatten`, `Füllung`, `Linienart`, `Pfeilspitze`), Live-Vorschau in allen Effekt-/Rahmen-/Leinwand-/Ausschneidedialogen, Fadenkreuz-Pixel-Lupe mit Koordinatenanzeige im Aufnahme-Overlay, Schlagschatten an allen Zeichenobjekten, Dokument-Generator-Einstellungen (`Template.docx`, Seitenumbruch, Bild-vor-Text, Dateiname als Titel, GIF-Anzeigedauer, `Entf`-Taste), Shift-Ziehen/Import von `.screenkaffee.json`-Projektbündeln, Live-Mauszeiger-Umschaltung mit `M` im Aufnahmemodus, Aufnahmekontext (`{window}`, `{app}`, `{url}`), `LiveZoomPreview`, optionaler Löschabgleich in `sync_workspace`, schnelle WGC-Aufnahme (~0,2 s statt ~1,2 s) ohne gelben Rahmen (`is_border_required = False` + 16-Bit-scRGB-Lookup-Tabelle + Vorwärmen beim Start), High-DPI-Schärfe (1:1 physische Pixel im Editor/Overlay/QuickView + SmoothTransformation + 2× Retina-Vorschaubilder) sowie `scripts/package_windows_arm64.py` für native Windows-ARM64-Geräte. Nichts davon wurde an echter Hardware von Hand bedient.
+
+> **Neuester Stand: 06.11.2026, v0.10.0 (Schritt-Anleitung, Befehlssuche, Live-Zeichnen, Lineal, Vorlagen, Aufräumen)** – siehe die Abschnitte „Stand 05.11.2026“, „Release machen“ und „Updater-Pflegeregeln“ weiter unten. Die folgenden Übergaben sind Verlauf.
+
+## Übergabe vom 29.10.2026 (Verlauf, erledigt)
+- **Bereits im Code umgesetzt & getestet (268 Tests grün):**
+  1. **High-DPI-Schärfe gegen pixelige Schrift:** Auf 150-%-DPI-Bildschirmen (`dpr = 1.5`) wurden Screenshots im Editor (`EditorView`), im `SelectionOverlay`, in der `QuickView` und in den Arbeitsbereich-Miniaturen (`styled_thumbnail`) zuvor mit Nearest-Neighbor (`FastTransformation`) auf 150 % gestreckt. Jetzt: `self.base.setTransformationMode(SmoothTransformation)`, 1:1 physische Pixel bei 100 % Zoom (`1.0 / dpr`), 1:1 physisches Rendering im `SelectionOverlay` und `QuickView`, 2× HiDPI-Vorschaubilder in `styled_thumbnail`.
+  2. **Windows-ARM64-Paketbau (`scripts/package_windows_arm64.py`):** Baut ein natives `dist/screenkaffee-Windows-arm64.zip` mit offizieller CPython-3.12.10-`win_arm64`-Runtime, nativen `win_arm64`-Wheels (`PySide6`, `Pillow`, `numpy`, `winrt-*`, `pypdfium2`, `zxing-cpp`, `onnxruntime`, `pillow-jxl-plugin`) und nativem ARM64-GUI-Starter (`w64-arm.exe` -> `screenkaffee.exe`). **Stand 29.10.2026:** Gebaut und als Asset in `v0.4.0` (313 MB) hochgeladen; Runtime, Starter, Qt und JPEG-XL-Modul sind nachweislich ARM64 (PE-Header geprüft), auf einem ARM64-Gerät aber **nicht gestartet**. Für `imageio-ffmpeg` gibt es kein `win_arm64`-Wheel: Das Skript installiert dessen `win_amd64`-Wheel zusätzlich, der x64-`ffmpeg.exe` läuft unter Windows 11 auf ARM per Emulation (ungetestet). Es fehlen im ARM64-Paket `PyAudioWPatch` (keine Tonaufnahme), `faster-whisper`/`av` (keine Untertitel-Transkription) und `tesserocr`.
+- **Damals nächster Schritt (erledigt, überholt durch v0.6.x/v0.7.0 – nicht mehr ausführen):**
+  1. Pakete mit den neuesten High-DPI-Fixes und dem neuen ARM64-Skript bauen:
+     - `.\.venv\Scripts\python.exe scripts\package_windows.py` (vorher ggf. laufende `screenkaffee.exe` beenden)
+     - `.\.venv\Scripts\python.exe scripts\package_windows_arm64.py`
+     - `.\.venv\Scripts\python.exe scripts\package_linux.py`
+     - `.\.venv\Scripts\python.exe scripts\verify_release.py`
+  2. Alle drei Archive (`dist\screenkaffee-Windows-x64.zip`, `dist\screenkaffee-Windows-arm64.zip`, `dist\screenkaffee-Linux-x86_64.tar.gz` + `dist\verification.json`) mit `gh release upload v0.4.0 ... --clobber` zum GitHub-Release `v0.4.0` hochladen.
+
+## Stand 01.11.2026 (Cloud-Session, Linux)
+- Fix: Links-/Rechts-Drehen wirkte nur beim Kopieren/Export, nicht in der Editor-Ansicht. Jetzt Live-Vorschau per Ansichts-Transformation (`EditorView.apply_view_transform`, `fit_to_crop`, `refresh_effects_preview` in `editor.py`) für Drehung, Spiegeln, Graustufen/Helligkeit/Kontrast (`effects.adjust_colors`) und Rahmen (`drawForeground`). `render_image` setzt dafür das Basisbild kurz auf das unveränderte Original, damit Effekte nicht doppelt angewendet werden. Neue Tests in `tests/test_editor_alt.py`.
+- Aufräumen 01.11.2026: `test_crop` läuft jetzt bei 100 % Zoom (keine Rundung mehr), `test_ocr` wird ohne Arial/Modelle übersprungen; GitHub-Action `.github/workflows/tests.yml` führt die Tests bei jedem Push aus. Version überall 0.4.0, `LICENSE` auf „screenkaffee contributors“. Stille `except Exception: pass`-Stellen in `app.py`, `editor.py`, `integrations.py`, `capture_options.py`, `windows_capture.py` schreiben jetzt ins Log. Cloud: 271 Tests, 270 grün + 1 übersprungen.
+## Stand 02.11.2026 (Windows-Session: Drei-Plattform-Release v0.6.0 + Merge release/linux-v0.5.1 + Editor-/Overlay-Bugfixes)
+- **Windows-HDR am echten Display vom Nutzer erfolgreich abgenommen (02.11.2026).**
+- Branch `origin/release/linux-v0.5.1` (`9346608`, `894957f`) nach `main` gemerged:
+  - `screenkaffee/linux_audio_guard.py` (Qt 6.12 PipeWire-Segfault-Schutz mit PulseAudio-Fallback vor dem Öffnen von `VideoEditor`) + `tests/test_linux_audio_guard.py`
+  - X11/Qt-Fallback in `capture_region()` (`screenkaffee/capture.py`) + `tests/test_x11_region_integration.py`
+  - Kantenweises Pixel-Snapping beim Crop-Ziehen (`round()` statt `toAlignedRect()` in `EditorView.mouseReleaseEvent`) + Test in `tests/test_crop.py`
+  - Mitgelieferte Test-Schriftart `tests/fixtures/DejaVuSans.ttf` (+ Lizenz) für `tests/test_ocr.py`
+- Weitere Fixes (02.11.2026):
+  1. Einzelmonitor-Fastpath in `capture_monitors(..., target=...)`: Bei Bereichs-, Fenster- oder Einzelmonitoraufnahme sowie in `capture_region()` (4-Tupel-Bounding-Box-Schnittprüfung) wird gezielt nur der betroffene Monitor per WGC abgegriffen.
+  2. Fenster-Einrasten (`overlay.windows`) ist jetzt auch im normalen Bereichsmodus (`capture("region")`) aktiv (inkl. Hyprland-Fensterliste über `hyprctl clients -j` in `hyprland_window_rectangles`).
+  3. Multi-Monitor-DPI: `update_zoom_frame` und `adjust_video_region` ermitteln den Skalierungsfaktor (`devicePixelRatio`) des tatsächlichen Zielmonitors (`MainWindow.screen_for_region`) statt immer `primaryScreen()`.
+  4. Sauberes `M`-Toggle im Aufnahme-Overlay: WGC nimmt im interaktiven Overlay-Modus ohne Hardware-Cursor auf (`hw_cursor=False`), `MainWindow` sichert die Mausposition beim Aufnahmestart (`_capture_cursor_pos`) und `SelectionOverlay` merkt sich `cursor_pos`, sodass `M` den Zeiger auch nach Mausbewegung im Overlay rückstandslos an der ursprünglichen Aufnahmeposition ein- und ausschaltet.
+  5. `CutOutCommand` (`screenkaffee/editor_commands.py`): Verschiebt Markierungen unterhalb/rechts des Schnitts jetzt um die tatsächliche Bildschrumpfung (`view.source.height - image.height` bzw. `width`) statt pauschal `end - start` (korrekt auch bei `gap > 0`).
+  6. Gedrehte Editor-Ansicht (`EditorView.mousePressEvent`): Neu gesetzte Text-, Sprechblasen- und Schrittnummer-Markierungen erhalten bei gedrehter Ansicht (`effects["rotation"] != 0`) automatisch `"rotation": -view_rot`, damit sie in der gedrehten Ansicht und im Export aufrecht stehen.
+  7. Live-Ausgabevorschau (`EditorWindow.preview_output`): Öffnet sich nicht mehr ungefragt nach jedem Rahmen-/Leinwand-/Effektdialog, aktualisiert sich aber weiterhin automatisch live, sobald sie geöffnet ist.
+  8. `Annotation.paint` (`screenkaffee/editor_items.py`): Cache für `blur`- und `pixelate`-Filterung (`_effect_cache_key` / `_effect_cache_qimage`), damit Unschärfe-Rechtecke nicht bei jedem `paintEvent` neu über PIL gefiltert werden.
+  9. JPEG XL (`*.jxl`) in allen Dateidialogen von `EditorWindow` (`export`, `open_image_file`, `insert_image`, `replace_image`) ergänzt.
+  10. Zuverlässiger `Escape`-Abbruch bei der Screenshot-Erstellung (`SelectionOverlay`, `RegionAdjuster`, `MainWindow.cancel_capture`): `StrongFocus` + `ApplicationShortcut`, unter Windows aktive Fokus-Übernahme (`AttachThreadInput` + `SetForegroundWindow` + `grabKeyboard`), temporärer `VK_ESCAPE`-Hotkey (`RegisterHotKey` + `GetAsyncKeyState`-Polling), Abbruch auch während des Ziehens (`start = None`) sowie während des Verzögerungs-Countdowns und laufender Scrollaufnahmen.
+- `pillow-jxl-plugin` (JPEG XL) im Linux-Build-Skript (`scripts/package_linux.py`) ergänzt, Lizenzbündelung (`DEPENDENCIES.txt` + Paketlizenzen) und `Start-mit-bisherigen-Aufnahmen.cmd` im ARM64-Build-Skript (`scripts/package_windows_arm64.py`) vervollständigt und `scripts/verify_release.py` auf alle drei Archive (`x64`, `arm64`, `linux`) inkl. PE-Header-Prüfung (`0x8664` / `0xAA64`) erweitert.
+- **Gebaute & zu GitHub Release `v0.6.0` hochgeladene Archive (ohne ungenutzte OCR-Daten):**
+  - `dist/screenkaffee-Windows-x64.zip` (330 MB, SHA256 `dc9609287c98c13f8e2ed14530f3703553e5ea708cdda53685b97110460e6159`)
+  - `dist/screenkaffee-Windows-arm64.zip` (318 MB, SHA256 `656f29f9b3cb5e1deb857e74a6f7069ad32db49e107d5040dc06bd6f65ec4fa2`)
+  - `dist/screenkaffee-Linux-x86_64.tar.gz` (528 MB, SHA256 `f1ee9bbe56d3507cde9752402abc91eaa61548b5889663713d92f359924693b4`)
+  - `dist/verification.json`
+
+## Stand 05.11.2026 (Review-Feinschliff, Claude)
+- Tastenkürzel: Konfliktmeldungen nennen die Aktion und deutsche Tastennamen (`hotkeys.display_hotkey`, `action_label`); beim Start Tray-Hinweis + 30-s-Statuszeile mit Verweis auf Einstellungen (`MainWindow.report_hotkey_problems`). `WindowsHotkeys.close` ist beim Programmende robust.
+- Export-Dialoge (Arbeitsbereich und Editor, auch „Projekt speichern“) schlagen den Aufnahmetitel als Dateinamen vor (`batch.safe_name`, `EditorWindow.suggested_name`).
+- Monitorauswahl zeigt „Monitor 1 · 2560×1440 (Hauptbildschirm)“ (`app.monitor_label`, physische Pixel) statt Gerätenamen; Verzögerungsfeld beschriftet.
+- Editor-Befehlsleiste entschlackt: „Rechts/Links drehen“ → eine Schaltfläche „Drehen“ mit Menü (`rotate_menu`); Vor/Nächstes Bild, Einpassen, 100 % als kleine Knöpfe neben dem Zoomregler in der Statusleiste (`view_actions`, Bild auf/ab bleiben als Kürzel). Reihenfolge der ersten Befehle unverändert.
+- `tesserocr` aus `requirements.txt` entfernt (Texterkennung ist entfernt; `ocr.py` bleibt ruhender Code, `test_ocr` überspringt ohne tesserocr). ARM64-Paketbau nutzt `distlib` statt `pip._vendor.distlib`. `scripts/preview_ui.py` registriert keine echten globalen Tastenkürzel mehr.
+- Tests in einer uv-Umgebung (Python 3.12.13) gelaufen: 300 grün, 4 übersprungen. Neue Tests: `tests/test_review_polish.py`. Danach als **v0.6.1** gebaut (`scripts/release.py --tag v0.6.1`, alle Prüfungen in `verification.json` grün; ARM64/Linux nicht ausgeführt) und als GitHub-Release `v0.6.1` hochgeladen:
+  - `screenkaffee-Windows-x64.zip` (338 MB, SHA256 `10936f24ed64bb40580b00b268397d15a4890929ef94587f95b31df210a39da3`)
+  - `screenkaffee-Windows-arm64.zip` (318 MB, SHA256 `8898c377cfb40b5658b372dea8231430cdfad532b183eceeda9d155c2e5c06a9`)
+  - `screenkaffee-Linux-x86_64.tar.gz` (528 MB, SHA256 `c282c84a75542e3b47c6bdd26dee743dfba546423805947bf6b026bc85f0bf32`)
+
+## Stand 05.11.2026 (Selbst-Update, Claude) – v0.7.0
+- Neues Modul `screenkaffee/updater.py` + `tests/test_updater.py` (16 Tests, GitHub per Fake-Opener). Menü „Mehr → Nach Updates suchen …“, Einstellungen → Updates: `update_mode` = `off` (Standard) / `ask` / `auto`, optional `update_repo`; Richtlinie `NoUpdate` (Feature `update`).
+- Ablauf: `latest_release` → passendes Asset je `installed_variant()` (x64: `_internal` + exe, ARM64: `runtime/pythonw.exe` + exe, Linux: `runtime/bin` + Startskript; Quellcode-Version → Hinweis auf `git pull`) → Download nach `<App>/_update`, SHA256 aus dem GitHub-Asset-Digest oder `verification.json` (ohne Prüfsumme kein Update) → entpacken (Pfadprüfung, tar mit `filter="data"`) → beim Beenden startet `MainWindow.launch_pending_update` das **neue** Programm mit `--apply-update <App> --wait-pid N` (früh in `__main__.main` abgefangen). Es wartet auf das Ende der alten Instanz, verschiebt alte Top-Level-Einträge nach `_update/old` (außer `data`, `_update`), kopiert die neuen hinein, legt bei Fehlern alles zurück, schreibt `done.json` bzw. `update-error.log` und startet neu. Erster Start: `startup_update` → `finish_previous` zeigt „Neu in screenkaffee X“ (Release-Notizen als Markdown) und löscht `_update`.
+- Damals privates Repo mit Token; seit 0.10.1 entfernt (öffentliches Repo).
+- Release-Notizen werden dem Nutzer nach dem Update angezeigt: beim Release immer deutsche Notizen schreiben.
+- Echter Austausch mit dem gebauten x64-Paket geprüft (Helfer tauscht in ~7 s, Neustart, Fenster „Neu in screenkaffee 0.7.0“, `_update` aufgeräumt, `data` unberührt). v0.6.1 und älter haben keinen Updater (einmal von Hand ersetzen). ARM64- und Linux-Austausch nur per Test geprüft.
+- **v0.7.0** gebaut (`scripts/release.py --tag v0.7.0`, alle Prüfungen grün) und als GitHub-Release hochgeladen: x64 `e9e0a4ae21b1bed73e659c1a769edce177a63140305c32203ad3497e1902cfb6`, ARM64 `256486863eaaa75f7bdcd7892c8fa722c62d73fedf13ef27a488485bc8c3f58f`, Linux `3620995e4ca2956b133fbf1cf1937b2b0631588cc06f4229dde0d04d8a8607be`.
+
+## Stand 05.11.2026 (0.7.1: kleinere Pakete, vorige Version, Anheften, Einrichtung, Fehlerbericht – Claude)
+- **Kleinere Pakete:** `scripts/package_prune.py` (genutzt von allen drei Paket-Skripten, Tests `tests/test_package_prune.py`). Behält nur die Qt-Module, die die App importiert (`QT_MODULES`), plus nötige native Bausteine (`QT_NATIVE`; unter Linux zusätzlich Quick/Qml, weil das FFmpeg-Multimedia-Plugin sie verlinkt). Wirft QML, Übersetzungen, Werkzeuge (designer, qmlls …), `opengl32sw.dll`, `.pyi`, onnxruntime/hf_xet/flatbuffers/protobuf raus. Danach Abhängigkeitsprüfung (PE-Importe per `pefile`, ELF-DT_NEEDED selbst geparst): Plugins mit fehlender Qt-Bibliothek fliegen raus, fehlt einer Kernbibliothek etwas → Build bricht ab. Neue genutzte Qt-Module **in `QT_MODULES` eintragen**, sonst fehlen sie im Paket. `--self-test` lädt jetzt QtMultimedia (Backend verfügbar), QVideoWidget, QPrinter, QLocalServer und prüft PNG/JPG/SVG-Bildformate.
+- **Vorige Version:** Nach einem Update verschiebt `finish_previous` `_update/old` nach `_previous/` (+ `_previous.json` mit der Version, geschrieben von `prepare` als `previous.json`). „Mehr → Vorige Version wiederherstellen …“ (`MainWindow.restore_previous_version`, `updater.prepare_restore`) startet das Programm aus `_previous` mit `--apply-update` – gleicher Mechanismus wie beim Update, danach ist die ersetzte Version wieder `_previous`. Schaltet `update_mode` auf `off`. Abschaltbar: `update_keep_previous`.
+- **Anheften:** `screenkaffee/pin.py` (`PinnedImage`, `pin()`), Kontextmenü im Arbeitsbereich und Editor → „Weitere Bildaktionen“.
+- **Einrichtung beim ersten Start:** `MainWindow.first_run_setup` (Flag `setup_done`, erscheint nicht unter `QT_QPA_PLATFORM=offscreen`), auch über „Mehr → Einrichtung …“. Linux zeigt die `hyprland.conf`-Zeile (`capture_command`).
+- **Fehlerbericht:** `screenkaffee/crash.py` (`crash_report`, `show_crash_dialog`), eingehängt in `sys.excepthook` in `__main__.py`.
+- Tests: `tests/test_pin_setup_crash.py`; insgesamt 361 grün.
+- Paketgrößen 0.7.1 (vorher 0.7.0): x64 304 MB (338), ARM64 237 MB (318), Linux 432 MB (528). Größter Rest: lokale Untertitel-Erkennung (Whisper-Modell + ctranslate2 + PyAV, ca. 350 MB entpackt). Am echten x64-Paket geprüft: Update echte 0.7.0 → 0.7.1 (0.7.0 landet in `_previous`, „Neu in screenkaffee 0.7.1“), danach Wiederherstellen → 0.7.0, `data` unberührt. Eine von 0.7.0 aus angelegte `_previous` hat noch keine Versionsnummer; `previous_version` liest sie dann aus `_previous/source/screenkaffee/__init__.py`.
+- **v0.7.1 ist als GitHub-Release (Latest) veröffentlicht** (Tag auf `22a5c9c`); der Updater von 0.7.0 aus findet es. SHA256: x64 `893007808ea60476b37af32d62acd0d9fb912eba7628f9b02ac425d33a5524c1`, ARM64 `c310fb273e42091980dd8828ecd4e93f77b2f9201516d3e4773e1b6774a8f85a`, Linux `ac5de0e9e0dad50d675d611ad7fc11d8f7caebc9ec6d220ce55eb35d50dc2d36`.
+
+## Stand 05.11.2026 (0.8.0: Vergleichen, aufs Handy senden, Zeitraffer – Claude)
+- **Vergleichen:** `screenkaffee/compare.py` (`difference`, `changed_regions`, `highlight`, `CompareWindow`, `compare()`); `MainWindow.compare_selected` (Kontextmenü bei genau 2 Auswahlen und „Mehr“). Ältere Aufnahme links. Unterschiede je Pixel mit Toleranz (Standard 24 pro Kanal), in 16-px-Zellen zu Bereichen zusammengefasst. Feature `workspace.compare`.
+- **Aufs Handy senden:** `screenkaffee/lanshare.py` (`Share`, `share_dialog`, `qr_image` per zxing-cpp `create_barcode`, `local_addresses`). `ThreadingHTTPServer` nur auf der gewählten privaten IPv4-Adresse, Pfad `/<secrets.token_urlsafe(12)>/`, alles andere 404, Ende beim Schließen oder nach 15 min. Bilder werden gerendert (mit Markierungen) nach `data/phone-share/<uuid>/` gelegt und beim Schließen gelöscht, Videos direkt ausgeliefert. Richtlinie `NoLanShare` (Feature `lan_share`). Das ist neben dem Updater die zweite Netzfunktion – nur lokal, nur auf Klick. Am echten Rechner über die echte WLAN-Adresse abgerufen; echtes Handy und Firewall-Abfrage nicht geprüft. Feature `share.phone`.
+- **Zeitraffer:** `screenkaffee/timelapse.py` (`Timelapse`: Hintergrund-Thread, JPEG-Einzelbilder in `data/videos/timelapse-*/`, gleiche gerade Größe, nach 5 Fehlern Schluss; `render` → MP4 per `media._render`, danach Einzelbilder gelöscht). `MainWindow.configure_timelapse` / `begin_timelapse` / `check_timelapse` / `stop_timelapse`; Aktion `timelapse` in `hotkeys.ACTIONS` (Taste + `--capture timelapse`), Tray „Zeitraffer stoppen“. Bereichswahl nutzt den normalen Overlay-Ablauf mit `capture_kind == "timelapse"` (auch Omarchy/slurp). Beenden/Update wartet auf den Zeitraffer. Feature `video.timelapse`.
+- `--self-test` prüft zusätzlich QR-Erzeugung und Vergleich. Tests: `tests/test_compare_share_timelapse.py`; insgesamt 380 grün.
+- **v0.8.0 ist als GitHub-Release (Latest) veröffentlicht.** SHA256: x64 `a0f86e249674db51f5049b543b1a454e03fa577247fb3464ff568218aecd8155` (304 MB), ARM64 `3b688e0215ad6a4cc1ab7626a3d72c3c5044e90ebfe10009db9b29277670787c` (237 MB), Linux `a1eb20b9152df320e00a042c1fe0a81fc2d6327da8cd6ea5951a65e6ecc8cdd3` (432 MB).
+
+## Stand 05.11.2026 (0.9.0: Schicker Screenshot, Tastendrücke, Untertitel-Erweiterung – Claude)
+- **Schicker Screenshot:** `screenkaffee/beautify.py` (`beautify`, `Options`, `STYLES`/`FRAMES`/`ASPECTS`, `beautify_dialog` mit verkleinerter Live-Vorschau). `MainWindow.beautify_selected`, `EditorWindow.beautify_current` (Editor bekommt `beautify_settings = MainWindow.settings`). Gemerkt wird `settings["beautify"]` ohne Titel. Feature `editor.beautify`.
+- **Tastendrücke im Video:** `videoextras.KeyTracker` (reine Logik, Modus `combos`/`all`), `KeystrokeOverlay` (durchklickbar wie `ClickEffect`, `GetAsyncKeyState`-Abfrage alle 30 ms). Videodialog-Option, `MainWindow.start_keystroke_overlay` rechnet die Region in logische Koordinaten um, `end_recording_extras` stoppt. Nur Windows. Feature `video.keystrokes` (partial: echte Aufnahme offen).
+- **Untertitel-Erweiterung:** `scripts/package_addons.py` trennt beim Paketbau `av`, `av.libs`, `ctranslate2(.libs)`, `tokenizers(.libs)`, `faster_whisper` (nur Linux; unter x64 liegt der Python-Teil im PYZ) und `models/whisper-base` heraus → `dist/screenkaffee-Untertitel-Windows-x64.zip` bzw. `-Linux-x86_64.zip` (Inhalt `addon.json` + `screenkaffee/<Pfad im App-Ordner>`). Hauptpaket bekommt `addons.json` (`{"speech": {asset, fingerprint, bytes, files}}`, ARM64: `{}`). App: `screenkaffee/addons.py` – `install_speech` lädt über `updater.release_by_tag("v" + __version__)` (SHA256-Digest), prüft den Fingerabdruck, legt nach `data/addons/speech-<fp[:12]>/` und verlinkt (Hardlink, sonst Kopie) in den App-Ordner; Marker `speech-addon.json`. `ensure_speech` verlinkt nach Updates neu, solange der Fingerabdruck passt. `VideoEditor.prepare_speech` = `MainWindow.prepare_speech` (fragt vor dem Download). `verify_release.py` verlinkt die Erweiterung ins entpackte x64-Paket und führt `--self-test --speech-test` aus (echte Whisper-Erkennung im gepackten Programm). **Jedes Release muss die beiden Untertitel-Archive mit hochladen**, sonst findet die App ihre Erweiterung nicht (`scripts/release.py` `ARCHIVES`).
+- **0.9.1 (Fix):** In 0.9.0 scheiterte das Einrichten der Erweiterung, wenn der Pfad im Datenordner länger als 260 Zeichen wurde (z. B. App tief in OneDrive): Windows-Pfadgrenze, `LongPathsEnabled` ist meist aus. Jetzt kurzer Ordner `data/addons/speech-<12 Zeichen>` (`addons.cache_dir`, Fingerabdruck steht in dessen `addon.json`) und alle Dateioperationen mit `\?\`-Präfix (`addons.long_path`); unvollständiges Entpacken wird erkannt. Gefunden durch einen echten Download aus dem Release in ein entpacktes Paket; Regressionstest `test_speech_addon_survives_paths_longer_than_260_characters`. Echte Ende-zu-Ende-Prüfung: Download aus dem Release in 10 s, danach `screenkaffee.exe --self-test --speech-test` grün.
+- **v0.9.1 ist als GitHub-Release (Latest) veröffentlicht** (v0.9.0 ebenfalls, aber mit dem Pfadfehler). Paketgrößen: x64 109 MB (0.8.0: 304), ARM64 104 MB (237), Linux 211 MB (432); Erweiterung x64 187 MB, Linux 220 MB. SHA256: x64 `8d774bff22662bcc6dfcc8358b2d27f9a44ddb8fbe71ebe076a8f610e20a8652`, ARM64 `317c86eef2d95624bc152cbf4da7d9054d125b4760eb11c3e511882925054ad8`, Linux `84d8e2483b7d5d8b5675dc99c1a46ddbd0e5419a7fbcdb27dacb04bafae812a8`, Untertitel x64 `5147af044b601740184dfc80c8c1681729872dd4b51791956504dbc192f209a4`, Untertitel Linux `a74ff47ba7430d16a761ca6e4b881ec13574fa0c0a7cd0f139df29ba160e1d92`. Nach dem Veröffentlichen echt geprüft: entpacktes x64-Paket lädt die Erweiterung aus dem Release (14 s), `--self-test --speech-test` grün.
+- Build-Umgebung: die Temp-venv aus früheren Sessions war von der Windows-Speicheroptimierung beschädigt; ab jetzt die Projekt-`.venv` nutzen (`distlib` nachinstalliert).
+
+## Stand 06.11.2026 (0.9.2: UI-Aufräumen – Claude)
+- „Mehr“-Menü in sechs Untermenüs gegliedert (Aufnehmen, Video, Auswahl bearbeiten, Teilen und ausgeben, Sammlungen und Daten, Hilfe und Updates) + „Auswahl entfernen …“. Gemeinsame Inhalte über `MainWindow.fill_video_menu` / `fill_share_menu`; `timelapse_action` und `android_video_action` sind jetzt `QAction`s, die in mehreren Menüs hängen.
+- Video-Knopf heißt „● Video“ und hat ein Aufklappmenü `video_more_button` (Zeitraffer, Android-Video, Pause/Zoom, Importieren/Zusammenfügen). Neuer runder Knopf „Teilen“ (Symbol `share` in `icons._glyph`) zwischen Exportieren und Dokument.
+- Editor-Werkzeuge in sechs Gruppen mit Trennlinien (`toolSeparator`); Knöpfe 30 statt 32 px, damit die Leiste nicht höher wird (sonst wächst das Editorfenster, `test_crop` reagiert darauf).
+- Tests: `tests/test_menu_layout.py`; insgesamt 400 grün.
+- **v0.9.2** gebaut (`scripts/release.py --tag v0.9.2`, 400 Tests grün, alle Prüfungen außer Hardwarefeldern `true`) und als Latest veröffentlicht: x64 `fdc10517a5ac65f8bfdd5d4406444204943d10080ff1b008268f90f07548b082`, ARM64 `4cf4a0307b0f23990572ae2c7306415e5b9b15e662dba8aef688cd803a4a9fb6`, Linux `7ad0e750128cfc4b686ae504633d2034db6fb3a5283d873c30429f07bccaa882`, Untertitel x64 `1980d2af3ca7f0c650c7f625306afb35f82e1a7c665d27759f5bdf4ea8f3f185`, Untertitel Linux `d6d417f858cb82f018e2f301eee28cbf47c86e1bdbd5d2f44bd5a8cfb3e516f6`.
+
+## Build-Ordner auf D: (ab 06.11.2026, wichtig)
+- `build/`, `dist/` und `.tools/` sind **Junctions** nach `D:\screenkaffee-build\{build,dist,tools}`, weil C: voll war. Skripte nutzen weiter die alten Pfade. Details: `BUILD-ORDNER-AUF-D.txt`. Keine großen Build-/Temp-Ordner direkt im Projekt (OneDrive auf C:) anlegen.
+
+## Stand 06.11.2026 (0.10.0: sechs neue Funktionen – Claude)
+- **Schritt-Anleitung:** `screenkaffee/steps.py` – `StepRecorder.feed` (reine Logik, Doppelklick-Sperre `MIN_GAP`, max. 200), `mark_click` (PIL), `StepSession` (Qt-Timer 30 ms, `grab_under_cursor` per `QScreen.grabWindow` für Tempo statt WGC, Klicks auf eigene Fenster via `QApplication.widgetAt` ignoriert), Steuerleiste mit `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`. `MainWindow.toggle_step_guide` / `step_guide_finished` legt Sammlung „Anleitung …“ an und öffnet `DocumentDesigner`. Nur Windows. Hotkey-Aktion `steps`.
+- **Befehlssuche:** `screenkaffee/palette.py` (`collect` läuft rekursiv über `MainWindow.more_menu`, `fold`/`score`/`search`, `CommandPalette`). `MainWindow.command_entries` ergänzt Grundbefehle; Strg+K und „Hilfe und Updates → Befehl suchen“. Neue Menüeinträge erscheinen automatisch.
+- **Live-Zeichnen:** `screenkaffee/livedraw.py` (`Stroke`, `opacity`, `LiveDrawWindow` je Bildschirm mit Alpha-1-Hintergrund, damit Windows die Klicks nicht durchreicht; `LiveDrawSession.key`). `MainWindow.toggle_live_draw`, Hotkey-Aktion `draw` mit Standard **Strg+Alt+D**, Einstellung `live_draw_hold`.
+- **Lineal:** `screenkaffee/ruler.py` (`measurement`, `snap_axis`, `label`, `paint`). `SelectionOverlay.measure_mode` (Taste L, `set_measure_mode`, Strg+C), Aufnahmeart `measure` (Windows/X11/Portal/Hyprland über `screen`), `overlay_finished` behandelt Abbruch im Messmodus. Editor-Werkzeug `measure` (nicht gespeichert, `EditorView.measured`-Signal → Statusleiste); Palette jetzt 20 Werkzeuge, Gruppe `["picker", "measure"]`.
+- **Vorlagen:** `screenkaffee/templates.py` (`builtin_templates`, `TemplateLibrary` in `data/annotation-templates.json`, `normalize`/`placed`). Editor: Untermenü `templates_menu` in „Weitere Bildaktionen“, `insert_template` (ein Undo-Makro), `save_template`, `delete_template`.
+- **Aufräumen:** `screenkaffee/cleanup.py` (`dhash`, `group_similar` per Union-Find, `scan`, `cleanup_dialog`), `Workspace.empty_trash`. Läuft als `MainWindow.task` im Hintergrund.
+- Tests: `tests/test_guide_palette_draw.py` (18).
+- Offen auf echter Hardware: Schritt-Anleitung und Live-Zeichnen in echten Programmen/Mehrmonitor/mit Videoaufnahme; Lineal unter Hyprland.
+- **v0.10.0 ist als GitHub-Release (Latest) veröffentlicht** (418 Tests grün). SHA256: x64 `d12075cbf654118eb98c3f283c5e5b7ce52d00a12e759c4036110b6a20580b09` (110 MB), ARM64 `5fae5d3872a52b81a0bd1c27047adb78748b97b8f96e98e94a1706406ab19450` (104 MB), Linux `fb0aabb039aa18a4ec9b92b80e0ae63e24e14bb717022f91320c7badf5fbbdb0` (211 MB), Untertitel x64 `a198db9eac9514d832e5786d22ef2f741ae89d0530c054e927ed3f0e075925eb`, Untertitel Linux `fda89c0fc56968687e99ecb1334c7cd0e488ad7619f8f3fd523f580191563eee`.
+
+## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)
+Aktueller Stand: **v0.10.0** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
+1. Version an **drei** Stellen erhöhen: `pyproject.toml`, `screenkaffee/__init__.py` (`__version__`), `README.md` (Zeile 5). Der Updater vergleicht `__version__` numerisch mit dem Tag; ein Tag, der nicht größer ist, wird nicht angeboten.
+2. Tests: `QT_QPA_PLATFORM=offscreen` + `python -m pytest -q` (alle grün).
+3. Bauen und prüfen: `python scripts/release.py --tag vX.Y.Z` (Tests, drei Pakete, `verify_release.py`). Alle Werte in `dist/verification.json` müssen `true` sein (außer den `*_tested`-Hardwarefeldern). Bei laufender App Windows mit `--app-folder screenkaffee-update` separat bauen.
+4. Commit, `git tag vX.Y.Z`, `git push origin main` und `git push origin vX.Y.Z`.
+5. Release anlegen, **als Latest, nicht als Entwurf/Vorabversion** (die API `releases/latest` ignoriert beide):
+   `gh release create vX.Y.Z --title "screenkaffee X.Y.Z (Windows x64, Windows ARM64, Linux x86_64)" --latest --notes-file notes.md dist/screenkaffee-Windows-x64.zip dist/screenkaffee-Windows-arm64.zip dist/screenkaffee-Linux-x86_64.tar.gz dist/screenkaffee-Untertitel-Windows-x64.zip dist/screenkaffee-Untertitel-Linux-x86_64.zip dist/verification.json`
+   (`release.py --upload` lädt nur zu einem schon vorhandenen Release hoch und fragt interaktiv.)
+6. **Release-Notizen auf Deutsch, in Markdown, für Nutzer verständlich** – genau dieser Text erscheint nach dem Update im Fenster „Neu in screenkaffee X“. Vorlage: Notizen von v0.7.0 (`gh release view v0.7.0`). Tabelle mit Dateien, Größen und SHA256 und ehrlicher Hinweis, was nur strukturell geprüft wurde.
+7. Kontrolle: `gh api repos/Strugglechen1337/screenkaffee/releases/latest --jq .tag_name` zeigt den neuen Tag; jedes Asset hat in `gh release view vX.Y.Z --json assets` einen `sha256:`-Digest.
+8. `AGENTS.md` (Abschnitt „Stand …“ mit SHA256) und `parity.py` nachziehen, committen, pushen.
+
+## Updater-Pflegeregeln (nicht brechen, sonst bleiben Nutzer auf alten Versionen hängen)
+- **Asset-Namen sind fest** (`updater.ASSETS`): `screenkaffee-Windows-x64.zip`, `screenkaffee-Windows-arm64.zip`, `screenkaffee-Linux-x86_64.tar.gz`, dazu `verification.json`. Ab 0.9.0 zusätzlich `screenkaffee-Untertitel-Windows-x64.zip` und `screenkaffee-Untertitel-Linux-x86_64.zip` (`scripts/package_addons.SPEECH_ASSETS`), jeweils im Release der passenden Version. Jedes Archiv enthält genau einen Wurzelordner `screenkaffee/`.
+- **Paketaufbau ist die Erkennung** (`updater.installed_variant`): x64 = `_internal/` + `screenkaffee.exe`; ARM64 = `runtime/pythonw.exe` + `screenkaffee.exe`; Linux = `runtime/bin/` + Startskript `screenkaffee`. Wer das Layout ändert, muss die Erkennung mitziehen und alte Layouts weiter erkennen.
+- **Die alte Version startet das NEUE Programm** mit `--apply-update <App-Ordner> --wait-pid <PID> [--relaunch-data <Ordner>]`. Diese Kommandozeile muss in jeder künftigen Version gleich bleiben und in `__main__.main` vor allem anderen abgefangen werden (kein Qt, kein Datenordner).
+- `data/` und `_update/` werden nie überschrieben (`updater.KEEP`). Keine Nutzerdaten in Pakete legen (`verify_release.py` prüft das).
+- Ohne gültige SHA256 (GitHub-Digest oder `verification.json`) installiert der Updater nichts – `verification.json` also immer mit hochladen.
+- Repo ist **öffentlich**, der Updater arbeitet ab 0.10.1 **ohne Token** (`updater._request` sendet nie Anmeldedaten; ein altes `github-token.bin` löscht `updater.forget_token` beim Start). Kein Token wieder einbauen. Anderes Repo: Einstellung `update_repo` („owner/name“).
+- Standard ist `update_mode = "off"` (Regel „alles lokal“). Nicht ungefragt auf `ask`/`auto` umstellen.
+- Offen: Austausch auf echtem ARM64-Gerät und unter Omarchy abnehmen (nur per Test geprüft).
+
+## Empfohlene Reihenfolge
+1. Echte HDR-/Mehrmonitor- und Omarchy-Abnahme; siehe FEATURES.md. Dabei den Updater auf ARM64/Omarchy mitprüfen (z. B. 0.7.0 installieren, nächstes Release über „Nach Updates suchen“ einspielen).
+2. Video-Zoom: vergrößerte Live-Vorschau und native Aufnahmeabnahme ergänzen. Ausgabe-Zoom ist vorhanden.
+3. Effekte gegen Referenz prüfen und weitere Richtlinien. Gemischte Textformatierung (`screenkaffee/richtext.py`, Doppelklick auf Textfeld) ist umgesetzt; visuelle Abnahme mit echten Schriften steht aus (Tests laufen ohne Systemschriften).
+4. Audio/Webcam/Android mit echten Geräten abnehmen.
+5. Lokalen Ordnerabgleich erweitern; automatischer Löschabgleich ist bewusst noch nicht vorhanden.
+6. Pakete nach Änderungen neu bauen und verifizieren. Bei laufender App Windows mit `--app-folder screenkaffee-update` separat bauen.
+
+## Einrichtung auf einem neuen Rechner
+Nicht im Git (zu groß/generiert): `.venv/`, `models/`, `dist/`, `build/`, `.tools/`, `data/`.
+1. `py -3.12 -m venv .venv` und `.\.venv\Scripts\python.exe -m pip install -r requirements.txt pytest pyinstaller distlib pefile`
+2. Modelle/Lizenzen neu laden: `scripts/download_ocr_models.py`, `scripts/download_speech_model.py`, `scripts/download_licenses.py`
+3. Tests: `.\.venv\Scripts\python.exe -m pytest -q`; Start: `Start-screenkaffee.cmd`
+4. Pakete: `.\.venv\Scripts\python.exe -m scripts.package_windows` (Linux: `scripts/package_linux.py`)
+
+## Git-Regel (vom Nutzer gewünscht)
+Arbeitsgrundlage ist das Repo `Strugglechen1337/screenkaffee` (Branch `main`).
+Zu Sessionbeginn `git pull`. Am Sessionende – und sobald das Nutzungslimit naht – Tests laufen lassen,
+`AGENTS.md`/`parity.py` aktualisieren, committen und `git push`. Große Dateien (Pakete, Modelle)
+gehören als GitHub-Release-Asset, nicht ins Git (100-MB-Grenze). Ordner nicht in OneDrive klonen.

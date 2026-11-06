@@ -1,0 +1,20 @@
+PySide6-Essentials>=6.8,<7
+PySide6-Addons>=6.8,<7
+imageio-ffmpeg>=0.6,<1
+faster-whisper>=1.2,<2
+av>=14,<16
+pypdfium2>=4,<6
+PyAudioWPatch>=0.2.12.9,<0.3; sys_platform == 'win32'
+numpy>=2.1,<3
+Pillow>=11,<13
+zxing-cpp>=3,<4
+pillow-jxl-plugin>=1.3,<2
+winrt-Windows.Graphics.Capture==3.2.1; sys_platform == 'win32'
+winrt-Windows.Graphics.DirectX.Direct3D11==3.2.1; sys_platform == 'win32'
+winrt-Windows.Graphics.DirectX==3.2.1; sys_platform == 'win32'
+winrt-Windows.Graphics==3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation.Collections==3.2.1; sys_platform == 'win32'
+winrt-Windows.Graphics.Capture.Interop==3.2.1; sys_platform == 'win32'
+winrt-Windows.Graphics.DirectX.Direct3D11.Interop==3.2.1; sys_platform == 'win32'
+

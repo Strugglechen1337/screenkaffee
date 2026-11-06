@@ -1,0 +1,21 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Qt-Systembibliotheken und ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 ffmpeg
+      - name: Abhängigkeiten
+        run: pip install -r requirements.txt pytest
+      - name: Tests
+        run: python -m pytest -q

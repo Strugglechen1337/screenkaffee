@@ -1,0 +1,15 @@
+Build-Ordner liegen auf Laufwerk D: (seit 06.11.2026, C: war voll)
+
+  build\   ->  D:\screenkaffee-build\build
+  dist\    ->  D:\screenkaffee-build\dist
+  .tools\  ->  D:\screenkaffee-build\tools
+
+Die Ordner hier im Projekt sind Verknuepfungen (Windows-Junctions). Alle Skripte
+(scripts\package_*.py, scripts\release.py, verify_release.py) benutzen weiter die
+alten Pfade und landen automatisch auf D:. Nichts an den Skripten aendern.
+
+Bitte KEINE neuen grossen Build-Ordner direkt in diesem Projekt (liegt in OneDrive
+auf C:) anlegen. Temporaere Paketbauten nach .tools\ oder build\ (also auf D:).
+
+Fehlt D: (anderer Rechner), die Verknuepfungen loeschen und die Ordner normal
+neu anlegen lassen – sie sind komplett generiert und git-ignoriert.
