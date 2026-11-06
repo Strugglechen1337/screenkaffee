@@ -139,6 +139,10 @@ Hand ersetzt werden.
   wieder eingebunden, solange sie passt. Entfernen unter Einstellungen → Updates. Auf Windows ARM64 gibt
   es keine Erkennung; SRT öffnen, bearbeiten und einbetten geht überall.
 
+## Tour durch die besten Funktionen
+
+Beim ersten Start (nach der Einrichtung) zeigt screenkaffee einmal eine kurze Tour: Das Fenster wird abgedunkelt, die erklärte Schaltfläche bleibt hell, daneben steht eine Sprechblase. Zehn Schritte – Aufnehmen, Befehlssuche (Strg+K), Screenshots vergleichen, Editor, Schicker Screenshot und aufs Handy senden, Video, Schritt-Anleitung, Live-Zeichnen und Lineal, Version und Updates. Pfeiltasten blättern, Esc beendet. Wieder aufrufen: „Mehr → Hilfe und Updates → Tour: die besten Funktionen …“ oder Strg+K → „Tour“.
+
 ## Schritt-Anleitung, Befehlssuche, Live-Zeichnen, Lineal, Vorlagen, Aufräumen
 
 - **Schritt-Anleitung (Windows):** „Mehr → Aufnehmen → Schritt-Anleitung aufnehmen …“. Danach einfach durch den Ablauf klicken: Jeder Mausklick wird ein Bild mit rot markierter Klickstelle und Nummer. Oben am Bildschirm steht eine kleine Leiste mit „Fertig“ und „Abbrechen“ (sie erscheint selbst nicht auf den Bildern). Die Schritte landen in einer eigenen Sammlung „Anleitung …“, und der Dokument-Designer öffnet sich mit „Schritt 1, 2, 3 …“ und einer Beschreibung je Schritt – als PDF, Word oder HTML speichern. Unter Linux/Wayland nicht möglich (Klicks in anderen Programmen sind dort nicht sichtbar).

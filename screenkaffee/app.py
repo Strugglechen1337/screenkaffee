@@ -205,8 +205,11 @@ class MainWindow(QMainWindow):
         for label, glyph, color, callback in [("Aufnehmen", "camera", "#e5332a", lambda: self.capture("region")),
             ("Bearbeiten", "edit", "#4caf50", self.edit_selected), ("Kopieren", "copy", "#2c82c9", self.copy_selected),
             ("Exportieren", "export", "#2c82c9", self.export_selected)]:
-            self.round_button(tools, label, glyph, color, callback)
+            button = self.round_button(tools, label, glyph, color, callback)
+            if label == "Bearbeiten":
+                self.edit_button = button
         share = self.round_button(tools, "Teilen", "share", "#2c82c9", None)
+        self.share_button = share
         share.setToolTip("Aufs Handy senden, schicker Screenshot, drucken, E-Mail")
         share_popup = QMenu(self)
         share.setMenu(share_popup)
@@ -273,6 +276,7 @@ class MainWindow(QMainWindow):
         data_menu.addAction("Datenordner öffnen", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.root))))
         help_menu = menu.addMenu("Hilfe und Updates")
         help_menu.addAction("Befehl suchen … (Strg+K)", self.open_command_palette)
+        help_menu.addAction("Tour: die besten Funktionen …", self.start_tour)
         help_menu.addSeparator()
         help_menu.addAction("Nach Updates suchen …", lambda: self.check_updates(manual=True))
         help_menu.addAction("Vorige Version wiederherstellen …", self.restore_previous_version)
@@ -288,6 +292,7 @@ class MainWindow(QMainWindow):
         palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         palette_shortcut.activated.connect(self.open_command_palette)
         more = self.round_button(tools, "Mehr", "more", "#808080", None)
+        self.more_button = more
         more.setMenu(menu)
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         tools_row.addStretch()
@@ -2800,10 +2805,40 @@ class MainWindow(QMainWindow):
             self.show_update_result(finished)
         elif not self.settings.get("setup_done") and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             self.first_run_setup()
+        if not self.settings.get("tour_done") and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            self.schedule_tour()
         mode = self.settings.get("update_mode", "off")
         if mode in ("ask", "auto") and "update" not in self.policy["disabled"]:
             from shiboken6 import isValid
             QTimer.singleShot(3000, lambda: self.check_updates(auto=mode == "auto", quiet=True) if isValid(self) else None)
+
+    # --- Tour ----------------------------------------------------------------------------------------
+    def schedule_tour(self):
+        """Tour einmalig zeigen: nach dem Einrichtungsdialog bzw. kurz nach dem Start."""
+        from shiboken6 import isValid
+        setup = getattr(self, "setup_dialog", None)
+        if setup is not None and isValid(setup) and setup.isVisible():
+            setup.finished.connect(lambda _result: QTimer.singleShot(300, lambda: self.start_tour() if isValid(self) else None))
+        else:
+            QTimer.singleShot(900, lambda: self.start_tour() if isValid(self) and self.isVisible() else None)
+
+    def start_tour(self):
+        from shiboken6 import isValid
+        from .tour import TourOverlay, steps
+        current = getattr(self, "tour", None)
+        if current is not None and isValid(current):
+            current.show_step(0)
+            return current
+        if self.isMinimized() or not self.isVisible():
+            self.restore()
+
+        def done(_completed):
+            self.settings["tour_done"] = True          # auch „Tour beenden“ zählt; erneut über das Menü
+            self.save_settings()
+            self.tour = None
+        self.tour = TourOverlay(self, steps(self.settings))
+        self.tour.finished.connect(done)
+        return self.tour
 
     def show_update_result(self, info):
         if info.get("error"):

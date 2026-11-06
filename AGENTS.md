@@ -10,7 +10,7 @@ mit korrekten (SDR-)Farben; Start ohne Installation. Sprache der UI/Doku: Deutsc
 - Vom Nutzer ausgeschlossen (nicht bauen): Cloud-Sharing, KI-Editor, weitere UI-Sprachen (nur Deutsch), Übersetzung von erkanntem Text, Schaltfläche „Text erkennen“ und „Sensible Daten erkennen“ (entfernt 28.10.2026).
 - Single Source of Truth für den Stand: `screenkaffee/parity.py` (`FEATURES`). Ein Eintrag wird
   nur `implemented`, wenn Code UND Test existieren. Nie schönreden; `FEATURES.md` stimmt dazu.
-- Tests: `.\.venv\Scripts\python.exe -m pytest -q` (aktuell 400 grün, 4 X11-Opt-in übersprungen). Neue Funktion = neuer Test.
+- Tests: `.\.venv\Scripts\python.exe -m pytest -q` (aktuell 429 grün, 4 X11-Opt-in übersprungen). Neue Funktion = neuer Test.
 - Dateien UTF-8 schreiben (Windows-Konsole zeigt Umlaute teils kaputt, Dateien sind ok).
 - Keine automatischen Uploads, keine Telemetrie. Alles lokal. Netzfunktionen gibt es nur zwei: den Updater (`updater.py`, standardmäßig aus, nur lesend gegen die öffentlichen GitHub-Releases, ohne Token) und „Aufs Handy senden“ (`lanshare.py`, lokaler Server nur im WLAN, nur auf Klick, endet beim Schließen).
 - Auf Windows nicht Python systemweit installieren; `.venv` im Projekt nutzen.
@@ -190,6 +190,12 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - Version immer sichtbar: Fenstertitel „screenkaffee X · …“, Editor-Titel mit Version, `MainWindow.version_button` fest rechts in der Statusleiste (Klick = Update-Suche); `show_version(tag)` zeigt „Update X verfügbar“.
 - Tests: `tests/test_progress_version.py`. Wirkt für Nutzer erst ab der Version, die das Update **lädt** (also ab dem Release mit diesem Code).
 - **v0.10.2 ist als GitHub-Release (Latest) veröffentlicht** (425 Tests grün). SHA256: x64 `c480df611e10219ad6edc47c2de9368f2e13337b618a26b6db92b47a8e0262ae` (110 MB), ARM64 `58f4b9def4314980bba7f562ec6bc03e024ca969580fb1d9df07d32dc4d44713` (104 MB), Linux `05fce7d1c11faab9ddca884b42d858675b162bcccac408a20d554e16d2cb06ed` (211 MB), Untertitel x64 `4303a6189a16892e508fe9d36668d5c0e0bfa8087dfd553d03dcf935889755d7`, Untertitel Linux `9ac3fb835c5483693e13c0ae278e0b12d75fc490b1d792086a4cc339a5a56d96`.
+
+## Stand 06.11.2026 (Tour beim ersten Start – Claude)
+- `screenkaffee/tour.py`: `steps(settings)` (reine Daten: Schlüssel, Ziel-Attribut am `MainWindow`, Titel, Rich-Text; Tasten aus `settings["hotkeys"]`), `bubble_position` (reine Geometrie: unterhalb → oberhalb → rechts → mittig auf dem Ziel), `TourOverlay` (Kind-Widget über dem ganzen Hauptfenster, Spotlight per `QPainterPath.subtracted`, folgt Größenänderungen per eventFilter, Pfeiltasten/Enter/Esc, Signal `finished(bool)`).
+- `MainWindow.start_tour` / `schedule_tour`; Einstellung `tour_done` (auch Abbrechen zählt). Start in `startup_update` – nach dem Einrichtungsdialog (`setup_dialog.finished`) bzw. 0,9 s nach dem Start, nie unter `QT_QPA_PLATFORM=offscreen`. Bestehende Nutzer sehen die Tour einmal nach dem Update. Menü „Hilfe und Updates → Tour: die besten Funktionen …“ (damit auch in Strg+K).
+- Ziele: `capture_button`, `list` (Vergleichen), `edit_button`, `share_button`, `video_button`, `more_button`, `version_button` – neue Attribute dafür in `MainWindow.__init__`. Wer diese Schaltflächen umbenennt, muss `tour.steps` mitziehen (fehlt ein Ziel, erscheint die Blase mittig ohne Spotlight).
+- Tests: `tests/test_tour.py` (4). Darstellung offscreen gerendert und geprüft; an echten Bildschirmen/DPI nicht von Hand abgenommen.
 
 ## Funktions-Poster (README)
 - `docs/screenkaffee-features.png` steht oben in der README; Quelle ist `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
