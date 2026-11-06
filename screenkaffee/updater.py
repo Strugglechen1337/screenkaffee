@@ -151,20 +151,32 @@ def download(release, name, target, opener=None, progress=None):
     return target
 
 
-def extract(archive, destination):
-    """Entpackt nur Einträge innerhalb von destination und liefert den Paketordner 'screenkaffee'."""
+def extract(archive, destination, progress=None):
+    """Entpackt nur Einträge innerhalb von destination und liefert den Paketordner 'screenkaffee'.
+
+    progress(fertige Einträge, alle Einträge) wird zwischendurch aufgerufen (höchstens etwa 200-mal)."""
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
     if str(archive).endswith(".zip"):
         with zipfile.ZipFile(archive) as source:
-            for member in source.namelist():
-                if not (destination / member).resolve().is_relative_to(destination):
+            members = source.infolist()
+            for member in members:
+                if not (destination / member.filename).resolve().is_relative_to(destination):
                     raise UpdateError("Das Update-Archiv enthält ungültige Pfade.")
-            source.extractall(destination)
+            step = max(1, len(members) // 200)
+            for index, member in enumerate(members, 1):
+                source.extract(member, destination)
+                if progress and (index % step == 0 or index == len(members)):
+                    progress(index, len(members))
     else:
         with tarfile.open(archive) as source:
+            members = source.getmembers()
+            step = max(1, len(members) // 200)
             try:
-                source.extractall(destination, filter="data")
+                for index, member in enumerate(members, 1):
+                    source.extract(member, destination, filter="data")
+                    if progress and (index % step == 0 or index == len(members)):
+                        progress(index, len(members))
             except tarfile.FilterError as exc:
                 raise UpdateError("Das Update-Archiv enthält ungültige Pfade.") from exc
     package = destination / "screenkaffee"
@@ -173,14 +185,25 @@ def extract(archive, destination):
     return package
 
 
-def prepare(release, variant, root=None, opener=None, progress=None):
-    """Lädt, prüft und entpackt das Update; liefert den Ordner der neuen Version."""
+def prepare(release, variant, root=None, opener=None, progress=None, stage=None):
+    """Lädt, prüft und entpackt das Update; liefert den Ordner der neuen Version.
+
+    stage("download") / stage("extract") meldet den Schritt, progress(fertig, gesamt) den Fortschritt darin.
+    Bricht progress per Ausnahme ab, wird _update wieder entfernt."""
     root = Path(root or application_root())
     staging = root / STAGING
     shutil.rmtree(staging, ignore_errors=True)
     name = ASSETS[variant]
-    archive = download(release, name, staging / "download" / name, opener, progress)
-    package = extract(archive, staging / "new")
+    try:
+        if stage:
+            stage("download")
+        archive = download(release, name, staging / "download" / name, opener, progress)
+        if stage:
+            stage("extract")
+        package = extract(archive, staging / "new", progress)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     archive.unlink(missing_ok=True)
     if not (package / LAUNCHERS[variant]).is_file():
         raise UpdateError("Im Update fehlt das Startprogramm.")

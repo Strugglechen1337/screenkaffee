@@ -183,6 +183,13 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - Verweise auf das frühere Vorbild-Produkt und die Skripte `scripts/reference_*.py` entfernt. Regel: keine fremden Produktnamen, Handbücher oder Binärdateien ins Repo (auch nicht in Commit-Nachrichten).
 - **v0.10.1 ist als GitHub-Release (Latest) veröffentlicht** (418 Tests grün). SHA256: x64 `c7fca3bffb78fedf20a6023f090e3f6a716b24a9c341b55b0f22f46711d6bb1e` (110 MB), ARM64 `4da3ecf39bd3788691b9facba3c83868b71792cd6592d5580b76375f8e6075c3` (104 MB), Linux `702290eeb87080ed583df62d9e3757231a58ca1d236b7408a137bc308d515ae2` (211 MB), Untertitel x64 `50d0254a19c0fc48d00187cfe809ac8d8859d9a80042c4d90b55203dd66dce06`, Untertitel Linux `b1f4e3e3f423074af5741cf50b706e56c4b6adde9134f6dd841cc9cb97494412`.
 
+## Stand 06.11.2026 (Update-Fortschritt und Versionsanzeige – Claude)
+- `screenkaffee/progress.py`: `Progress` (Zustand als dict, vom Hintergrund-Thread über `report`/`stage` beschrieben; `Cancelled` bei Abbruch), `ProgressWindow` (nicht-modal, Timer 200 ms; Schließen/Esc während des Downloads = ausblenden), reine Helfer `describe`, `duration`, `overall_percent`.
+- `updater.prepare(..., stage=)` und `updater.extract(..., progress=)` melden Schritt und Dateien; bei Abbruch/Fehler wird `_update` entfernt. `addons.install_speech(..., stage=)` ebenso.
+- `MainWindow.download_window` baut Fenster + Zustand; genutzt von `download_update` und `prepare_speech`. Versteckt meldet die Statusleiste „… – N %“.
+- Version immer sichtbar: Fenstertitel „screenkaffee X · …“, Editor-Titel mit Version, `MainWindow.version_button` fest rechts in der Statusleiste (Klick = Update-Suche); `show_version(tag)` zeigt „Update X verfügbar“.
+- Tests: `tests/test_progress_version.py`. Wirkt für Nutzer erst ab der Version, die das Update **lädt** (also ab dem Release mit diesem Code).
+
 ## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)
 Aktueller Stand: **v0.10.1** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
 1. Version an **drei** Stellen erhöhen: `pyproject.toml`, `screenkaffee/__init__.py` (`__version__`), `README.md` (Zeile 5). Der Updater vergleicht `__version__` numerisch mit dem Tag; ein Tag, der nicht größer ist, wird nicht angeboten.

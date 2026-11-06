@@ -59,7 +59,15 @@ class MainWindow(QMainWindow):
             self.settings["tray_behavior_v2"] = True
         self.policy = load_policy()
         apply_policy(self.settings, self.policy)
-        self.setWindowTitle("screenkaffee · Dein Screenshot-Studio")
+        from . import __version__
+        self.setWindowTitle(f"screenkaffee {__version__} · Dein Screenshot-Studio")
+        self.version_button = QToolButton()
+        self.version_button.setObjectName("versionButton")
+        self.version_button.setAutoRaise(True)
+        self.version_button.setText(f"Version {__version__}")
+        self.version_button.setToolTip("Installierte Version – klicken, um nach Updates zu suchen")
+        self.version_button.clicked.connect(lambda: self.check_updates(manual=True))
+        self.statusBar().addPermanentWidget(self.version_button)
         self.setWindowIcon(app_icon())
         self.resize(1350, 880)
         self.setMinimumSize(980, 650)
@@ -2846,10 +2854,12 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Updates", str(result))
             return
         if result.version <= updater.current_version():
+            self.show_version()
             self.statusBar().showMessage(f"screenkaffee {__version__} ist aktuell.", 8000)
             if not quiet:
                 QMessageBox.information(self, "Updates", f"screenkaffee {__version__} ist die neueste Version.")
             return
+        self.show_version(result.tag)
         variant = updater.installed_variant()
         if variant is None:
             text = f"screenkaffee {result.tag} ist verfügbar. Diese Quellcode-Version wird mit „git pull“ aktualisiert."
@@ -2892,29 +2902,33 @@ class MainWindow(QMainWindow):
             "Jetzt herunterladen?")
         if answer != QMessageBox.StandardButton.Yes:
             return False
+        from .progress import Cancelled
         repo = self.settings.get("update_repo") or updater.REPOSITORY
-        state = self.speech_download = {"done": 0, "total": 0}
-        def progress(done, total):
-            state.update(done=done, total=total)
+        progress, window = self.download_window("Untertitel-Erweiterung", "Untertitel-Erweiterung wird geladen", parent)
+        self.speech_download = progress.state
+        self.speech_window = window
         def operation():
             try:
-                return addons.install_speech(self.workspace.root, repo=repo, progress=progress)
-            except (addons.AddonError, updater.UpdateError, OSError, ValueError) as exc:
+                return addons.install_speech(self.workspace.root, repo=repo, progress=progress.report, stage=progress.stage)
+            except (addons.AddonError, updater.UpdateError, OSError, ValueError, Cancelled) as exc:
                 return exc
-        timer = QTimer(self)
-        timer.timeout.connect(lambda: self.statusBar().showMessage(
-            f"Untertitel-Erweiterung: {state['done'] / 1e6:.0f} von {state['total'] / 1e6:.0f} MB …"))
-        timer.start(500)
         def finished(result):
-            timer.stop()
-            timer.deleteLater()
             self.speech_download = None
             from shiboken6 import isValid
             target = parent if isValid(parent) else self
+            if isinstance(result, Cancelled):
+                if isValid(window):
+                    window.finish("Abgebrochen. Die Erweiterung lässt sich später erneut laden.", success=False)
+                self.statusBar().showMessage("Untertitel-Erweiterung abgebrochen", 8000)
+                return
             if isinstance(result, Exception):
+                if isValid(window):
+                    window.finish("Die Untertitel-Erweiterung konnte nicht geladen werden.", success=False)
                 self.statusBar().showMessage("Untertitel-Erweiterung nicht geladen")
                 QMessageBox.warning(target, "Untertitel", f"Die Untertitel-Erweiterung konnte nicht geladen werden:\n{result}")
                 return
+            if isValid(window):
+                window.finish("Fertig – die Untertitel-Erweiterung ist eingerichtet.")
             self.statusBar().showMessage("Untertitel-Erweiterung installiert", 10000)
             if isValid(parent):
                 then()
@@ -2942,26 +2956,63 @@ class MainWindow(QMainWindow):
                            "bei „Untertitel lokal erzeugen“ angeboten.",
                 "unsupported": "Untertitel-Erkennung: für dieses Paket nicht verfügbar."}[status]
 
+    def show_version(self, available=None):
+        """Version unten rechts; mit `available` zusätzlich der Hinweis auf ein neueres Release."""
+        from . import __version__
+        if available:
+            self.version_button.setText(f"Version {__version__} · Update {available.lstrip('v')} verfügbar")
+            self.version_button.setToolTip("Klicken, um das Update zu laden")
+        else:
+            self.version_button.setText(f"Version {__version__}")
+            self.version_button.setToolTip("Installierte Version – klicken, um nach Updates zu suchen")
+
+    def download_window(self, title, heading, parent=None):
+        """Fortschrittsfenster + Zustand für einen Download in zwei Schritten (laden/prüfen, entpacken)."""
+        from .progress import Progress, ProgressWindow
+        progress = Progress([("download", 0.85, "Herunterladen und prüfen"), ("extract", 0.15, "Entpacken")])
+        window = ProgressWindow(title, heading, progress, parent or self)
+        timer = QTimer(window)
+        timer.timeout.connect(lambda: self.statusBar().showMessage(window.status_line())
+                              if window.isHidden() and window.finished_text is None else None)
+        timer.start(1000)
+        window.show()
+        return progress, window
+
     def download_update(self, release, variant, auto=False):
         from . import updater
+        from .progress import Cancelled
+        progress, window = self.download_window("Update", f"screenkaffee {release.tag.lstrip('v')} wird geladen")
+        self.update_window = window
         def operation():
             try:
-                return updater.prepare(release, variant)
-            except (updater.UpdateError, OSError) as exc:
+                return updater.prepare(release, variant, progress=progress.report, stage=progress.stage)
+            except (updater.UpdateError, OSError, Cancelled) as exc:
                 return exc
         self.update_busy = True
         self.task(operation, lambda result: self.update_downloaded(result, release, variant, auto),
                   f"Update {release.tag} wird geladen und geprüft …")
 
     def update_downloaded(self, result, release, variant, auto=False):
+        from .progress import Cancelled
         self.update_busy = False
+        window = getattr(self, "update_window", None)
+        if isinstance(result, Cancelled):
+            if window is not None:
+                window.finish("Update abgebrochen. Es wurde nichts verändert.", success=False)
+            self.statusBar().showMessage("Update abgebrochen", 8000)
+            return
         if isinstance(result, Exception):
+            if window is not None:
+                window.finish("Das Update konnte nicht geladen werden.", success=False)
             if auto:
                 self.statusBar().showMessage("Update fehlgeschlagen: " + str(result), 15000)
             else:
                 QMessageBox.warning(self, "Updates", f"Das Update konnte nicht vorbereitet werden:\n{result}")
             return
         self.pending_update = (result, variant, release.tag)
+        if window is not None:
+            window.finish("Fertig geladen und geprüft. screenkaffee startet gleich neu und installiert das Update …")
+            window.show()
         QTimer.singleShot(500, self.restart_for_update)
 
     def restart_for_update(self, attempts=20):
@@ -2976,6 +3027,9 @@ class MainWindow(QMainWindow):
             return
         if self.tasks or busy:
             text = f"Update {tag} ist bereit und wird beim Beenden von screenkaffee installiert."
+            window = getattr(self, "update_window", None)
+            if window is not None and window.finished_text is not None:
+                window.finish(text + " Gerade ist noch ein Editor, eine Aufnahme oder ein Video offen.")
             self.statusBar().showMessage(text, 30000)
             if self.tray.isVisible():
                 self.tray.showMessage("screenkaffee", text)

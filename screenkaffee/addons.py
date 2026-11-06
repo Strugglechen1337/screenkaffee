@@ -108,7 +108,7 @@ def ensure_speech(root=None, data_dir=None):
     return False
 
 
-def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, progress=None):
+def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, progress=None, stage=None):
     """Erweiterung aus dem Release dieser App-Version laden, prüfen, ablegen und verlinken."""
     from . import __version__
     root = Path(root or application_root())
@@ -117,15 +117,28 @@ def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, pr
         raise AddonError("Für dieses Paket gibt es keine Untertitel-Erweiterung (z. B. Windows ARM64).")
     release = updater.release_by_tag("v" + __version__, repo, opener)
     folder = store(data_dir)
-    archive = updater.download(release, meta["asset"], folder / "download" / meta["asset"], opener, progress)
+    if stage:
+        stage("download")
+    try:
+        archive = updater.download(release, meta["asset"], folder / "download" / meta["asset"], opener, progress)
+    except BaseException:
+        shutil.rmtree(folder / "download", ignore_errors=True)
+        raise
+    if stage:
+        stage("extract")
     temporary = folder / "speech-unpacking"
     shutil.rmtree(temporary, ignore_errors=True)
     try:
         with zipfile.ZipFile(archive) as source:
-            for member in source.namelist():
-                if not (temporary / member).resolve().is_relative_to(temporary.resolve()):
+            members = source.infolist()
+            for member in members:
+                if not (temporary / member.filename).resolve().is_relative_to(temporary.resolve()):
                     raise AddonError("Die Erweiterung enthält ungültige Pfade.")
-            source.extractall(long_path(temporary))
+            step = max(1, len(members) // 200)
+            for index, member in enumerate(members, 1):
+                source.extract(member, long_path(temporary))
+                if progress and (index % step == 0 or index == len(members)):
+                    progress(index, len(members))
         addon = json.loads((temporary / "addon.json").read_text(encoding="utf-8"))
         if addon.get("fingerprint") != meta["fingerprint"]:
             raise AddonError("Die heruntergeladene Erweiterung passt nicht zu dieser screenkaffee-Version.")

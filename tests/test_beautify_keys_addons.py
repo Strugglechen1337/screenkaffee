@@ -234,8 +234,11 @@ def test_speech_addon_install_relink_after_update_and_remove(tmp_path, monkeypat
     assert addons.speech_status(root, data) == "missing" and not addons.ensure_speech(root, data)
     github = FakeGitHub(archive, "v" + __version__)
     seen = []
-    addons.install_speech(data, root, opener=github, progress=lambda done, total: seen.append((done, total)))
-    assert github.requests[0].endswith("/releases/tags/v" + __version__) and seen[-1] == (len(github.data),) * 2
+    stages = []
+    addons.install_speech(data, root, opener=github, progress=lambda done, total: seen.append((done, total)),
+                          stage=stages.append)
+    assert github.requests[0].endswith("/releases/tags/v" + __version__) and (len(github.data),) * 2 in seen
+    assert stages == ["download", "extract"] and seen[-1][0] == seen[-1][1]       # Entpacken bis zur letzten Datei
     assert (root / "_internal" / "ctranslate2" / "ctranslate2.dll").read_bytes() == b"dll" * 100
     assert addons.speech_status(root, data) == "installed" and addons.ensure_speech(root, data)
     assert not (data / "addons" / "download").exists() and not (data / "addons" / "speech-unpacking").exists()

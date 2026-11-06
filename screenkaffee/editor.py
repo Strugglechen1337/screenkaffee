@@ -847,7 +847,8 @@ class EditorWindow(QMainWindow):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.title = title
-        self.setWindowTitle(f"{title} — Editor · screenkaffee")
+        from . import __version__
+        self.setWindowTitle(f"{title} — Editor · screenkaffee {__version__}")
         self.resize(1250, 850)
         self.project_path = Path(project_path) if project_path else None
         self.view = EditorView(image)
