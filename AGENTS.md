@@ -177,8 +177,14 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - Offen auf echter Hardware: Schritt-Anleitung und Live-Zeichnen in echten Programmen/Mehrmonitor/mit Videoaufnahme; Lineal unter Hyprland.
 - **v0.10.0 ist als GitHub-Release (Latest) veröffentlicht** (418 Tests grün). SHA256: x64 `d12075cbf654118eb98c3f283c5e5b7ce52d00a12e759c4036110b6a20580b09` (110 MB), ARM64 `5fae5d3872a52b81a0bd1c27047adb78748b97b8f96e98e94a1706406ab19450` (104 MB), Linux `fb0aabb039aa18a4ec9b92b80e0ae63e24e14bb717022f91320c7badf5fbbdb0` (211 MB), Untertitel x64 `a198db9eac9514d832e5786d22ef2f741ae89d0530c054e927ed3f0e075925eb`, Untertitel Linux `fda89c0fc56968687e99ecb1334c7cd0e488ad7619f8f3fd523f580191563eee`.
 
+## Stand 06.11.2026 (0.10.1: öffentliches Repo, Updater ohne Token – Claude)
+- Repo ist **öffentlich**. Die Git-Historie wurde auf Wunsch des Nutzers durch einen einzigen Commit ersetzt und alle Release-Tags darauf umgesetzt; alte Branches gelöscht. Die alte Historie liegt nur lokal (Bundle unter `D:\screenkaffee-build\backup\`, Branch `backup/alte-historie`) – **nie pushen**.
+- `updater._request` sendet keine Anmeldedaten mehr; `token`-Parameter in `updater`/`addons` entfernt; Token-Felder aus Einstellungen und Einrichtung entfernt; `updater.forget_token` löscht beim Start ein altes `github-token.bin`.
+- Verweise auf das frühere Vorbild-Produkt und die Skripte `scripts/reference_*.py` entfernt. Regel: keine fremden Produktnamen, Handbücher oder Binärdateien ins Repo (auch nicht in Commit-Nachrichten).
+- **v0.10.1 ist als GitHub-Release (Latest) veröffentlicht** (418 Tests grün). SHA256: x64 `c7fca3bffb78fedf20a6023f090e3f6a716b24a9c341b55b0f22f46711d6bb1e` (110 MB), ARM64 `4da3ecf39bd3788691b9facba3c83868b71792cd6592d5580b76375f8e6075c3` (104 MB), Linux `702290eeb87080ed583df62d9e3757231a58ca1d236b7408a137bc308d515ae2` (211 MB), Untertitel x64 `50d0254a19c0fc48d00187cfe809ac8d8859d9a80042c4d90b55203dd66dce06`, Untertitel Linux `b1f4e3e3f423074af5741cf50b706e56c4b6adde9134f6dd841cc9cb97494412`.
+
 ## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)
-Aktueller Stand: **v0.10.0** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
+Aktueller Stand: **v0.10.1** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
 1. Version an **drei** Stellen erhöhen: `pyproject.toml`, `screenkaffee/__init__.py` (`__version__`), `README.md` (Zeile 5). Der Updater vergleicht `__version__` numerisch mit dem Tag; ein Tag, der nicht größer ist, wird nicht angeboten.
 2. Tests: `QT_QPA_PLATFORM=offscreen` + `python -m pytest -q` (alle grün).
 3. Bauen und prüfen: `python scripts/release.py --tag vX.Y.Z` (Tests, drei Pakete, `verify_release.py`). Alle Werte in `dist/verification.json` müssen `true` sein (außer den `*_tested`-Hardwarefeldern). Bei laufender App Windows mit `--app-folder screenkaffee-update` separat bauen.
