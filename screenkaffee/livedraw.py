@@ -5,6 +5,7 @@ Je Bildschirm ein durchsichtiges Fenster ganz oben. Solange es aktiv ist, gehen 
 Sekunden; ``hold = 0`` heißt „bleibt stehen“. Esc oder dasselbe Tastenkürzel beendet.
 """
 import math
+from .i18n import N_, tr
 import time
 from dataclasses import dataclass, field
 
@@ -14,8 +15,8 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 COLORS = {"1": "#e5332a", "2": "#ffcc00", "3": "#22c55e", "4": "#3b82f6", "5": "#ffffff"}
 TOOLS = {"p": "pen", "a": "arrow", "r": "rectangle", "e": "ellipse", "m": "marker"}
-TOOL_NAMES = {"pen": "Stift", "arrow": "Pfeil", "rectangle": "Rechteck", "ellipse": "Ellipse", "marker": "Marker"}
-HINT = "Live-Zeichnen · P Stift · A Pfeil · R Rechteck · E Ellipse · M Marker · 1–5 Farbe · H stehen lassen · Rück rückgängig · Entf alles weg · Esc beenden"
+TOOL_NAMES = {"pen": N_("Stift"), "arrow": N_("Pfeil"), "rectangle": N_("Rechteck"), "ellipse": N_("Ellipse"), "marker": N_("Marker")}
+HINT = N_("Live-Zeichnen · P Stift · A Pfeil · R Rechteck · E Ellipse · M Marker · 1–5 Farbe · H stehen lassen · Rück rückgängig · Entf alles weg · Esc beenden")
 
 
 @dataclass
@@ -145,8 +146,8 @@ class LiveDrawWindow(QWidget):
         if now < self.hint_until + 1:
             alpha = max(0.0, min(1.0, self.hint_until + 1 - now))
             painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-            stay = "bleibt stehen" if self.state.hold <= 0 else f"verblasst nach {self.state.hold:g} s"
-            text = HINT + f"  ·  {TOOL_NAMES[self.state.tool]}, {stay}"
+            stay = tr("bleibt stehen") if self.state.hold <= 0 else tr('verblasst nach {seconds} s', seconds=format(self.state.hold, 'g'))
+            text = tr(HINT) + f"  ·  {tr(TOOL_NAMES[self.state.tool])}, {stay}"
             box = painter.fontMetrics().boundingRect(text).adjusted(-12, -7, 12, 7)
             box.moveCenter(self.rect().center())
             box.moveTop(16)

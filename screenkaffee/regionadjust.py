@@ -1,12 +1,13 @@
 """Adjust the recording area before the recording starts: move it, drag its edges and corners, pick a standard
 size, then press "Aufnahme starten". The handles are only shown before recording; nothing of this is in the video."""
 from PySide6.QtCore import Qt, QPoint, QPointF, QRect, QRectF, QTimer, Signal
+from .i18n import N_, tr
 from PySide6.QtGui import QColor, QGuiApplication, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget
 from .overlay import _force_win32_foreground, _is_real_win32_display
 
 HANDLES = ("nw", "n", "ne", "e", "se", "s", "sw", "w")
-SIZES = [("Frei", None), ("1920 × 1080", (1920, 1080)), ("1280 × 720", (1280, 720)), ("854 × 480", (854, 480)), ("640 × 360", (640, 360))]
+SIZES = [(N_("Frei"), None), ("1920 × 1080", (1920, 1080)), ("1280 × 720", (1280, 720)), ("854 × 480", (854, 480)), ("640 × 360", (640, 360))]
 
 
 def handle_points(rect):
@@ -86,13 +87,13 @@ class RegionAdjuster(QWidget):
         self.esc_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self.size_box = QComboBox(self)
         for label, value in SIZES:
-            self.size_box.addItem(label, value)
+            self.size_box.addItem(tr(label), value)
         self.size_box.activated.connect(self.size_chosen)
         self.size_label = QLabel(self)
-        self.start_button = QPushButton("● Aufnahme starten", self)
+        self.start_button = QPushButton(tr("● Aufnahme starten"), self)
         self.start_button.setObjectName("primary")
         self.start_button.clicked.connect(self.start_recording)
-        self.cancel_button = QPushButton("Abbrechen", self)
+        self.cancel_button = QPushButton(tr("Abbrechen"), self)
         self.cancel_button.clicked.connect(self.cancel)
         self.place_controls()
 

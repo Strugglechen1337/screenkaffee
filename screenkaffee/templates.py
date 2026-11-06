@@ -4,6 +4,7 @@ Anders als Bildstempel bleiben Vorlagen bearbeitbare Markierungen. Eigene Vorlag
 ``data/annotation-templates.json``.
 """
 import copy
+from .i18n import tr
 import json
 from pathlib import Path
 
@@ -20,19 +21,19 @@ def _text(x, y, text, color=RED, size=22, width=260):
 
 def builtin_templates():
     return [
-        {"name": "Hier klicken", "builtin": True, "items": [
+        {"name": tr("Hier klicken"), "builtin": True, "items": [
             {"kind": "arrow", "color": RED, "width": 5, "points": [0, 0, 110, 80], "pos": [0, 0]},
-            _text(-20, -60, "Hier klicken")]},
-        {"name": "Wichtig (Rahmen)", "builtin": True, "items": [
+            _text(-20, -60, tr("Hier klicken"))]},
+        {"name": tr("Wichtig (Rahmen)"), "builtin": True, "items": [
             {"kind": "rectangle", "color": RED, "width": 4, "points": [0, 40, 300, 200], "pos": [0, 0]},
-            _text(0, -10, "Wichtig")]},
-        {"name": "Neu", "builtin": True, "items": [
-            {"kind": "speech", "color": "#2c82c9", "width": 3, "points": [0, 0, 150, 70], "text": "Neu!", "fill": "#ffffff",
+            _text(0, -10, tr("Wichtig"))]},
+        {"name": tr("Neu"), "builtin": True, "items": [
+            {"kind": "speech", "color": "#2c82c9", "width": 3, "points": [0, 0, 150, 70], "text": tr("Neu!"), "fill": "#ffffff",
              "text_width": 150, "text_height": 70, "font_size": 24, "pos": [0, 0]}]},
-        {"name": "Schritt mit Erklärung", "builtin": True, "items": [
+        {"name": tr("Schritt mit Erklärung"), "builtin": True, "items": [
             {"kind": "step", "color": RED, "width": 4, "points": [0, 0, 46, 46], "text": "1", "number": 1,
              "text_width": 46, "text_height": 46, "font_size": 22, "pos": [0, 0]},
-            _text(56, 4, "Erklärung", color="#172033")]},
+            _text(56, 4, tr("Erklärung"), color="#172033")]},
     ]
 
 
@@ -92,11 +93,11 @@ class TemplateLibrary:
     def add(self, name, items):
         name = " ".join(name.split())[:60]
         if not name:
-            raise ValueError("Bitte einen Namen für die Vorlage angeben.")
+            raise ValueError(tr("Bitte einen Namen für die Vorlage angeben."))
         if not items:
-            raise ValueError("Bitte zuerst Markierungen auswählen.")
+            raise ValueError(tr("Bitte zuerst Markierungen auswählen."))
         if any(entry["name"] == name for entry in builtin_templates()):
-            raise ValueError("Diesen Namen hat schon eine mitgelieferte Vorlage.")
+            raise ValueError(tr("Diesen Namen hat schon eine mitgelieferte Vorlage."))
         entries = [entry for entry in self.own() if entry["name"] != name]
         cleaned = [{key: value for key, value in item.items() if key != "rotation" or value} for item in items]
         entries.append({"name": name, "items": normalize(cleaned)})
@@ -106,5 +107,5 @@ class TemplateLibrary:
     def remove(self, name):
         entries = self.own()
         if not any(entry["name"] == name for entry in entries):
-            raise ValueError("Nur eigene Vorlagen können gelöscht werden.")
+            raise ValueError(tr("Nur eigene Vorlagen können gelöscht werden."))
         self._write([entry for entry in entries if entry["name"] != name])

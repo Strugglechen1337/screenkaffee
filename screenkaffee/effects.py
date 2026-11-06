@@ -1,5 +1,6 @@
 """Deterministic, non-destructive image finishing operations."""
 from dataclasses import asdict, dataclass, fields
+from .i18n import tr
 import math
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
@@ -80,7 +81,7 @@ def adjust_colors(image, e):
 def apply_effects(image, options):
     e = ImageEffects.from_dict(options) if isinstance(options, dict) else options
     if not 5 <= e.scale_percent <= 400:
-        raise ValueError("Bildgröße muss zwischen 5 und 400 Prozent liegen.")
+        raise ValueError(tr("Bildgröße muss zwischen 5 und 400 Prozent liegen."))
     rgba = image.convert("RGBA")
     rgba = adjust_colors(rgba, e)
     if e.flip_horizontal:
@@ -92,7 +93,7 @@ def apply_effects(image, options):
     if e.scale_percent != 100:
         size = tuple(max(1, round(n * e.scale_percent / 100)) for n in rgba.size)
         if size[0] * size[1] > 150_000_000:
-            raise ValueError("Das Ergebnis überschreitet 150 Megapixel.")
+            raise ValueError(tr("Das Ergebnis überschreitet 150 Megapixel."))
         rgba = rgba.resize(size, Image.Resampling.LANCZOS)
     width, height = rgba.size
     mask = Image.new("L", rgba.size, 255)
@@ -134,7 +135,7 @@ def apply_effects(image, options):
     pad = max(0, min(1000, e.padding)) + shadow_margin
     size = (width + pad * 2, height + pad * 2 + reflection_height)
     if size[0] * size[1] > 150_000_000:
-        raise ValueError("Das Ergebnis überschreitet 150 Megapixel.")
+        raise ValueError(tr("Das Ergebnis überschreitet 150 Megapixel."))
     background = (0, 0, 0, 0) if e.transparent_background else e.background
     canvas = Image.new("RGBA", size, background)
     if e.shadow_radius:
@@ -188,9 +189,9 @@ def cut_out(image, axis, start, end, gap=0, torn=0):
     start, end = max(0, int(start)), min(size, int(end))
     gap, torn = max(0, min(200, int(gap))), max(0, min(100, int(torn)))
     if end <= start:
-        raise ValueError("Der Bereich ist leer.")
+        raise ValueError(tr("Der Bereich ist leer."))
     if end - start >= size:
-        raise ValueError("Es muss mindestens ein Teil des Bildes übrig bleiben.")
+        raise ValueError(tr("Es muss mindestens ein Teil des Bildes übrig bleiben."))
     new_span = size - (end - start) + gap
     mode = "RGBA" if (gap or torn) and image.mode == "RGBA" else image.mode
     fill = (0, 0, 0, 0) if mode == "RGBA" else (255, 255, 255)

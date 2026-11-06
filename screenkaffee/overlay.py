@@ -1,4 +1,5 @@
 import os
+from .i18n import N_, tr
 import sys
 from PIL import ImageDraw
 from PySide6.QtCore import Qt, QPoint, QPointF, QRect, QRectF, QTimer, Signal
@@ -6,8 +7,8 @@ from PySide6.QtGui import QColor, QPainter, QPen, QCursor, QPixmap, QFont, QKeyS
 from PySide6.QtWidgets import QWidget
 from .editor import pil_to_qimage
 
-HELP_LINES = ("Bereich ziehen oder Fenster anklicken", "Mausrad: vergrößern / verkleinern", "M: Mauszeiger in Aufnahme ein/aus",
-              "Umschalt beim Loslassen: Feinauswahl (Pfeile, Strg+Pfeile, Enter)", "Doppelklick: ganzer Bildschirm", "L: Lineal (Abstände messen)", "H: Hilfe ein/aus", "Esc oder rechte Maustaste: abbrechen")
+HELP_LINES = (N_("Bereich ziehen oder Fenster anklicken"), N_("Mausrad: vergrößern / verkleinern"), N_("M: Mauszeiger in Aufnahme ein/aus"),
+              N_("Umschalt beim Loslassen: Feinauswahl (Pfeile, Strg+Pfeile, Enter)"), N_("Doppelklick: ganzer Bildschirm"), N_("L: Lineal (Abstände messen)"), N_("H: Hilfe ein/aus"), N_("Esc oder rechte Maustaste: abbrechen"))
 
 
 def _is_real_win32_display():
@@ -281,15 +282,15 @@ class SelectionOverlay(QWidget):
         painter.setFont(QFont("Segoe UI", 12))
         if self.measure_mode:
             painter.fillRect(QRect(18, 20, 900, 32), QColor(0, 0, 0, 150))
-            painter.drawText(28, 42, "Lineal: ziehen zum Messen · Umschalt: gerade / 45° · Strg+C: Maße kopieren · L: zurück zur Auswahl · Esc: schließen")
+            painter.drawText(28, 42, tr("Lineal: ziehen zum Messen · Umschalt: gerade / 45° · Strg+C: Maße kopieren · L: zurück zur Auswahl · Esc: schließen"))
         elif self.precise_box:
-            painter.drawText(28, 42, "Pfeile: Größe ±1 px · Strg+Pfeile: verschieben · Enter: aufnehmen · Esc: abbrechen")
+            painter.drawText(28, 42, tr("Pfeile: Größe ±1 px · Strg+Pfeile: verschieben · Enter: aufnehmen · Esc: abbrechen"))
         elif self.show_help and self.start is None:
             for index, line in enumerate(HELP_LINES):
-                painter.drawText(28, 42 + index * 22, line)
-            painter.drawText(28, 42 + len(HELP_LINES) * 22, f"Mauszeiger in Aufnahmen: {'an' if self.show_cursor else 'aus'} · Zoom {self.zoom:.2g}×")
+                painter.drawText(28, 42 + index * 22, tr(line))
+            painter.drawText(28, 42 + len(HELP_LINES) * 22, tr('Mauszeiger in Aufnahmen: {state} · Zoom {zoom}×', state=tr('an') if self.show_cursor else tr('aus'), zoom=format(self.zoom, '.2g')))
         elif self.start is None:
-            painter.drawText(28, 42, "H: Hilfe")
+            painter.drawText(28, 42, tr("H: Hilfe"))
         pos = self.end
         painter.setPen(QPen(QColor("#61e7c5"), 1))
         painter.drawLine(pos.x(), 0, pos.x(), self.height())

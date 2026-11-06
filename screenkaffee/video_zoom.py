@@ -1,5 +1,6 @@
 """Local, recoverable output zoom controlled while a recording is running."""
 from dataclasses import dataclass, asdict
+from .i18n import tr
 import math
 
 
@@ -12,9 +13,9 @@ class ZoomEvent:
 
     def __post_init__(self):
         if not all(math.isfinite(v) for v in (self.seconds, self.factor, self.x, self.y)):
-            raise ValueError("Zoomwerte müssen endlich sein.")
+            raise ValueError(tr("Zoomwerte müssen endlich sein."))
         if self.seconds < 0 or not 1 <= self.factor <= 8 or not 0 <= self.x <= 1 or not 0 <= self.y <= 1:
-            raise ValueError("Ungültiger Zoomzeitpunkt, Faktor oder Bildausschnitt.")
+            raise ValueError(tr("Ungültiger Zoomzeitpunkt, Faktor oder Bildausschnitt."))
 
 
 def zoom_expression(events, field, initial):
@@ -32,9 +33,9 @@ def apply_video_zoom(source, destination, events):
     from .media import probe_media, _render, _codec_options
     events = [e if isinstance(e, ZoomEvent) else ZoomEvent(**e) for e in events]
     if any(b.seconds < a.seconds for a, b in zip(events, events[1:])):
-        raise ValueError("Zoomereignisse müssen zeitlich sortiert sein.")
+        raise ValueError(tr("Zoomereignisse müssen zeitlich sortiert sein."))
     if len(events) > 1000:
-        raise ValueError("Zu viele Zoomwechsel; die Originalaufnahme bleibt erhalten.")
+        raise ValueError(tr("Zu viele Zoomwechsel; die Originalaufnahme bleibt erhalten."))
     info = probe_media(source)
     width, height = info.width + info.width % 2, info.height + info.height % 2
     z = zoom_expression(events, "factor", 1)
