@@ -273,35 +273,59 @@ class TaskDelivery(QObject):
 
 
 class ThumbnailLoader(QObject):
-    """Pro Ereignisschleife nur eine Vorschau laden; neue Listen ersetzen alte Aufträge."""
+    """Lädt Vorschauen schrittweise: pro Takt alle Cache-Treffer im Zeitbudget, aber höchstens ein Original dekodieren.
+
+    Neue Listen ersetzen alte Aufträge; der Cache gehört immer zum aktuellen Arbeitsbereich des Besitzers."""
+    BUDGET = 0.008            # Sekunden pro Takt, damit die Oberfläche flüssig bleibt
+
     def __init__(self, owner):
         super().__init__(owner)
-        from .workspace import ThumbnailCache
-        self.cache = ThumbnailCache(owner.workspace.root)
         from collections import deque
+        self.owner = owner
+        self.cache = None
+        self.bind()
         self.jobs = deque()
         self.timer = QTimer(self)
-        self.timer.setInterval(10)
+        self.timer.setInterval(0)
         self.timer.timeout.connect(self.load_next)
+
+    def bind(self):
+        """Cache an den aktuellen Arbeitsbereich binden (nach „Arbeitsbereich wechseln“ einen neuen anlegen)."""
+        from .workspace import ThumbnailCache
+        root = Path(self.owner.workspace.root)
+        if self.cache is None or self.cache.root != root / "thumbnails":
+            self.cache = ThumbnailCache(root)
+        return self.cache
 
     def reset(self):
         self.timer.stop()
         self.jobs.clear()
+        self.bind()
 
     def enqueue(self, item, source, kind, favorite=False):
         self.jobs.append((item, source, kind, favorite))
         self.timer.start()
 
     def load_next(self):
+        import time
         from .icons import styled_thumbnail
-        if not self.jobs:
-            self.timer.stop()
-            return
-        item, source, kind, favorite = self.jobs.popleft()
-        try:
-            pixmap = QPixmap(str(self.cache.get(source)))
+        cache = self.bind()
+        deadline = time.perf_counter() + self.BUDGET
+        while self.jobs:
+            item, source, kind, favorite = self.jobs.popleft()
+            decoded = False
+            try:
+                path = cache.cached(source)
+                if path is None:
+                    decoded = True
+                    path = cache.get(source)
+                pixmap = QPixmap(str(path))
+            except (OSError, ValueError):
+                # Original fehlt oder ist kaputt: graue Platzhalterkarte mit Badge und Favoritenstern.
+                LOG.debug("Vorschau konnte nicht geladen werden: %s", source, exc_info=True)
+                pixmap = QPixmap()
             item.setIcon(styled_thumbnail(pixmap, kind, 172, 118, favorite=favorite))
-        except (OSError, ValueError):
-            LOG.debug("Vorschau konnte nicht geladen werden: %s", source, exc_info=True)
+            if decoded or time.perf_counter() >= deadline:
+                break
         if not self.jobs:
             self.timer.stop()

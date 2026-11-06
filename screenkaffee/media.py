@@ -4,6 +4,7 @@ the result before replacing the requested output. Original inputs are untouched.
 from dataclasses import dataclass
 import io
 import json
+import logging
 import math
 from pathlib import Path
 import re
@@ -11,6 +12,8 @@ import subprocess
 import uuid
 from PIL import Image
 from .integrations import tool, run
+
+LOG = logging.getLogger(__name__)
 
 
 def ffmpeg_binary():
@@ -168,8 +171,11 @@ def _render(args, destination, inputs, timeout=3600):
         temporary.unlink(missing_ok=True)
 
 
-def kept_segments(start=0, end=None, cuts=None, duration=0):
-    """Verbleibende (Start, Ende)-Abschnitte in Sekunden nach dem Entfernen von `cuts` aus [start, end]."""
+def kept_segments(start=0, end=None, cuts=None, duration=0, min_length=1e-3):
+    """Verbleibende (Start, Ende)-Abschnitte in Sekunden nach dem Entfernen von `cuts` aus [start, end].
+
+    Reste kürzer als `min_length` (beim Export: ein Videobild) werden mit den benachbarten Schnitten verschmolzen.
+    Sie enthielten kein ganzes Bild, würden aber Ton behalten und Bild und Ton gegeneinander verschieben."""
     clip_end = float(end if end is not None else duration)
     start = float(start)
     if clip_end <= start:
@@ -186,21 +192,25 @@ def kept_segments(start=0, end=None, cuts=None, duration=0):
         cs, ce = max(start, cs), min(clip_end, ce)
         if ce > cs:
             clamped.append((cs, ce))
+    min_length = max(1e-3, float(min_length))
     merged = []
     for cs, ce in sorted(clamped):
-        if merged and cs <= merged[-1][1] + 1e-6:
+        if merged and cs - merged[-1][1] < min_length:
             merged[-1] = (merged[-1][0], max(merged[-1][1], ce))
         else:
             merged.append((cs, ce))
     segments = []
     cursor = start
     for cs, ce in merged:
-        if cs - cursor > 1e-3:
+        if cs - cursor >= min_length:
             segments.append((cursor, cs))
         cursor = max(cursor, ce)
-    if clip_end - cursor > 1e-3:
+    if clip_end - cursor >= min_length:
         segments.append((cursor, clip_end))
     if not segments:
+        if min_length > 1e-3 and clamped:
+            raise ValueError("Die Schnitte entfernen das gesamte Video: Übrig bliebe weniger als ein Videobild. "
+                             "Bitte einen Schnitt verkleinern.")
         raise ValueError("Die Schnitte entfernen das gesamte Video.")
     return segments
 
@@ -220,7 +230,8 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
         raise ValueError("Lautstärke muss zwischen 0 und 4 liegen.")
     tempo = tempo_filters(speed)
     cuts = list(cuts or [])
-    segments = kept_segments(start, end, cuts, info.duration) if cuts else None
+    frame = 1 / info.fps if info.fps and info.fps > 0 else 1 / 30
+    segments = kept_segments(start, end, cuts, info.duration, min_length=frame) if cuts else None
     filters = []
     if crop is not None:
         x, y, w, h = map(int, crop)
@@ -274,10 +285,24 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
             else:
                 args += ["-filter_complex", ";".join(graph), "-map", "[outv]", "-an"] + _codec_options(suffix, quality)
         return _render(args, destination, [source])
-    args = ["-ss", f"{start:.6f}"]
-    if end is not None:
-        args += ["-t", f"{end - start:.6f}"]
-    args += ["-i", str(Path(source).resolve())]
+    seek = ["-ss", f"{start:.6f}"] + (["-t", f"{end - start:.6f}"] if end is not None else [])
+    source_args = ["-i", str(Path(source).resolve())]
+    output = _plain_output_args(filters, suffix, fps, loops, quality, mute, info, tempo, volume)
+    try:
+        # Schnell: vor der Eingabe springen. Das braucht ein Schlüsselbild vor `start` und einen Index im Container.
+        return _render(seek + source_args + output, destination, [source])
+    except (RuntimeError, ValueError) as error:
+        if start <= 0 or (isinstance(error, ValueError) and "Videostream" not in str(error)):
+            raise
+        # Ohne Index (z. B. MPEG-TS) landet der Sprung hinter dem einzigen Schlüsselbild, und es entsteht kein
+        # Videobild. Dann genau, aber langsamer: vollständig dekodieren und erst in der Ausgabe ab `start` schreiben.
+        LOG.info("Schneller Sprung ergab kein Video, dekodiere vollständig: %s", error)
+        return _render(source_args + seek + output, destination, [source])
+
+
+def _plain_output_args(filters, suffix, fps, loops, quality, mute, info, tempo, volume):
+    """Filter- und Kodierargumente für den Export ohne Schnitte."""
+    args = []
     if suffix == ".gif":
         graph = ",".join(filters + [f"fps={int(fps)}", "split[a][b];[a]palettegen[p];[b][p]paletteuse"])
         args += ["-filter_complex", graph, "-an", "-loop", str(int(loops))]
@@ -290,7 +315,7 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
         else:
             args += ["-map", "0:a:0", "-af", f"{tempo},volume={volume:.8g}"]
         args += _codec_options(suffix, quality)
-    return _render(args, destination, [source])
+    return args
 
 
 def export_html_page(source, destination, quality="medium", **edit_options):

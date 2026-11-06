@@ -4,20 +4,27 @@ Ein kleiner Webserver läuft nur, solange das Fenster offen ist (höchstens 15 M
 lokalen Adresse und liefert nur die freigegebenen Dateien unter einem zufälligen Pfad aus. Nichts geht ins Internet.
 """
 import html
+import io
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import ipaddress
+import logging
 import mimetypes
 from pathlib import Path
 import secrets
-import shutil
+import select
 import socket
 import threading
+import time
 from urllib.parse import quote, urlsplit, parse_qs
 
 from PIL import Image
 
+LOG = logging.getLogger(__name__)
 TIMEOUT = 15 * 60
 CHUNK = 256 * 1024
+REQUEST_TIMEOUT = 20      # Sekunden ohne Daten, danach wird eine Verbindung getrennt
+MAX_CONNECTIONS = 16      # mehr gleichzeitige Verbindungen werden sofort abgewiesen
+POLL = 0.1                # so oft prüft eine wartende Verbindung, ob die Freigabe beendet wurde
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 VIDEO_TYPES = {".mp4", ".webm", ".mov"}
 
@@ -90,10 +97,92 @@ small{{color:#777}}</style></head><body><h1>screenkaffee</h1>{''.join(items)}
 </body></html>""".encode("utf-8")
 
 
+class _StoppableReader(io.RawIOBase):
+    """Liest die Anfrage vom Socket, wartet dabei aber nie blind: Alle `POLL` Sekunden wird geprüft, ob die Freigabe
+    beendet wurde (dann Dateiende), und die ganze Anfrage muss innerhalb von `timeout` Sekunden ankommen.
+
+    Nötig, weil unter Windows ein `shutdown()` aus einem anderen Thread ein blockiertes `recv` nicht aufweckt."""
+
+    def __init__(self, sock, server, timeout):
+        super().__init__()
+        self.sock, self.server = sock, server
+        self.deadline = time.monotonic() + timeout
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        while True:
+            if self.server.closing:
+                return 0
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Anfrage kam nicht rechtzeitig an")
+            ready, _, _ = select.select([self.sock], [], [], min(POLL, remaining))
+            if ready:
+                return self.sock.recv_into(buffer)
+
+
+class _Server(ThreadingHTTPServer):
+    """HTTP-Server mit Zeitlimit je Verbindung, Obergrenze gleichzeitiger Verbindungen und einem Verzeichnis der
+    offenen Verbindungen, damit `close_connections` sie beim Beenden der Freigabe trennen kann."""
+
+    daemon_threads = True
+
+    def __init__(self, address, handler, max_connections=MAX_CONNECTIONS, request_timeout=REQUEST_TIMEOUT):
+        self.max_connections = max_connections
+        self.request_timeout = request_timeout
+        self.active = {}
+        self.active_lock = threading.Lock()
+        self.closing = False
+        super().__init__(address, handler)
+
+    def process_request(self, request, client_address):
+        with self.active_lock:
+            accept = not self.closing and len(self.active) < self.max_connections
+            if accept:
+                thread = threading.Thread(target=self.process_request_thread, args=(request, client_address),
+                                          name="screenkaffee-lan-share-request", daemon=True)
+                self.active[request] = thread
+        if not accept:
+            self.shutdown_request(request)
+            return
+        try:
+            request.settimeout(self.request_timeout)
+        except OSError:
+            pass
+        thread.start()
+
+    def shutdown_request(self, request):
+        with self.active_lock:
+            self.active.pop(request, None)
+        super().shutdown_request(request)
+
+    def handle_error(self, request, client_address):
+        LOG.debug("Verbindung von %s abgebrochen", client_address, exc_info=True)
+
+    def close_connections(self, wait=2.0):
+        """Trennt alle offenen Verbindungen (auch halbe, nie fertig gesendete Anfragen) und wartet kurz auf ihre Threads."""
+        with self.active_lock:
+            self.closing = True
+            open_connections = list(self.active.items())
+        for request, _thread in open_connections:
+            try:
+                # Wartende Leser bemerken `closing` selbst; shutdown trennt zusätzlich laufende Übertragungen.
+                request.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        current = threading.current_thread()
+        for _request, thread in open_connections:
+            if thread is not current and thread.is_alive():
+                thread.join(wait)
+
+
 class Share:
     """Freigabe einer oder mehrerer Dateien unter http://<lokale Adresse>:<Port>/<Zufallspfad>/."""
 
-    def __init__(self, files, address=None, port=0, timeout=TIMEOUT):
+    def __init__(self, files, address=None, port=0, timeout=TIMEOUT, max_connections=MAX_CONNECTIONS,
+                 request_timeout=REQUEST_TIMEOUT):
         self.files = [(Path(path), title) for path, title in files]
         if not self.files or not all(path.is_file() for path, _ in self.files):
             raise ValueError("Keine Datei zum Senden vorhanden.")
@@ -109,8 +198,7 @@ class Share:
         self.expired = False
         self.stopped = False
         self.lock = threading.Lock()
-        self.server = ThreadingHTTPServer((address, port), self.handler())
-        self.server.daemon_threads = True
+        self.server = _Server((address, port), self.handler(), max_connections, request_timeout)
         self.url = f"http://{address}:{self.server.server_address[1]}/{self.token}/"
         self.thread = threading.Thread(target=self.server.serve_forever, name="screenkaffee-lan-share", daemon=True)
         self.thread.start()
@@ -130,6 +218,7 @@ class Share:
         self.timer.cancel()
         self.server.shutdown()
         self.server.server_close()
+        self.server.close_connections()
 
     def count(self, field):
         with self.lock:
@@ -144,6 +233,10 @@ class Share:
 
             def log_message(self, *args):
                 pass
+
+            def setup(self):
+                super().setup()
+                self.rfile = io.BufferedReader(_StoppableReader(self.connection, self.server, self.server.request_timeout))
 
             def do_GET(self):
                 parts = urlsplit(self.path)
@@ -180,8 +273,11 @@ class Share:
                 self.end_headers()
                 try:
                     with path.open("rb") as source:
-                        shutil.copyfileobj(source, self.wfile, CHUNK)
-                except (BrokenPipeError, ConnectionResetError):
+                        while chunk := source.read(CHUNK):
+                            if self.server.closing:
+                                return
+                            self.wfile.write(chunk)
+                except OSError:          # Handy getrennt, Zeitlimit oder Freigabe beendet
                     return
                 if download:
                     share.count("downloads")

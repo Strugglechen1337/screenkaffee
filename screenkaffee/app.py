@@ -1963,8 +1963,12 @@ class MainWindow(QMainWindow):
             if QMessageBox.question(self, "Endung erkannt", f"Zusätzlich eine Kopie als {extension[1:].upper()} speichern?") == QMessageBox.StandardButton.Yes:
                 self.export_copy(ident, title, extension)
         dialog = details_dialog(self, self.workspace, ids, on_export_copy=ask_copy)
+        dialog.accepted.disconnect(dialog.apply)        # hier anwenden, damit Fehler verständlich gemeldet werden
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            dialog.apply()
+            try:
+                dialog.apply()
+            except ValueError as exc:                   # z. B. Sammlungsname länger als 200 Zeichen
+                self.fail(str(exc))
             self.refresh_collections()
             self.refresh()
             self.show_preview()

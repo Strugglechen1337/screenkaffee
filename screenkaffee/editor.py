@@ -2074,7 +2074,12 @@ class EditorWindow(QMainWindow):
 
     def fill_arrange_menu(self):
         """Untermenü „Markierungen anordnen“ bei jedem Öffnen neu füllen (Sperren/Entsperren je nach Auswahl)."""
+        # clear() entfernt nur die Einträge; die per addMenu erzeugten Untermenüs blieben sonst als Kinder liegen.
+        old = self.arrange_menu.findChildren(QMenu, options=Qt.FindChildOption.FindDirectChildrenOnly)
         self.arrange_menu.clear()
+        for submenu in old:
+            submenu.setParent(None)
+            submenu.deleteLater()
         self.view.fill_arrange_menu(self.arrange_menu)
 
     def auto_trim_borders(self):

@@ -80,8 +80,14 @@ def run_video(args, recorder_factory=None, sleep=None, clock=None):
                         raise RuntimeError(error)
             except KeyboardInterrupt:
                 pass
-        finally:
-            result = recorder.stop()
+        except BaseException:
+            # Die ursprüngliche Ursache melden; ein Folgefehler beim Stoppen darf sie nicht verdecken.
+            try:
+                recorder.stop()
+            except Exception as stop_error:
+                print(f"Beim Stoppen der Aufnahme trat zusätzlich ein Fehler auf: {stop_error}", file=sys.stderr)
+            raise
+        result = recorder.stop()
         if not result:
             raise RuntimeError("Die Aufnahme lieferte kein Video.")
         target = args.filepath or Path.cwd() / Path(result).name

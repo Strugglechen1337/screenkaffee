@@ -428,6 +428,10 @@ class Annotation(QGraphicsItem):
                     event.accept()
                     return
         super().mousePressEvent(event)
+        # Qt verschiebt beim Ziehen alle ausgewählten Markierungen mit; ihre Ausgangslagen für ein gemeinsames Undo.
+        scene = self.scene()
+        selected = scene.selectedItems() if scene is not None else []
+        self.drag_origins = [(item, item.pos()) for item in selected if isinstance(item, Annotation) and item is not self]
 
     def mouseMoveEvent(self, event):
         if self.tail_before is not None:
@@ -473,7 +477,17 @@ class Annotation(QGraphicsItem):
             if item.data["kind"] == "step" and item.data.get("connect"):
                 item.prepareGeometryChange()
                 item.update()
+        others = [(item, before) for item, before in getattr(self, "drag_origins", []) if item.pos() != before]
+        self.drag_origins = []
         if self.pos() != self.original_pos:
+            special = (getattr(self, "ctrl_duplicate", False) or (getattr(self, "text_only", False)
+                       and self.data["kind"] in ("speech", "magnifier")))
+            if others and not special:
+                items = [(self, self.original_pos)] + others
+                self.view.undo.push(GroupMoveCommand([(item, before, item.pos()) for item, before in items]))
+                return
+            for item, before in others:          # Duplizieren/Alt-Ziehen betrifft nur die gegriffene Markierung
+                item.setPos(before)
             if getattr(self, "ctrl_duplicate", False):
                 self.duplicate_to(self.original_pos, self.pos())
             elif self.data["kind"] == "speech" and getattr(self, "text_only", False):
@@ -548,6 +562,22 @@ class MoveCommand(QUndoCommand):
 
     def undo(self):
         self.item.setPos(self.before)
+
+
+class GroupMoveCommand(QUndoCommand):
+    """Mehrere gemeinsam gezogene Markierungen in einem Undo-Schritt; `moves` = [(Markierung, vorher, nachher)]."""
+
+    def __init__(self, moves):
+        super().__init__("Markierungen verschieben")
+        self.moves = [(item, QPointF(before), QPointF(after)) for item, before, after in moves]
+
+    def redo(self):
+        for item, _before, after in self.moves:
+            item.setPos(after)
+
+    def undo(self):
+        for item, before, _after in self.moves:
+            item.setPos(before)
 
 
 class NudgeCommand(MoveCommand):
