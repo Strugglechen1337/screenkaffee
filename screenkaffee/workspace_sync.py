@@ -74,13 +74,16 @@ def import_record(workspace, value, media, conflict=False):
     for name in value["files"]:
         target_name = ident + name[len(original):]
         copy_file(media / name, workspace.images / target_name)
+    if existing:
+        for name in previous["files"].keys() - value["files"].keys():
+            (workspace.images / name).unlink(missing_ok=True)
     row["id"] = ident
     row["filename"] = ident + row["filename"][len(original):]
     if conflict:
         row["title"] += " (Konfliktkopie)"
-    columns = ("id", "title", "created", "filename", "width", "height", "tags", "collection", "metadata", "kind")
+    columns = ("id", "title", "created", "filename", "width", "height", "tags", "collection", "metadata", "kind", "favorite")
     workspace.db.execute("INSERT OR REPLACE INTO captures (" + ",".join(columns) + ") VALUES (" + ",".join("?" for _ in columns) + ")",
-                         [row[key] for key in columns])
+                         [row.get(key, 0) if key == "favorite" else row[key] for key in columns])
     workspace.db.commit()
     return ident
 
@@ -101,7 +104,10 @@ def sync_workspace(workspace, folder, propagate_deletions=False):
         remote = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {"version": 1, "captures": {}}
         if remote.get("version") != 1 or not isinstance(remote.get("captures"), dict):
             raise ValueError("Unbekanntes Austauschformat.")
-        media = folder / "media"
+        media_name = remote.get("media", "media")
+        if not re.fullmatch(r"media(?:-[0-9a-f]{32})?", media_name):
+            raise ValueError("Ungültiger Medienordner.")
+        media = folder / media_name
         if media.is_symlink():
             raise ValueError("Der Medienordner darf keine symbolische Verknüpfung sein.")
         media.mkdir(exist_ok=True)
@@ -117,8 +123,6 @@ def sync_workspace(workspace, folder, propagate_deletions=False):
         if propagate_deletions:
             for ident in sorted(set(state) - set(local)):
                 if ident in records and records[ident]["digest"] == state[ident]:
-                    for name in records[ident]["files"]:
-                        (media / name).unlink(missing_ok=True)
                     tombstones[ident] = records.pop(ident)["digest"]
                     deleted += 1
             for ident, old_digest in list(tombstones.items()):
@@ -137,15 +141,32 @@ def sync_workspace(workspace, folder, propagate_deletions=False):
                     duplicate = import_record(workspace, other, media, conflict=True)
                     local[duplicate] = record(workspace, duplicate)
                     conflicts += 1
+        # Neue Generation vorbereiten; das bisherige Manifest bleibt immer gültig.
+        next_media = folder / ("media-" + uuid.uuid4().hex if manifest.exists() else "media")
+        next_media.mkdir(exist_ok=True)
         for ident, value in local.items():
             if records.get(ident, {}).get("digest") != value["digest"]:
-                for name in value["files"]:
-                    copy_file(workspace.images / name, media / name)
                 records[ident] = value
                 if propagate_deletions:
                     tombstones.pop(ident, None)
                 exported += 1
-        atomic_json(manifest, remote)
+        if exported or deleted or not manifest.exists():
+            for ident, value in records.items():
+                for name in value["files"]:
+                    source = workspace.images / name if ident in local else media / name
+                    copy_file(source, next_media / name)
+                validate_record(ident, value, next_media)
+            remote["media"] = next_media.name
+            atomic_json(manifest, remote)
+        else:
+            next_media.rmdir()
+        # Alte und abgebrochene Generationen erst nach erfolgreicher Veröffentlichung entfernen.
+        for old in folder.iterdir():
+            if re.fullmatch(r"media(?:-[0-9a-f]{32})?", old.name) and old.name != remote.get("media", "media") and old.is_dir() and not old.is_symlink():
+                try:
+                    shutil.rmtree(old)
+                except OSError:
+                    pass  # Eine Dateisperre verhindert nur das spätere Aufräumen.
         atomic_json(state_file, {ident: value["digest"] for ident, value in local.items()})
         result = {"imported": imported, "exported": exported, "conflicts": conflicts}
         if propagate_deletions:
