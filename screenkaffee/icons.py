@@ -204,7 +204,23 @@ def _glyph(name, p, c):
     """Glyphs for the round action buttons, drawn on a 44x44 canvas."""
     p.setPen(_pen(c, 2.6))
     p.setBrush(Qt.BrushStyle.NoBrush)
-    if name == "camera":
+    if name == "trash":
+        # Deckel, Griff und konischer Korb bleiben auch klein gut erkennbar.
+        p.drawLine(QPointF(11, 13), QPointF(33, 13))
+        p.drawRoundedRect(QRectF(18, 8, 8, 5), 1.5, 1.5)
+        path = QPainterPath(QPointF(14, 17))
+        path.lineTo(16, 33)
+        path.quadTo(16.2, 35, 19, 35)
+        path.lineTo(25, 35)
+        path.quadTo(27.8, 35, 28, 33)
+        path.lineTo(30, 17)
+        p.drawPath(path)
+        p.drawLine(QPointF(20, 20), QPointF(20.8, 30))
+        p.drawLine(QPointF(24, 20), QPointF(23.2, 30))
+    elif name == "restore":
+        p.drawArc(QRectF(11, 12, 23, 23), -65 * 16, 285 * 16)
+        p.drawPolyline(_poly((10, 10), (10, 20), (20, 20)))
+    elif name == "camera":
         p.drawRoundedRect(QRectF(11, 15, 22, 15), 3, 3)
         p.drawEllipse(QRectF(17.5, 18.5, 9, 9))
         p.drawLine(QPointF(17, 15), QPointF(19, 12))

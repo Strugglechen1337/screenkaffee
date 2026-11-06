@@ -49,7 +49,7 @@ def test_video_button_dropdown_and_shared_timelapse_action(qt_app, tmp_path, mon
 def test_share_button_offers_phone_and_beautify(qt_app, tmp_path, monkeypatch):
     from PySide6.QtWidgets import QToolButton
     window = window_for(tmp_path, monkeypatch)
-    bottom = [b.text() for b in window.findChildren(QToolButton) if b.objectName() == "roundAction"]
+    bottom = [b.text() for b in window.findChildren(QToolButton) if b.objectName() == "roundAction" and not b.isHidden()]
     assert bottom == ["Aufnehmen", "Bearbeiten", "Kopieren", "Exportieren", "Teilen", "Dokument", "Mehr", "Schließen"]
     share = next(b for b in window.findChildren(QToolButton) if b.text() == "Teilen")
     assert labels(share.menu())[:2] == ["Aufs Handy senden (QR-Code) …", "Schicker Screenshot (Hintergrund, Rahmen) …"]

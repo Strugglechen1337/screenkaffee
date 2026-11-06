@@ -369,33 +369,44 @@ class Workspace:
         return result
 
     def remove(self, ident):
-        # UI requires confirmation; originals are moved to a local trash folder.
+        # Erst alle Dateien verschieben, dann den Datenbankeintrag entfernen.
         path = self.path(ident)
         trash = self.root / "trash"
         trash.mkdir(exist_ok=True)
-        (trash / (ident + ".metadata.json")).write_text(json.dumps(dict(self.get(ident)), ensure_ascii=False, indent=2), encoding="utf-8")
-        if path.exists():
-            path.replace(trash / path.name)
-        for suffix in (".prism.json", ".screenkaffee.json"):
-            project = path.with_suffix(suffix)
-            if project.exists():
-                project.replace(trash / project.name)
-        thumb = self.images / (ident + ".thumb.png")
-        if thumb.exists():
-            thumb.replace(trash / thumb.name)
-        for suffix in (".srt", ".txt"):
-            sidecar = path.with_suffix(suffix)
-            if sidecar.exists() and sidecar != path:
-                sidecar.replace(trash / sidecar.name)
-        self.db.execute("DELETE FROM captures WHERE id=?", (ident,))
-        self.db.commit()
+        info = trash / (ident + ".metadata.json")
+        if any(p != info for p in trash.glob(ident + ".*")):
+            raise ValueError("Bitte zuerst die unvollständige Löschung wiederherstellen.")
+        info.write_text(json.dumps(dict(self.get(ident)), ensure_ascii=False, indent=2), encoding="utf-8")
+        files = [path, self.images / (ident + ".thumb.png")]
+        files += [path.with_suffix(suffix) for suffix in (".prism.json", ".screenkaffee.json", ".srt", ".txt")]
+        moved = []
+        try:
+            for source in dict.fromkeys(files):
+                if source.exists():
+                    target = trash / source.name
+                    if target.exists():
+                        raise ValueError("Datei liegt bereits im Papierkorb: " + source.name)
+                    source.replace(target)
+                    moved.append((source, target))
+            self.db.execute("DELETE FROM captures WHERE id=?", (ident,))
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            for source, target in reversed(moved):
+                try:
+                    target.replace(source)
+                except OSError:
+                    pass  # Metadaten bleiben für die Wiederherstellung erhalten.
+            if not any(target.exists() for _, target in moved):
+                info.unlink(missing_ok=True)
+            raise
 
     def trash_entries(self):
         result = []
         for path in (self.root / "trash").glob("*.metadata.json"):
             try:
                 row = json.loads(path.read_text(encoding="utf-8"))
-                if not self.get(row["id"]):
+                if not self.get(row["id"]) or any(p.name != path.name for p in path.parent.glob(row["id"] + ".*")):
                     result.append(row)
             except (ValueError, KeyError):
                 pass
@@ -405,8 +416,7 @@ class Workspace:
         import re
         if not re.fullmatch(r"[a-f0-9]{32}", ident):
             raise ValueError("Ungültige Aufnahme-ID.")
-        if self.get(ident):
-            raise ValueError("Aufnahme ist bereits vorhanden.")
+        existing = self.get(ident)
         trash = self.root / "trash"
         info = trash / (ident + ".metadata.json")
         row = json.loads(info.read_text(encoding="utf-8"))
@@ -417,7 +427,7 @@ class Workspace:
         files = [filename, ident + ".thumb.png", path.with_suffix(".prism.json").name, path.with_suffix(".screenkaffee.json").name,
                  path.with_suffix(".srt").name, path.with_suffix(".txt").name]
         files = [name for name in dict.fromkeys(files) if (trash / name).exists()]
-        if filename not in files:
+        if filename not in files and not (existing and path.exists()):
             raise ValueError("Originaldatei fehlt im Papierkorb.")
         for name in files:
             if (self.images / name).exists():
@@ -428,7 +438,7 @@ class Workspace:
             for name in files:
                 (trash / name).replace(self.images / name)
                 moved.append(name)
-            self.db.execute("INSERT INTO captures (" + ",".join(columns) + ") VALUES (" + ",".join("?" for _ in columns) + ")",
+            self.db.execute("INSERT OR REPLACE INTO captures (" + ",".join(columns) + ") VALUES (" + ",".join("?" for _ in columns) + ")",
                 [row.get(key, "image" if key == "kind" else (0 if key == "favorite" else "")) for key in columns])
             self.db.commit()
         except Exception:
@@ -439,16 +449,25 @@ class Workspace:
         info.unlink()
         return ident
 
-    def empty_trash(self):
-        """Papierkorb endgültig leeren (nur nach Rückfrage in der Oberfläche); liefert die freigegebenen Bytes."""
-        trash = self.root / "trash"
+    def delete_trashed(self, ids):
+        """Nur vollständig gelöschte Aufnahmen endgültig entfernen."""
+        import re
         freed = 0
-        if trash.is_dir():
-            for path in trash.iterdir():
+        for ident in ids:
+            if self.get(ident):
+                continue
+            if not re.fullmatch(r"[a-f0-9]{32}", ident):
+                raise ValueError("Ungültige Aufnahme-ID.")
+            for path in (self.root / "trash").glob(ident + ".*"):
                 if path.is_file():
-                    freed += path.stat().st_size
+                    size = path.stat().st_size
                     path.unlink()
+                    freed += size
         return freed
+
+    def empty_trash(self):
+        """Aktive Datenbankeinträge bleiben auch bei unvollständigem Rollback geschützt."""
+        return self.delete_trashed([row["id"] for row in self.trash_entries()])
 
     def close(self):
         self.db.close()

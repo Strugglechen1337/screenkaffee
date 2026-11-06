@@ -202,10 +202,13 @@ class MainWindow(QMainWindow):
         tools_row.setContentsMargins(14, 6, 14, 5)
         tools_row.setSpacing(14)
         tools = tools_row
+        self.media_buttons = []
         for label, glyph, color, callback in [("Aufnehmen", "camera", "#e5332a", lambda: self.capture("region")),
             ("Bearbeiten", "edit", "#4caf50", self.edit_selected), ("Kopieren", "copy", "#2c82c9", self.copy_selected),
             ("Exportieren", "export", "#2c82c9", self.export_selected)]:
             button = self.round_button(tools, label, glyph, color, callback)
+            if label != "Aufnehmen":
+                self.media_buttons.append(button)
             if label == "Bearbeiten":
                 self.edit_button = button
         share = self.round_button(tools, "Teilen", "share", "#2c82c9", None)
@@ -214,7 +217,12 @@ class MainWindow(QMainWindow):
         share_popup = QMenu(self)
         share.setMenu(share_popup)
         share.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.round_button(tools, "Dokument", "document", "#2c82c9", self.document_export)
+        self.media_buttons.append(share)
+        self.media_buttons.append(self.round_button(tools, "Dokument", "document", "#2c82c9", self.document_export))
+        self.trash_buttons = [self.round_button(tools, label, glyph, "#808080", callback) for label, glyph, callback in [
+            ("Wiederherstellen", "restore", self.restore_trash_selected),
+            ("Endgültig löschen", "trash", self.delete_trash_selected),
+            ("Papierkorb leeren", "trash", self.empty_trash_view)]]
         menu = QMenu(self)
         self.timelapse_action = QAction("Zeitraffer starten …", self)
         self.timelapse_action.triggered.connect(lambda _=False: self.toggle_timelapse())
@@ -458,6 +466,12 @@ class MainWindow(QMainWindow):
 
     def show_capture_context_menu(self, global_pos):
         menu = QMenu(self)
+        if self.in_trash():
+            menu.addAction("Wiederherstellen", self.restore_trash_selected)
+            menu.addAction("Endgültig löschen …", self.delete_trash_selected)
+            menu.addAction("Papierkorb leeren …", self.empty_trash_view)
+            menu.exec(global_pos)
+            return
         ids = self.selected_ids()
         if ids:
             menu.addAction("Bearbeiten (Strg+E)", self.edit_selected)
@@ -638,6 +652,8 @@ class MainWindow(QMainWindow):
         if item is None or item.text().startswith("+"):
             return
         name = item.text()
+        if name.startswith("Papierkorb ("):
+            return
         menu = QMenu(self)
         menu.addAction("Ordner im Dateimanager zeigen", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.images))))
         if name != self.workspace.DEFAULT_COLLECTION:
@@ -650,6 +666,8 @@ class MainWindow(QMainWindow):
         menu.exec(self.collection_list.mapToGlobal(position))
 
     def rename_collection(self, name):
+        if name.startswith("Papierkorb ("):
+            return
         if name == self.workspace.DEFAULT_COLLECTION:
             return
         new, ok = QInputDialog.getText(self, "Sammlung umbenennen", "Neuer Name", text=name)
@@ -683,6 +701,8 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def shift_collection(self, name, step):
+        if name.startswith("Papierkorb ("):
+            return
         try:
             if self.workspace.move_collection(name, step):
                 self.refresh_collections()
@@ -692,6 +712,8 @@ class MainWindow(QMainWindow):
             pass
 
     def choose_collection_icon(self, name):
+        if name.startswith("Papierkorb ("):
+            return
         label, ok = QInputDialog.getItem(self, "Symbol wählen", "Symbol für die Sammlung", list(COLLECTION_ICONS.values()), editable=False)
         if ok:
             glyph = next(key for key, text in COLLECTION_ICONS.items() if text == label)
@@ -699,6 +721,8 @@ class MainWindow(QMainWindow):
             self.refresh_collections()
 
     def move_media_to_collection(self, ids, name):
+        if name.startswith("Papierkorb ("):
+            return
         try:
             self.workspace.move_to_collection(ids, name)
         except (KeyError, ValueError) as exc:
@@ -1296,6 +1320,7 @@ class MainWindow(QMainWindow):
             print_images(self, [image], self.settings.get("print_margin_mm", 0))
 
     def refresh_collections(self):
+        was_trash = self.in_trash()
         selected = self.collection.currentText()
         self.collection.blockSignals(True)
         self.collection.clear()
@@ -1303,7 +1328,10 @@ class MainWindow(QMainWindow):
         for value in self.workspace.collections():
             if value != "Alle Aufnahmen":
                 self.collection.addItem(value)
-        self.collection.setCurrentText(selected)
+        trash_label = f"Papierkorb ({len(self.workspace.trash_entries())})"
+        from .icons import round_icon
+        self.collection.addItem(round_icon("trash", "#dca354", 30), trash_label, "trash")
+        self.collection.setCurrentText(trash_label if was_trash else selected)
         self.collection.blockSignals(False)
         from .icons import round_icon
         self.collection_list.blockSignals(True)
@@ -1311,6 +1339,9 @@ class MainWindow(QMainWindow):
         for index in range(self.collection.count()):
             name = self.collection.itemText(index)
             self.collection_list.addItem(name)
+            if self.collection.itemData(index) == "trash":
+                self.collection_list.item(index).setIcon(round_icon("trash", "#dca354", 30))
+                continue
             glyph = self.workspace.collection_icon(name) if index else ""
             self.collection_list.item(index).setIcon(round_icon(glyph if glyph in COLLECTION_ICONS else ("document" if index else "camera"), "#b0b0b0", 30))
         self.collection_list.addItem("+ Neu …")
@@ -1322,9 +1353,17 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "thumbnail_loader"):
             self.thumbnail_loader = ThumbnailLoader(self)
         self.thumbnail_loader.reset()
-        selected = set(self.selected_ids())
+        selected = set(self.selected_ids(include_trash=True))
         self.list.clear()
-        rows = self.workspace.rows(self.search.text(), self.collection.currentText(), kind=self.type_filter.currentData(),
+        trash_view = self.in_trash()
+        for button in self.media_buttons:
+            button.setEnabled(not trash_view)
+        for action in self.more_menu.actions():
+            if action.text() in ("Auswahl bearbeiten", "Teilen und ausgeben"):
+                action.setEnabled(not trash_view)
+        for button in self.trash_buttons:
+            button.setVisible(trash_view)
+        rows = self.workspace.trash_entries() if trash_view else self.workspace.rows(self.search.text(), self.collection.currentText(), kind=self.type_filter.currentData(),
             sort=self.sort_order.currentData(), days=self.time_filter.currentData())
         for row in rows:
             fav = bool(row["favorite"])
@@ -1332,12 +1371,23 @@ class MainWindow(QMainWindow):
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             item.setData(Qt.ItemDataRole.UserRole, row["id"])
             item.setToolTip(f"{row['title']}\n{row['width']} × {row['height']} px\n{row['tags']}".strip())
-            self.thumbnail_loader.enqueue(item, self.workspace.thumbnail_path(row["id"]), row["kind"], favorite=fav)
+            if trash_view:
+                thumb = self.workspace.root / "trash" / (row["id"] + ".thumb.png")
+                if not thumb.exists():
+                    thumb = self.workspace.root / "trash" / row["filename"]
+            else:
+                thumb = self.workspace.thumbnail_path(row["id"])
+            self.thumbnail_loader.enqueue(item, thumb, row["kind"], favorite=fav)
             self.list.addItem(item)
             item.setSelected(row["id"] in selected)
         self.count_label.setText(f"{len(rows)} Aufnahmen")
 
-    def selected_ids(self):
+    def in_trash(self):
+        return self.collection.currentData() == "trash"
+
+    def selected_ids(self, include_trash=False):
+        if self.in_trash() and not include_trash:
+            return []
         return [x.data(Qt.ItemDataRole.UserRole) for x in self.list.selectedItems()]
 
     def select_id(self, ident):
@@ -2040,6 +2090,36 @@ class MainWindow(QMainWindow):
         if confirm:
             self.refresh()
 
+    def restore_trash_selected(self):
+        try:
+            for ident in self.selected_ids(include_trash=True):
+                self.workspace.restore(ident)
+        except Exception as exc:
+            self.fail(str(exc))
+        self.refresh_collections()
+        self.refresh()
+
+    def delete_trash_selected(self):
+        ids = self.selected_ids(include_trash=True)
+        if ids and QMessageBox.question(self, "Endgültig löschen", f"{len(ids)} Aufnahme(n) endgültig löschen?") == QMessageBox.StandardButton.Yes:
+            try:
+                self.workspace.delete_trashed(ids)
+            except Exception as exc:
+                self.fail(str(exc))
+            self.refresh_collections()
+            self.refresh()
+
+    def empty_trash_view(self):
+        trash = self.workspace.root / "trash"
+        size = sum(p.stat().st_size for p in trash.glob("*") if p.is_file() and not self.workspace.get(p.name.split(".")[0]))
+        if QMessageBox.question(self, "Papierkorb leeren", f"Alle gelöschten Aufnahmen endgültig löschen?\n{size / (1024 * 1024):.2f} MB werden freigegeben.") == QMessageBox.StandardButton.Yes:
+            try:
+                self.workspace.empty_trash()
+            except Exception as exc:
+                self.fail(str(exc))
+            self.refresh_collections()
+            self.refresh()
+
     def restore_deleted(self):
         entries = self.workspace.trash_entries()
         if not entries:
@@ -2096,6 +2176,8 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.path(ident).parent)))
 
     def remove_selected(self):
+        if self.in_trash():
+            return self.delete_trash_selected()
         ids = self.selected_ids()
         if not ids:
             return
@@ -2106,8 +2188,11 @@ class MainWindow(QMainWindow):
         try:
             for ident in ids:
                 self.workspace.remove(ident)
+            self.refresh_collections()
             self.refresh()
         except Exception as exc:
+            self.refresh_collections()
+            self.refresh()
             self.fail(str(exc))
 
     def preferences(self):
