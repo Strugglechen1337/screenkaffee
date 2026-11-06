@@ -191,6 +191,10 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - Tests: `tests/test_progress_version.py`. Wirkt für Nutzer erst ab der Version, die das Update **lädt** (also ab dem Release mit diesem Code).
 - **v0.10.2 ist als GitHub-Release (Latest) veröffentlicht** (425 Tests grün). SHA256: x64 `c480df611e10219ad6edc47c2de9368f2e13337b618a26b6db92b47a8e0262ae` (110 MB), ARM64 `58f4b9def4314980bba7f562ec6bc03e024ca969580fb1d9df07d32dc4d44713` (104 MB), Linux `05fce7d1c11faab9ddca884b42d858675b162bcccac408a20d554e16d2cb06ed` (211 MB), Untertitel x64 `4303a6189a16892e508fe9d36668d5c0e0bfa8087dfd553d03dcf935889755d7`, Untertitel Linux `9ac3fb835c5483693e13c0ae278e0b12d75fc490b1d792086a4cc339a5a56d96`.
 
+## Funktions-Poster (README)
+- `docs/screenkaffee-features.png` steht oben in der README; Quelle ist `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
+  `msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1.5 --window-size=1600,1500 --screenshot=<Ziel>.png file:///<Pfad>/docs/poster.html` (Höhe an den Inhalt anpassen), danach mit Pillow `optimize=True` speichern.
+
 ## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)
 Aktueller Stand: **v0.10.2** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
 1. Version an **drei** Stellen erhöhen: `pyproject.toml`, `screenkaffee/__init__.py` (`__version__`), `README.md` (Zeile 5). Der Updater vergleicht `__version__` numerisch mit dem Tag; ein Tag, der nicht größer ist, wird nicht angeboten.

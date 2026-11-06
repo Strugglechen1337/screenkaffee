@@ -6,6 +6,10 @@ auf HDR-Desktops. Version **0.10.2, frühe Testversion**.
 
 **Einige Funktionen sind noch nicht auf echter Hardware abgenommen.** Der genaue Stand steht in [FEATURES.md](FEATURES.md).
 
+**[⬇ Neueste Version herunterladen](https://github.com/Strugglechen1337/screenkaffee/releases/latest)**
+
+![screenkaffee – alle Funktionen auf einen Blick](docs/screenkaffee-features.png)
+
 ## Windows ohne Installation (x64 & ARM64)
 
 `dist/screenkaffee-Windows-x64.zip` (bzw. auf Snapdragon-/ARM64-Geräten `dist/screenkaffee-Windows-arm64.zip`)
