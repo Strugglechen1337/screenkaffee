@@ -1,12 +1,15 @@
 """Mail drafts are local files. This module never sends a message."""
 from email.message import EmailMessage
+from .i18n import tr
 from email.policy import SMTP
 from pathlib import Path
 import mimetypes
 
 
-def save_mail_draft(destination, attachments, subject="screenkaffee-Aufnahmen", body="Anbei die ausgewählten Aufnahmen."):
+def save_mail_draft(destination, attachments, subject=None, body=None):
     message = EmailMessage(policy=SMTP)
+    subject = tr("screenkaffee-Aufnahmen") if subject is None else subject
+    body = tr("Anbei die ausgewählten Aufnahmen.") if body is None else body
     message["Subject"] = subject
     message["X-Unsent"] = "1"
     message.set_content(body)

@@ -8,6 +8,7 @@ import os
 import signal
 import subprocess
 import sys
+from .i18n import tr
 
 _PROBE = '''
 import resource
@@ -27,9 +28,9 @@ def prepare_audio():
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, timeout=10, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError('Qt-Audio-Prüfung konnte nicht abgeschlossen werden') from exc
+        raise RuntimeError(tr('Qt-Audio-Prüfung konnte nicht abgeschlossen werden')) from exc
     if result.returncode == -signal.SIGSEGV:
         logging.warning('Qt-Audio-Prüfung abgestürzt; versuche PulseAudio statt Standardbackend')
         os.environ['QT_AUDIO_BACKEND'] = 'pulseaudio'
     elif result.returncode:
-        raise RuntimeError(f'Qt-Audio-Prüfung fehlgeschlagen ({result.returncode})')
+        raise RuntimeError(tr("Qt-Audio-Prüfung fehlgeschlagen ({code})", code=result.returncode))

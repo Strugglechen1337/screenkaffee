@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 from .paths import application_root
+from .i18n import tr
 
 
 @dataclass
@@ -18,9 +19,9 @@ def validate(captions):
     previous = -1
     for caption in captions:
         if not math.isfinite(caption.start) or not math.isfinite(caption.end) or caption.start < 0 or caption.end <= caption.start:
-            raise ValueError("Jeder Untertitel benötigt eine gültige Start- und Endzeit.")
+            raise ValueError(tr("Jeder Untertitel benötigt eine gültige Start- und Endzeit."))
         if caption.start < previous:
-            raise ValueError("Untertitel müssen nach Beginn sortiert sein.")
+            raise ValueError(tr("Untertitel müssen nach Beginn sortiert sein."))
         previous = caption.start
     return captions
 
@@ -55,7 +56,7 @@ def read_srt(path):
             continue
         match = re.fullmatch(r"(\d+):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d+):(\d{2}):(\d{2})[,.](\d{3})", lines[0])
         if not match:
-            raise ValueError("Ungültige Untertitel-Zeitzeile: " + lines[0])
+            raise ValueError(tr("Ungültige Untertitel-Zeitzeile: {line}", line=lines[0]))
         v = list(map(int, match.groups()))
         start, end = (v[0] * 3600 + v[1] * 60 + v[2] + v[3] / 1000,
                       v[4] * 3600 + v[5] * 60 + v[6] + v[7] / 1000)
@@ -68,12 +69,12 @@ def load_model():
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     folder = application_root() / "models" / "whisper-base"
     if not (folder / "model.bin").is_file():
-        raise RuntimeError("Die Untertitel-Erweiterung ist nicht installiert. Sie wird beim Klick auf "
-                           "„Untertitel lokal erzeugen“ angeboten.")
+        raise RuntimeError(tr("Die Untertitel-Erweiterung ist nicht installiert. Sie wird beim Klick auf "
+                           "„Untertitel lokal erzeugen“ angeboten."))
     try:
         from faster_whisper import WhisperModel
     except ImportError as exc:
-        raise RuntimeError("Die Untertitel-Erweiterung ist unvollständig. Bitte erneut herunterladen.") from exc
+        raise RuntimeError(tr("Die Untertitel-Erweiterung ist unvollständig. Bitte erneut herunterladen.")) from exc
     return WhisperModel(str(folder), device="cpu", compute_type="int8",
         cpu_threads=min(4, max(1, os.cpu_count() or 1)), local_files_only=True)
 
@@ -101,7 +102,7 @@ def transcribe(path, language=None, progress=None):
 
 def embed_subtitles(video, srt, destination, language="deu"):
     if not re.fullmatch(r"[A-Za-z]{2,3}", language):
-        raise ValueError("Ungültige Untertitelsprache.")
+        raise ValueError(tr("Ungültige Untertitelsprache."))
     read_srt(srt)
     from .media import _render
     return _render(["-i", str(Path(video).resolve()), "-i", str(Path(srt).resolve()),

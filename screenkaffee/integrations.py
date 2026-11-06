@@ -15,6 +15,7 @@ import time
 from PIL import Image
 from .color import import_srgb
 from .paths import application_root
+from .i18n import tr
 
 
 LOG = logging.getLogger(__name__)
@@ -56,14 +57,14 @@ def hyprland_window_rectangles():
         at, size = c.get("at") or [0, 0], c.get("size") or [0, 0]
         if len(at) == 2 and len(size) == 2 and min(size) > 10:
             left, top = int(at[0]), int(at[1])
-            windows.append((str(c.get("title") or c.get("class") or "Fenster"), (left, top, left + int(size[0]), top + int(size[1]))))
+            windows.append((str(c.get("title") or c.get("class") or tr("Fenster")), (left, top, left + int(size[0]), top + int(size[1]))))
     return windows
 
 
 def omarchy_capture(kind="region", include_cursor=False, return_region=False, monitor_name=None):
     grim = tool("grim")
     if not grim:
-        raise RuntimeError("grim fehlt. Alternativ kann die Aufnahme über das Desktop-Portal erfolgen.")
+        raise RuntimeError(tr("grim fehlt. Alternativ kann die Aufnahme über das Desktop-Portal erfolgen."))
     args = [grim, "-t", "png"]
     bounds = None
     if include_cursor:
@@ -71,13 +72,13 @@ def omarchy_capture(kind="region", include_cursor=False, return_region=False, mo
     if kind == "window":
         hyprctl = tool("hyprctl")
         if not hyprctl:
-            raise RuntimeError("Fensteraufnahme benötigt Hyprland / hyprctl.")
+            raise RuntimeError(tr("Fensteraufnahme benötigt Hyprland / hyprctl."))
         result = run([hyprctl, "activewindow", "-j"])
         if result.returncode:
             raise RuntimeError(result.stderr.decode(errors="replace"))
         window = json.loads(result.stdout)
         if not window.get("size") or min(window["size"]) < 1:
-            raise RuntimeError("Kein aktives Fenster gefunden.")
+            raise RuntimeError(tr("Kein aktives Fenster gefunden."))
         x, y = window["at"]
         width, height = window["size"]
         bounds = (x, y, width, height)
@@ -85,14 +86,14 @@ def omarchy_capture(kind="region", include_cursor=False, return_region=False, mo
     elif kind in ("region", "scroll", "video", "manual-scroll", "timelapse"):
         slurp = tool("slurp")
         if not slurp:
-            raise RuntimeError("Bereichsauswahl benötigt slurp oder das Desktop-Portal.")
+            raise RuntimeError(tr("Bereichsauswahl benötigt slurp oder das Desktop-Portal."))
         result = run([slurp], timeout=120)
         if result.returncode:
             return None
         geometry = result.stdout.decode().strip()
         match = re.fullmatch(r"(-?\d+),(-?\d+) (\d+)x(\d+)", geometry)
         if not match:
-            raise RuntimeError("Ungültige Geometrie von slurp.")
+            raise RuntimeError(tr("Ungültige Geometrie von slurp."))
         bounds = tuple(map(int, match.groups()))
         args += ["-g", geometry]
     elif kind == "screen" and monitor_name:
@@ -122,9 +123,9 @@ def ocr(image, language="deu+eng"):
         pass
     executable = tool("tesseract")
     if not executable:
-        raise RuntimeError("OCR benötigt Tesseract plus deu/eng-Sprachdateien.\n"
+        raise RuntimeError(tr("OCR benötigt Tesseract plus deu/eng-Sprachdateien.\n"
             "Portable: tesseract und tessdata in den tools/tesseract-Ordner legen.\n"
-            "Omarchy: vorhandenes Tesseract wird automatisch erkannt.")
+            "Omarchy: vorhandenes Tesseract wird automatisch erkannt."))
     with tempfile.TemporaryDirectory(prefix="prism-ocr-") as folder:
         source = Path(folder) / "input.png"
         image.save(source)
@@ -141,11 +142,11 @@ def ocr(image, language="deu+eng"):
 def android_capture():
     executable = tool("adb")
     if not executable:
-        raise RuntimeError("Android-Aufnahme benötigt adb in tools/ oder im PATH sowie aktiviertes USB-Debugging.")
+        raise RuntimeError(tr("Android-Aufnahme benötigt adb in tools/ oder im PATH sowie aktiviertes USB-Debugging."))
     result = run([executable, "devices"])
     devices = [line.split()[0] for line in result.stdout.decode().splitlines()[1:] if line.endswith("\tdevice")]
     if len(devices) != 1:
-        raise RuntimeError("Bitte genau ein Android-Gerät verbinden und USB-Debugging am Gerät bestätigen.")
+        raise RuntimeError(tr("Bitte genau ein Android-Gerät verbinden und USB-Debugging am Gerät bestätigen."))
     result = run([executable, "-s", devices[0], "exec-out", "screencap", "-p"])
     if result.returncode:
         raise RuntimeError(result.stderr.decode(errors="replace"))
@@ -169,14 +170,14 @@ class SegmentRecorder:
               microphone_volume=1, system_volume=1, portal=False, audio_noise_gate_db=0, audio_timeshift_ms=0,
               audio_loopback_balance=1.0):
         if self.process:
-            raise RuntimeError("Aufnahme läuft bereits.")
+            raise RuntimeError(tr("Aufnahme läuft bereits."))
         self.audio_options = {"noise_gate_db": audio_noise_gate_db, "timeshift_ms": audio_timeshift_ms,
                               "loopback_balance": audio_loopback_balance}
         if not (0 <= microphone_volume <= 4 and 0 <= system_volume <= 4):
-            raise ValueError("Audio-Lautstärken müssen zwischen 0 und 4 liegen.")
+            raise ValueError(tr("Audio-Lautstärken müssen zwischen 0 und 4 liegen."))
         folder = Path(folder)
         folder.mkdir(parents=True, exist_ok=True)
-        self.path = folder / (datetime.now().strftime("Video-%Y%m%d-%H%M%S-") + os.urandom(3).hex() + ".mp4")
+        self.path = folder / (datetime.now().strftime("Video-%Y%m%d-%H%M%S-") + os.urandom(3).hex() + ".mp4")  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
         if sys.platform == "win32":
             executable = tool("ffmpeg")
             if not executable:
@@ -184,17 +185,17 @@ class SegmentRecorder:
                     import imageio_ffmpeg
                     executable = imageio_ffmpeg.get_ffmpeg_exe()
                 except ImportError:
-                    raise RuntimeError("Video benötigt ffmpeg in tools/ oder im PATH.")
+                    raise RuntimeError(tr("Video benötigt ffmpeg in tools/ oder im PATH."))
             args = [executable, "-hide_banner", "-thread_queue_size", "1024", "-f", "gdigrab", "-framerate", str(fps)]
             if region:
                 x, y, width, height = map(int, region)
                 if min(width, height) < 2:
-                    raise ValueError("Ungültiger Videoaufnahmebereich.")
+                    raise ValueError(tr("Ungültiger Videoaufnahmebereich."))
                 args += ["-offset_x", str(x), "-offset_y", str(y), "-video_size", f"{width}x{height}"]
             args += ["-i", "desktop"]
             crf = {"standard": "26", "high": "20", "ultra": "15"}.get(quality)
             if crf is None:
-                raise ValueError("Unbekannte Videoqualitätsstufe.")
+                raise ValueError(tr("Unbekannte Videoqualitätsstufe."))
             args += ["-progress", "pipe:1", "-stats_period", "0.1", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
                      "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency", "-crf", crf,
                      "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(self.path)]
@@ -215,7 +216,7 @@ class SegmentRecorder:
                 else:
                     hyprctl = tool("hyprctl")
                     if not hyprctl:
-                        raise RuntimeError("Die Monitorwahl benötigt hyprctl oder den Portal-Modus.")
+                        raise RuntimeError(tr("Die Monitorwahl benötigt hyprctl oder den Portal-Modus."))
                     result = run([hyprctl, "monitors", "-j"])
                     monitors = json.loads(result.stdout)
                     target = next((m["name"] for m in monitors if m.get("focused")), monitors[0]["name"])
@@ -231,16 +232,16 @@ class SegmentRecorder:
             else:
                 executable = tool("wf-recorder")
                 if not executable:
-                    raise RuntimeError("Wayland-Video benötigt gpu-screen-recorder (Omarchy) oder wf-recorder.")
+                    raise RuntimeError(tr("Wayland-Video benötigt gpu-screen-recorder (Omarchy) oder wf-recorder."))
                 if portal:
-                    raise RuntimeError("Der Portal-Modus benötigt gpu-screen-recorder.")
+                    raise RuntimeError(tr("Der Portal-Modus benötigt gpu-screen-recorder."))
                 args = [executable, "-f", str(self.path), "-r", str(fps), "-c", "libx264"]
                 if region:
                     x, y, width, height = map(int, region)
                     args += ["-g", f"{x},{y} {width}x{height}"]
                 args += ["-p", "crf=" + {"standard": "26", "high": "20", "ultra": "15"}.get(quality, "20")]
                 if system_audio and microphone:
-                    raise RuntimeError("Zwei Audioquellen benötigen gpu-screen-recorder. Es wurde keine Quelle stillschweigend weggelassen.")
+                    raise RuntimeError(tr("Zwei Audioquellen benötigen gpu-screen-recorder. Es wurde keine Quelle stillschweigend weggelassen."))
                 device = microphone or system_audio
                 if device:
                     args += ["--audio=" + device]
@@ -290,7 +291,7 @@ class SegmentRecorder:
                 self.stop()
             except Exception:
                 LOG.warning("Aufnahme konnte nach Audiofehler nicht sauber beendet werden", exc_info=True)
-            return "Audioaufnahme fehlgeschlagen; Aufnahme beendet: " + error
+            return tr("Audioaufnahme fehlgeschlagen; Aufnahme beendet: {error}", error=error)
         if self.process and self.process.poll() is not None:
             self.stderr_file.seek(0)
             text = self.stderr_file.read().decode(errors="replace")[-3000:]
@@ -304,7 +305,7 @@ class SegmentRecorder:
                 self.audio_session = None
             self.stderr_file = None
             self.process = None
-            return text or "Recorder wurde beendet."
+            return text or tr("Recorder wurde beendet.")
         return None
 
     def stop(self):
@@ -401,11 +402,11 @@ class VideoRecorder:
 
     def start(self, folder, **options):
         if self.active:
-            raise RuntimeError("Eine Videoaufnahme läuft bereits oder ist pausiert.")
+            raise RuntimeError(tr("Eine Videoaufnahme läuft bereits oder ist pausiert."))
         base = Path(folder)
         base.mkdir(parents=True, exist_ok=True)
         ident = os.urandom(6).hex()
-        self.path = base / (datetime.now().strftime("Video-%Y%m%d-%H%M%S-") + ident + ".mp4")
+        self.path = base / (datetime.now().strftime("Video-%Y%m%d-%H%M%S-") + ident + ".mp4")  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
         self.folder = base / "recording-parts" / ident
         self.folder.mkdir(parents=True)
         self.options, self.segments = dict(options), []
@@ -451,7 +452,7 @@ class VideoRecorder:
         self.paused = True
         self.manifest()
         if not self.segments:
-            raise RuntimeError("Die Aufnahme enthält keine Videosegmente.")
+            raise RuntimeError(tr("Die Aufnahme enthält keine Videosegmente."))
         from .media import merge_videos, probe_media
         output = self.folder / "unzoomed.mp4" if self.zoom_events else self.path
         if len(self.segments) == 1:
@@ -471,7 +472,7 @@ def _android_device(executable):
     result = run([executable, "devices"])
     devices = [line.split()[0] for line in result.stdout.decode().splitlines()[1:] if line.endswith("\tdevice")]
     if len(devices) != 1:
-        raise RuntimeError("Bitte genau ein Android-Gerät verbinden und USB-Debugging am Gerät bestätigen.")
+        raise RuntimeError(tr("Bitte genau ein Android-Gerät verbinden und USB-Debugging am Gerät bestätigen."))
     return devices[0]
 
 
@@ -490,10 +491,10 @@ class AndroidRecorder:
 
     def start(self):
         if self.process:
-            raise RuntimeError("Android-Aufnahme läuft bereits.")
+            raise RuntimeError(tr("Android-Aufnahme läuft bereits."))
         self.adb = tool("adb")
         if not self.adb:
-            raise RuntimeError("Android-Aufnahme benötigt adb in tools/ oder im PATH sowie aktiviertes USB-Debugging.")
+            raise RuntimeError(tr("Android-Aufnahme benötigt adb in tools/ oder im PATH sowie aktiviertes USB-Debugging."))
         self.device = _android_device(self.adb)
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self.process = subprocess.Popen([self.adb, "-s", self.device, "shell", "screenrecord", self.remote],
@@ -514,5 +515,5 @@ class AndroidRecorder:
         result = run([self.adb, "-s", self.device, "pull", self.remote, str(target)], timeout=120)
         run([self.adb, "-s", self.device, "shell", "rm", self.remote])
         if result.returncode or not target.exists():
-            raise RuntimeError("Das Android-Video konnte nicht vom Gerät geladen werden: " + result.stderr.decode(errors="replace"))
+            raise RuntimeError(tr("Das Android-Video konnte nicht vom Gerät geladen werden: {error}", error=result.stderr.decode(errors="replace")))
         return target

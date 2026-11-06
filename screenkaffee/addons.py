@@ -14,11 +14,15 @@ import zipfile
 
 from . import updater
 from .paths import application_root
+from .i18n import N_, tr
 
 INFO = "addons.json"                  # im App-Ordner, vom Paketbau geschrieben
 MARKER = "speech-addon.json"          # im App-Ordner, nach dem Verlinken
 LONG_PREFIX = "\\\\?\\"
-SPEECH_SIZE_HINT = "ca. 190 MB Download (Linux 220 MB), gut 300 MB auf der Platte"
+
+
+SPEECH_SIZE_HINT = N_("ca. 190 MB Download (Linux 220 MB), gut 300 MB auf der Platte")
+
 
 
 class AddonError(RuntimeError):
@@ -83,7 +87,7 @@ def link_into(cache, root):
     for rel in addon["files"]:
         source, target = cache / "screenkaffee" / rel, root / rel
         if not target.resolve().is_relative_to(root.resolve()):
-            raise AddonError("Die Erweiterung enthält ungültige Pfade.")
+            raise AddonError(tr("Die Erweiterung enthält ungültige Pfade."))
         os.makedirs(long_path(target.parent), exist_ok=True)
         if os.path.lexists(long_path(target)):
             os.unlink(long_path(target))
@@ -114,7 +118,7 @@ def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, pr
     root = Path(root or application_root())
     meta = package_info(root).get("speech")
     if not meta:
-        raise AddonError("Für dieses Paket gibt es keine Untertitel-Erweiterung (z. B. Windows ARM64).")
+        raise AddonError(tr("Für dieses Paket gibt es keine Untertitel-Erweiterung (z. B. Windows ARM64)."))
     release = updater.release_by_tag("v" + __version__, repo, opener)
     folder = store(data_dir)
     if stage:
@@ -133,7 +137,7 @@ def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, pr
             members = source.infolist()
             for member in members:
                 if not (temporary / member.filename).resolve().is_relative_to(temporary.resolve()):
-                    raise AddonError("Die Erweiterung enthält ungültige Pfade.")
+                    raise AddonError(tr("Die Erweiterung enthält ungültige Pfade."))
             step = max(1, len(members) // 200)
             for index, member in enumerate(members, 1):
                 source.extract(member, long_path(temporary))
@@ -141,7 +145,7 @@ def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, pr
                     progress(index, len(members))
         addon = json.loads((temporary / "addon.json").read_text(encoding="utf-8"))
         if addon.get("fingerprint") != meta["fingerprint"]:
-            raise AddonError("Die heruntergeladene Erweiterung passt nicht zu dieser screenkaffee-Version.")
+            raise AddonError(tr("Die heruntergeladene Erweiterung passt nicht zu dieser screenkaffee-Version."))
         for old in folder.glob("speech-*"):
             if old.is_dir() and old != temporary:
                 shutil.rmtree(long_path(old), ignore_errors=True)
@@ -150,7 +154,7 @@ def install_speech(data_dir, root=None, repo=updater.REPOSITORY, opener=None, pr
         missing = [rel for rel in addon["files"] if not os.path.isfile(long_path(cache / "screenkaffee" / rel))]
         if missing:
             shutil.rmtree(long_path(cache), ignore_errors=True)
-            raise AddonError(f"Die Erweiterung wurde unvollständig entpackt ({len(missing)} Dateien fehlen).")
+            raise AddonError(tr("Die Erweiterung wurde unvollständig entpackt ({count} Dateien fehlen).", count=len(missing)))
     finally:
         shutil.rmtree(long_path(temporary), ignore_errors=True)
         archive.unlink(missing_ok=True)

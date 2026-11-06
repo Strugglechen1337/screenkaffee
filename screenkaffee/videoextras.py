@@ -1,5 +1,6 @@
 """Recording helpers: fixed-size recording areas, a click effect and pressed keys drawn on screen while recording."""
 import sys
+from .i18n import N_, tr
 import time
 from PySide6.QtCore import Qt, QTimer, QPointF
 from PySide6.QtGui import QColor, QCursor, QPainter, QPen
@@ -97,7 +98,7 @@ class LiveZoomPreview(QWidget):
         painter.fillRect(4, 4, 110, 22, QColor(0, 0, 0, 180))
         painter.setPen(QColor("#ffffff"))
         painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        painter.drawText(10, 19, f"Zoom {self.factor:g}×")
+        painter.drawText(10, 19, tr("Zoom {factor}×", factor=f"{self.factor:g}"))
 
 
 def windows_button_state():
@@ -172,11 +173,11 @@ class ClickEffect(QWidget):
 
 # --- Tastendrücke im Video einblenden ------------------------------------------------------------------------------
 
-MODIFIERS = {0xA2: "Strg", 0xA3: "Strg", 0xA4: "Alt", 0xA5: "Alt", 0x5B: "Win", 0x5C: "Win", 0xA0: "Umschalt", 0xA1: "Umschalt"}
-MODIFIER_ORDER = ("Strg", "Alt", "Win", "Umschalt")
-SPECIAL = {0x08: "Rück", 0x09: "Tab", 0x0D: "Eingabe", 0x1B: "Esc", 0x20: "Leertaste", 0x21: "Bild ↑", 0x22: "Bild ↓",
-           0x23: "Ende", 0x24: "Pos1", 0x25: "←", 0x26: "↑", 0x27: "→", 0x28: "↓", 0x2C: "Druck", 0x2D: "Einfg", 0x2E: "Entf"}
-KEYSTROKE_MODES = [("combos", "Nur Tastenkombinationen und Sondertasten"), ("all", "Alle Tasten (auch Getipptes)")]
+MODIFIERS = {0xA2: N_("Strg"), 0xA3: N_("Strg"), 0xA4: N_("Alt"), 0xA5: N_("Alt"), 0x5B: N_("Win"), 0x5C: N_("Win"), 0xA0: N_("Umschalt"), 0xA1: N_("Umschalt")}
+MODIFIER_ORDER = (N_("Strg"), N_("Alt"), N_("Win"), N_("Umschalt"))
+SPECIAL = {0x08: N_("Rück"), 0x09: N_("Tab"), 0x0D: N_("Eingabe"), 0x1B: N_("Esc"), 0x20: N_("Leertaste"), 0x21: N_("Bild ↑"), 0x22: N_("Bild ↓"),
+           0x23: N_("Ende"), 0x24: N_("Pos1"), 0x25: "←", 0x26: "↑", 0x27: "→", 0x28: "↓", 0x2C: N_("Druck"), 0x2D: N_("Einfg"), 0x2E: N_("Entf")}
+KEYSTROKE_MODES = [("combos", N_("Nur Tastenkombinationen und Sondertasten")), ("all", N_("Alle Tasten (auch Getipptes)"))]
 # Tasten, die nie einzeln gezeigt werden: Maus, generische Umschalt/Strg/Alt (die L/R-Varianten zählen), Feststell-Tasten.
 IGNORED = {0x01, 0x02, 0x04, 0x05, 0x06, 0x10, 0x11, 0x12, 0x14, 0x90, 0x91, 0x15, 0x19}
 
@@ -199,12 +200,12 @@ def key_name(vk, char_for=windows_char):
         return f"Num {vk - 0x60}"
     if 0x70 <= vk <= 0x87:
         return f"F{vk - 0x6F}"
-    return char_for(vk) or f"Taste {vk}"
+    return char_for(vk) or tr("Taste {vk}", vk=vk)
 
 
 def is_typing(name):
     """Tasten, die beim normalen Schreiben gedrückt werden (Buchstaben, Ziffern, Satzzeichen, Leertaste, Rück)."""
-    return len(name) == 1 or name.startswith("Num ") or name in ("Leertaste", "Rück")
+    return len(name) == 1 or name.startswith("Num ") or name in ("Leertaste", "Rück")  # i18n: ignore – Stabile Taste für die Erkennungslogik; Anzeige wird übersetzt.
 
 
 class KeyTracker:
@@ -236,12 +237,12 @@ class KeyTracker:
                 if not command and self.mode == "combos" and name == "Tab":
                     continue                       # Tab beim Ausfüllen von Formularen nicht einblenden
                 self.typed = ""
-                text = " + ".join([m for m in MODIFIER_ORDER if m in modifiers] + [name])
+                text = " + ".join([tr(m) for m in MODIFIER_ORDER if m in modifiers] + [tr(name)])
             elif self.mode == "all":
                 if self.last_typed is None or now - self.last_typed > self.TYPE_PAUSE:
                     self.typed = ""
                 self.last_typed = now
-                if name == "Rück":
+                if name == "Rück":  # i18n: ignore – Stabile Taste für die Erkennungslogik; Anzeige wird übersetzt.
                     self.typed = self.typed[:-1]
                 else:
                     self.typed = (self.typed + (" " if name == "Leertaste" else name.lower() if "Umschalt" not in modifiers else name))[-40:]

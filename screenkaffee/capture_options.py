@@ -4,9 +4,10 @@ import logging
 from datetime import datetime
 import re
 import sys
+from .i18n import tr
 
 DEFAULTS = {
-    "title_pattern": "Aufnahme %d.%m.%Y %H:%M:%S",   # strftime codes plus {n} for a running number
+    "title_pattern": "Aufnahme %d.%m.%Y %H:%M:%S",   # strftime codes plus {n} for a running number  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
     "export_format": ".png",
     "clipboard_only": False,
     "auto_scale_percent": 100,
@@ -105,18 +106,18 @@ def validate(values):
     try:
         datetime.now().strftime(str(values.get("title_pattern", "")))
     except ValueError:
-        problems["title_pattern"] = "Ungültiges Titelmuster."
+        problems["title_pattern"] = tr("Ungültiges Titelmuster.")
     if not str(values.get("title_pattern", "")).strip():
-        problems["title_pattern"] = "Das Titelmuster darf nicht leer sein."
+        problems["title_pattern"] = tr("Das Titelmuster darf nicht leer sein.")
     if values.get("export_format", ".png") not in EXPORT_FORMATS:
-        problems["export_format"] = "Unbekanntes Standardformat."
+        problems["export_format"] = tr("Unbekanntes Standardformat.")
     checks = {"auto_scale_percent": (5, 400), "auto_border": (0, 100), "auto_shadow": (0, 200),
               "print_margin_mm": (0, 50), "animation_fps": (1, 60), "animation_loops": (0, 1000),
               "audio_noise_gate_db": (-90, 0), "audio_timeshift_ms": (-2000, 2000), "audio_loopback_balance": (10, 100)}
     for key, (low, high) in checks.items():
         value = values.get(key, DEFAULTS[key])
         if not isinstance(value, int) or isinstance(value, bool) or not low <= value <= high:
-            problems[key] = f"Wert muss zwischen {low} und {high} liegen."
+            problems[key] = tr("Wert muss zwischen {low} und {high} liegen.", low=low, high=high)
     return problems
 
 

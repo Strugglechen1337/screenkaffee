@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import re
 import threading
 from .paths import application_root
+from .i18n import tr
 
 _LOCK = threading.Lock()
 
@@ -25,10 +26,10 @@ def recognize(image, language="deu+eng"):
     folder = application_root() / "models" / "tessdata"
     requested = language.split("+")
     if not requested or any(not re.fullmatch(r"[A-Za-z_]+", name) for name in requested):
-        raise ValueError("Ungültige OCR-Sprachkennung.")
+        raise ValueError(tr("Ungültige OCR-Sprachkennung."))
     missing = [name for name in requested if not (folder / (name + ".traineddata")).is_file()]
     if missing:
-        raise RuntimeError("OCR-Sprachdateien fehlen: " + ", ".join(missing))
+        raise RuntimeError(tr("OCR-Sprachdateien fehlen: {files}", files=", ".join(missing)))
     # Tesseract has some process-global configuration; serialize initialisation
     # and recognition instead of racing independent worker calls.
     with _LOCK, tesserocr.PyTessBaseAPI(path=str(folder), lang=language,

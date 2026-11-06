@@ -5,12 +5,13 @@ import io
 from pathlib import Path
 import zipfile
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
+from .i18n import tr, language
 
 
 @dataclass
 class DocumentOptions:
-    title: str = "Aufnahmen"
+    title: str = field(default_factory=lambda: tr("Aufnahmen"))
     author: str = ""
     font_family: str = "Sans Serif"
     font_size: int = 11
@@ -28,17 +29,17 @@ class DocumentOptions:
 
     def __post_init__(self):
         if not isinstance(self.font_size, int) or not 6 <= self.font_size <= 72:
-            raise ValueError("Ungültige Dokumentschriftgröße.")
+            raise ValueError(tr("Ungültige Dokumentschriftgröße."))
         if not re.fullmatch(r"#[A-Fa-f0-9]{6}", self.accent):
-            raise ValueError("Ungültige Dokumentfarbe.")
+            raise ValueError(tr("Ungültige Dokumentfarbe."))
         if not isinstance(self.gif_delay_ms, int) or not 100 <= self.gif_delay_ms <= 60000:
-            raise ValueError("Ungültige GIF-Anzeigedauer.")
+            raise ValueError(tr("Ungültige GIF-Anzeigedauer."))
 
 
 def normalize_entries(entries, options=None):
     out = []
     for index, entry in enumerate(entries, 1):
-        label = entry[0] if entry[0] or (options and not options.use_filename_as_title) else f"Aufnahme {index}"
+        label = entry[0] if entry[0] or (options and not options.use_filename_as_title) else tr("Aufnahme {index}", index=index)
         out.append((label, entry[1], entry[2] if len(entry) > 2 else ""))
     return out
 from .color import save_png
@@ -50,7 +51,8 @@ def png_bytes(image):
     return buf.getvalue()
 
 
-def export_html(entries, path, title="Aufnahmen", options=None):
+def export_html(entries, path, title=None, options=None):
+    title = tr("Aufnahmen") if title is None else title
     options = options or DocumentOptions(title=title)
     doc_title = options.title or (Path(path).stem.replace("_", " ") if options.use_filename_as_title else title)
     sections = []
@@ -62,17 +64,18 @@ def export_html(entries, path, title="Aufnahmen", options=None):
         content = (img_tag + txt_tag) if options.image_before_text else (txt_tag + img_tag)
         brk = ' style="page-break-after:always"' if options.page_break else ""
         sections.append(f'<section{brk}><h2>{prefix}{html.escape(label)}</h2>{content}</section>')
-    doc = f'''<!doctype html><html lang="de"><meta charset="utf-8"><title>{html.escape(doc_title)}</title>
+    doc = f'''<!doctype html><html lang="{language()}"><meta charset="utf-8"><title>{html.escape(doc_title)}</title>
 <style>body{{font:{options.font_size}pt "{html.escape(options.font_family, quote=True)}",sans-serif;max-width:1000px;margin:3rem auto;padding:0 2rem;color:{options.accent}}}h1{{font-size:2rem}}section{{margin:3rem 0;break-inside:avoid}}img{{max-width:100%;border:{'1px solid #ddd' if options.image_border else '0'}}}p{{line-height:1.5}}@media print{{body{{margin:0}}}}</style>
 <h1>{html.escape(doc_title)}</h1><p>{html.escape(options.author)}</p>{''.join(sections)}<footer>{html.escape(options.footer)}</footer></html>'''
     Path(path).write_text(doc, encoding="utf-8")
     return Path(path)
 
 
-def export_pdf(entries, path, title="Aufnahmen", options=None):
+def export_pdf(entries, path, title=None, options=None):
     from PySide6.QtGui import QPdfWriter, QPainter, QFont, QPageSize, QColor, QPageLayout, QTextDocument
     from PySide6.QtCore import QRectF, Qt
     from .editor import pil_to_qimage
+    title = tr("Aufnahmen") if title is None else title
     options = options or DocumentOptions(title=title)
     writer = QPdfWriter(str(path))
     writer.setTitle(options.title)
@@ -82,7 +85,7 @@ def export_pdf(entries, path, title="Aufnahmen", options=None):
     writer.setResolution(144)
     painter = QPainter(writer)
     if not painter.isActive():
-        raise RuntimeError("PDF-Datei konnte nicht geöffnet werden.")
+        raise RuntimeError(tr("PDF-Datei konnte nicht geöffnet werden."))
     try:
         entries = normalize_entries(entries)
         page_number = 0
@@ -132,7 +135,8 @@ def export_pdf(entries, path, title="Aufnahmen", options=None):
         painter.end()
 
 
-def export_docx(entries, path, title="Aufnahmen", options=None):
+def export_docx(entries, path, title=None, options=None):
+    title = tr("Aufnahmen") if title is None else title
     options = options or DocumentOptions(title=title)
     doc_title = options.title or (Path(path).stem.replace("_", " ") if options.use_filename_as_title else title)
     entries = normalize_entries(entries, options)
@@ -197,7 +201,7 @@ def export_docx(entries, path, title="Aufnahmen", options=None):
     return Path(path)
 
 
-def export_image_document(entries, path, title="Aufnahmen", options=None):
+def export_image_document(entries, path, title=None, options=None):
     import pypdfium2 as pdfium
     from PIL import Image
     import tempfile
@@ -210,7 +214,7 @@ def export_image_document(entries, path, title="Aufnahmen", options=None):
         document = pdfium.PdfDocument(name)
         count = len(document)
         if count < 1:
-            raise RuntimeError("Dokument konnte nicht gerendert werden.")
+            raise RuntimeError(tr("Dokument konnte nicht gerendert werden."))
         pages = []
         total_pixels = 0
         for index in range(count):
@@ -220,7 +224,7 @@ def export_image_document(entries, path, title="Aufnahmen", options=None):
                 image = bitmap.to_pil().convert("RGB")
                 total_pixels += image.width * image.height
                 if total_pixels > 150_000_000:
-                    raise ValueError("Bilddokument überschreitet 150 Megapixel.")
+                    raise ValueError(tr("Bilddokument überschreitet 150 Megapixel."))
                 pages.append(image.copy())
             finally:
                 bitmap.close()
@@ -231,7 +235,7 @@ def export_image_document(entries, path, title="Aufnahmen", options=None):
         else:
             width, height = max(p.width for p in pages), sum(p.height for p in pages)
             if width * height > 150_000_000:
-                raise ValueError("Bilddokument überschreitet 150 Megapixel.")
+                raise ValueError(tr("Bilddokument überschreitet 150 Megapixel."))
             canvas = Image.new("RGB", (width, height), "white")
             offset = 0
             for page in pages:

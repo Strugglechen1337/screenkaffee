@@ -4,12 +4,13 @@ import re
 from PIL import Image, PngImagePlugin
 from .color import save_image
 from .effects import apply_effects
+from .i18n import tr
 
 EXPORT_FORMATS = (".png", ".jpg", ".jxl", ".webp", ".tiff", ".bmp", ".gif")
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".jxl", ".webp", ".tif", ".tiff", ".bmp", ".gif")
 
 
-def safe_name(title, fallback="Aufnahme"):
+def safe_name(title, fallback="Aufnahme"):  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", str(title)).strip(" .")
     return name[:120] or fallback
 
@@ -47,7 +48,7 @@ def export_any(image, title, path, quality=95):
 def export_batch(items, folder, suffix=".png", effects=None, quality=90):
     """items: iterable of (title, PIL image). Returns the written paths; existing files are never overwritten."""
     if suffix not in EXPORT_FORMATS:
-        raise ValueError("Unterstützte Exportformate: PNG, JPEG, JPEG XL, WebP, TIFF, BMP, GIF.")
+        raise ValueError(tr("Unterstützte Exportformate: PNG, JPEG, JPEG XL, WebP, TIFF, BMP, GIF."))
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     written = []

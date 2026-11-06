@@ -12,6 +12,7 @@ import uuid
 import numpy as np
 from PIL import Image
 from .color import scrgb_to_srgb
+from .i18n import tr
 
 U = c.c_uint32
 I = c.c_int32
@@ -143,7 +144,7 @@ def sdr_white_level(device_name):
             white = WhiteLevel(DeviceHeader(11, c.sizeof(WhiteLevel), path.target.adapter, path.target.id))
             if api.DisplayConfigGetDeviceInfo(c.byref(white)) == 0 and white.value:
                 return white.value / 1000 * 80
-    raise RuntimeError("Windows-SDR-Weißpegel konnte nicht ermittelt werden. HDR-Aufnahme abgebrochen.")
+    raise RuntimeError(tr("Windows-SDR-Weißpegel konnte nicht ermittelt werden. HDR-Aufnahme abgebrochen."))
 
 
 @dataclass
@@ -156,12 +157,12 @@ class CapturedMonitor:
 
 def capture_monitors(mode="neutral", cursor=False, window=None, target=None):
     if c.sizeof(P) != 8:
-        raise RuntimeError("64-Bit-Windows erforderlich.")
+        raise RuntimeError(tr("64-Bit-Windows erforderlich."))
     api = c.WinDLL("dxgi")
     api.CreateDXGIFactory1.argtypes = [c.POINTER(GUID), c.POINTER(P)]
     api.CreateDXGIFactory1.restype = HR
     factory_ptr = P()
-    check(api.CreateDXGIFactory1(c.byref(GUID("770aae78-f26f-4dba-a829-253c83d1b387")), c.byref(factory_ptr)), "DXGI-Factory")
+    check(api.CreateDXGIFactory1(c.byref(GUID("770aae78-f26f-4dba-a829-253c83d1b387")), c.byref(factory_ptr)), tr("DXGI-Factory"))
     captures = []
     with Com(factory_ptr) as factory:
         index = 0
@@ -170,7 +171,7 @@ def capture_monitors(mode="neutral", cursor=False, window=None, target=None):
             hr = factory.call(12, HR, [U, c.POINTER(P)], index, c.byref(adapter_ptr))
             if hr & 0xffffffff == 0x887A0002:
                 break
-            check(hr, "Grafikadapter")
+            check(hr, tr("Grafikadapter"))
             with Com(adapter_ptr) as adapter:
                 output_index = 0
                 while True:
@@ -178,7 +179,7 @@ def capture_monitors(mode="neutral", cursor=False, window=None, target=None):
                     hr = adapter.call(7, HR, [U, c.POINTER(P)], output_index, c.byref(output_ptr))
                     if hr & 0xffffffff == 0x887A0002:
                         break
-                    check(hr, "Monitor")
+                    check(hr, tr("Monitor"))
                     with Com(output_ptr) as output:
                         captured = _capture_wgc(adapter, output, mode, cursor, window, target=target)
                         if captured:
@@ -188,7 +189,7 @@ def capture_monitors(mode="neutral", cursor=False, window=None, target=None):
     if not captures and target is not None:
         return capture_monitors(mode, cursor, window, target=None)
     if not captures:
-        raise RuntimeError("Kein aktiver Monitor gefunden.")
+        raise RuntimeError(tr("Kein aktiver Monitor gefunden."))
     return captures
 
 
@@ -199,9 +200,9 @@ def _capture_wgc(adapter, output, mode, cursor=False, window=None, target=None):
     from winrt.windows.graphics.directx.direct3d11.interop import (
         create_direct3d11_device_from_dxgi_device, get_dxgi_surface_from_object)
     if not GraphicsCaptureSession.is_supported():
-        raise RuntimeError("Windows Graphics Capture wird nicht unterstützt.")
+        raise RuntimeError(tr("Windows Graphics Capture wird nicht unterstützt."))
     desc = OutputDesc()
-    check(output.call(7, HR, [c.POINTER(OutputDesc)], c.byref(desc)), "Monitorbeschreibung")
+    check(output.call(7, HR, [c.POINTER(OutputDesc)], c.byref(desc)), tr("Monitorbeschreibung"))
     if not desc.attached:
         return None
     if target is not None:
@@ -223,7 +224,7 @@ def _capture_wgc(adapter, output, mode, cursor=False, window=None, target=None):
             return None
     with output.query("068346e8-aaec-4b84-add7-137f513f77a1") as output6:
         advanced = OutputDesc1()
-        check(output6.call(27, HR, [c.POINTER(OutputDesc1)], c.byref(advanced)), "HDR-Monitorbeschreibung")
+        check(output6.call(27, HR, [c.POINTER(OutputDesc1)], c.byref(advanced)), tr("HDR-Monitorbeschreibung"))
     hdr = advanced.color_space == 12
     white = sdr_white_level(desc.name) if hdr else 80.
     device_ptr, context_ptr, feature = P(), P(), U()
@@ -231,7 +232,7 @@ def _capture_wgc(adapter, output, mode, cursor=False, window=None, target=None):
     api.D3D11CreateDevice.argtypes = [P, U, P, U, P, U, U, c.POINTER(P), c.POINTER(U), c.POINTER(P)]
     api.D3D11CreateDevice.restype = HR
     check(api.D3D11CreateDevice(adapter.ptr, 0, None, 0x20, None, 0, 7,
-        c.byref(device_ptr), c.byref(feature), c.byref(context_ptr)), "WGC D3D11CreateDevice")
+        c.byref(device_ptr), c.byref(feature), c.byref(context_ptr)), tr("WGC D3D11CreateDevice"))
     with Com(device_ptr) as device, Com(context_ptr) as context, \
          device.query("54ec77fa-1377-44e6-8c32-88fd5f44c84c") as dxgi_device:
         rt_device = create_direct3d11_device_from_dxgi_device(dxgi_device.ptr.value)
@@ -254,29 +255,29 @@ def _capture_wgc(adapter, output, mode, cursor=False, window=None, target=None):
                 if frame is None:
                     time.sleep(.001)
             if frame is None:
-                raise RuntimeError("Kein WGC-Frame innerhalb von 5 Sekunden erhalten.")
+                raise RuntimeError(tr("Kein WGC-Frame innerhalb von 5 Sekunden erhalten."))
             with Com(get_dxgi_surface_from_object(frame.surface)) as surface, \
                  surface.query("6f15aaf2-d208-4e89-9ab4-489535d34f9c") as texture:
                 td = TextureDesc()
                 texture.call(10, None, [c.POINTER(TextureDesc)], c.byref(td))
                 if td.format != 10:
-                    raise RuntimeError("WGC lieferte kein FP16-scRGB.")
+                    raise RuntimeError(tr("WGC lieferte kein FP16-scRGB."))
                 td.usage, td.bind, td.cpu, td.misc = 3, 0, 0x20000, 0
                 staging_ptr = P()
                 check(device.call(5, HR, [c.POINTER(TextureDesc), P, c.POINTER(P)],
-                    c.byref(td), None, c.byref(staging_ptr)), "WGC Staging")
+                    c.byref(td), None, c.byref(staging_ptr)), tr("WGC Staging"))
                 with Com(staging_ptr) as staging:
                     context.call(47, None, [P, P], staging.ptr, texture.ptr)
                     mapped = Mapped()
                     check(context.call(14, HR, [P, U, U, U, c.POINTER(Mapped)],
-                        staging.ptr, 0, 1, 0, c.byref(mapped)), "WGC GPU-Lesezugriff")
+                        staging.ptr, 0, 1, 0, c.byref(mapped)), tr("WGC GPU-Lesezugriff"))
                     try:
                         raw = c.string_at(mapped.data, mapped.row_pitch * td.height)
                     finally:
                         context.call(15, None, [P, U], staging.ptr, 0)
                 width, height = frame.content_size.width, frame.content_size.height
                 if width > td.width or height > td.height or min(width, height) < 1:
-                    raise RuntimeError("Aufnahmeziel wurde während der Aufnahme geändert. Bitte erneut aufnehmen.")
+                    raise RuntimeError(tr("Aufnahmeziel wurde während der Aufnahme geändert. Bitte erneut aufnehmen."))
                 rgb = np.ndarray((height, width, 3), dtype=np.float16, buffer=raw, strides=(mapped.row_pitch, 8, 2))
                 image = Image.fromarray(scrgb_to_srgb(rgb, white, mode))
         finally:
@@ -291,10 +292,10 @@ def _capture_wgc(adapter, output, mode, cursor=False, window=None, target=None):
         r = RECT()
         dwm = c.WinDLL("dwmapi")
         dwm.DwmGetWindowAttribute.argtypes = [P, U, P, U]
-        check(dwm.DwmGetWindowAttribute(P(window), 9, c.byref(r), c.sizeof(r)), "Fenstergeometrie")
+        check(dwm.DwmGetWindowAttribute(P(window), 9, c.byref(r), c.sizeof(r)), tr("Fenstergeometrie"))
         r.right, r.bottom = r.left + image.width, r.top + image.height
     elif image.size != (r.right - r.left, r.bottom - r.top):
-        raise RuntimeError("Monitorgröße hat sich während der Aufnahme geändert.")
+        raise RuntimeError(tr("Monitorgröße hat sich während der Aufnahme geändert."))
     return CapturedMonitor(desc.name, (r.left, r.top, r.right, r.bottom), image,
         {"backend": "Windows Graphics Capture" + (" · Fenster" if window else ""), "hdr": hdr, "sdr_white_nits": white,
          "source_format": "scRGB FP16", "tone_mapping": mode, "display": desc.name,

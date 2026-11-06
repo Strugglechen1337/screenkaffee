@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image
+from .i18n import language, tr
 
 SIMILAR = 5                      # höchstens so viele abweichende Bits gelten als „sehr ähnlich“
 BIG_VIDEO = 50 * 1000 * 1000
@@ -32,7 +33,10 @@ def distance(a, b):
 def human(size):
     for unit in ("B", "KB", "MB", "GB"):
         if size < 1000 or unit == "GB":
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}".replace(".", ",")
+            if unit == "B":
+                return f"{size:.0f} {unit}"
+            text = f"{size:.1f} {unit}"
+            return text.replace(".", ",") if language() == "de" else text
         size /= 1000
 
 
@@ -129,9 +133,9 @@ def scan(workspace, now=None, progress=None):
                 created = created.replace(tzinfo=timezone.utc)
             old = now - created > timedelta(days=OLD_DAYS)
             if entry.bytes >= BIG_VIDEO:
-                report.videos.append((entry, "groß" + (", älter als 90 Tage" if old else "")))
+                report.videos.append((entry, tr("groß, älter als 90 Tage") if old else tr("groß")))
             elif old and entry.bytes >= OLD_VIDEO:
-                report.videos.append((entry, "älter als 90 Tage"))
+                report.videos.append((entry, tr("älter als 90 Tage")))
         if progress:
             progress(index + 1, len(rows))
     report.groups = group_similar(images)
@@ -147,14 +151,14 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
     from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem,
                                    QPushButton, QMessageBox, QHeaderView)
     dialog = QDialog(parent)
-    dialog.setWindowTitle("Aufräumen")
+    dialog.setWindowTitle(tr("Aufräumen"))
     dialog.resize(760, 560)
     layout = QVBoxLayout(dialog)
     summary = QLabel()
     summary.setWordWrap(True)
     layout.addWidget(summary)
     tree = QTreeWidget()
-    tree.setHeaderLabels(["Aufnahme", "Größe", "Datum"])
+    tree.setHeaderLabels([tr("Aufnahme"), tr("Größe"), tr("Datum")])
     tree.setIconSize(QSize(64, 40))
     tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     layout.addWidget(tree)
@@ -173,19 +177,19 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
             pass
         return item
     if report.groups:
-        section = QTreeWidgetItem(tree, [f"Doppelte und sehr ähnliche Bilder ({len(report.groups)} Gruppen)"])
+        section = QTreeWidgetItem(tree, [tr("Doppelte und sehr ähnliche Bilder ({count} Gruppen)", count=len(report.groups))])
         for number, group in enumerate(report.groups, 1):
-            kind = "gleich" if all(is_identical(group[0], other) for other in group[1:]) else "sehr ähnlich"
-            node = QTreeWidgetItem(section, [f"Gruppe {number}: {len(group)} Bilder, {kind}"])
+            kind = tr("gleich") if all(is_identical(group[0], other) for other in group[1:]) else tr("sehr ähnlich")
+            node = QTreeWidgetItem(section, [tr("Gruppe {number}: {count} Bilder, {kind}", number=number, count=len(group), kind=kind)])
             for position, entry in enumerate(group):
-                note = "Favorit – behalten" if entry.favorite else ("neuestes – behalten" if position == 0 else "")
+                note = tr("Favorit – behalten") if entry.favorite else (tr("neuestes – behalten") if position == 0 else "")
                 add_entry(node, entry, note)
     if report.videos:
-        section = QTreeWidgetItem(tree, [f"Große und alte Videos ({len(report.videos)})"])
+        section = QTreeWidgetItem(tree, [tr("Große und alte Videos ({count})", count=len(report.videos))])
         for entry, reason in report.videos:
             add_entry(section, entry, reason)
     if not report.groups and not report.videos:
-        QTreeWidgetItem(tree, ["Nichts gefunden – keine doppelten Bilder und keine großen alten Videos."])
+        QTreeWidgetItem(tree, [tr("Nichts gefunden – keine doppelten Bilder und keine großen alten Videos.")])
     tree.expandAll()
 
     def checked():
@@ -202,9 +206,10 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
 
     def update_summary(*_):
         ids = checked()
-        summary.setText(f"{report.scanned} Aufnahmen geprüft. Angekreuzt: {len(ids)} ({human(report.reclaimable(ids))}). "
-                        "Sie kommen in den Papierkorb und lassen sich über „Gelöschte Aufnahmen wiederherstellen“ zurückholen; "
-                        f"Platz wird erst frei, wenn der Papierkorb geleert wird. Papierkorb jetzt: {human(report.trash_bytes)}.")
+        summary.setText(tr("{scanned} Aufnahmen geprüft. Angekreuzt: {checked} ({size}). "
+                           "Sie kommen in den Papierkorb und lassen sich über „Gelöschte Aufnahmen wiederherstellen“ zurückholen; "
+                           "Platz wird erst frei, wenn der Papierkorb geleert wird. Papierkorb jetzt: {trash}.",
+                           scanned=report.scanned, checked=len(ids), size=human(report.reclaimable(ids)), trash=human(report.trash_bytes)))
     tree.itemChanged.connect(update_summary)
     update_summary()
 
@@ -212,7 +217,7 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
         ids = [ident for ident in checked() if (workspace.get(ident) and not workspace.get(ident)["favorite"])]
         if not ids:
             return
-        if QMessageBox.question(dialog, "Aufräumen", f"{len(ids)} Aufnahmen in den Papierkorb verschieben?") != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(dialog, tr("Aufräumen"), tr("{count} Aufnahmen in den Papierkorb verschieben?", count=len(ids))) != QMessageBox.StandardButton.Yes:
             return
         for ident in ids:
             workspace.remove(ident)
@@ -223,7 +228,7 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
             stack += [item.child(i) for i in range(item.childCount())]
             if item.data(0, Qt.ItemDataRole.UserRole) in ids:
                 item.parent().removeChild(item)
-        empty_button.setText(f"Papierkorb leeren ({human(report.trash_bytes)}) …")
+        empty_button.setText(tr("Papierkorb leeren ({size}) …", size=human(report.trash_bytes)))
         update_summary()
         if on_change:
             on_change()
@@ -231,20 +236,20 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
     def empty():
         if not report.trash_bytes:
             return
-        if QMessageBox.question(dialog, "Papierkorb leeren",
-                                f"Den Papierkorb endgültig leeren? {human(report.trash_bytes)} werden frei. Das lässt sich nicht rückgängig machen.") != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(dialog, tr("Papierkorb leeren"),
+                                tr("Den Papierkorb endgültig leeren? {size} werden frei. Das lässt sich nicht rückgängig machen.", size=human(report.trash_bytes))) != QMessageBox.StandardButton.Yes:
             return
         freed = workspace.empty_trash()
         report.trash_bytes = 0
-        empty_button.setText("Papierkorb leeren (0 B) …")
+        empty_button.setText(tr("Papierkorb leeren ({size}) …", size="0 B"))
         update_summary()
-        QMessageBox.information(dialog, "Papierkorb leeren", f"{human(freed)} freigegeben.")
+        QMessageBox.information(dialog, tr("Papierkorb leeren"), tr("{size} freigegeben.", size=human(freed)))
     row = QHBoxLayout()
-    remove_button = QPushButton("Angekreuzte in den Papierkorb")
+    remove_button = QPushButton(tr("Angekreuzte in den Papierkorb"))
     remove_button.clicked.connect(remove)
-    empty_button = QPushButton(f"Papierkorb leeren ({human(report.trash_bytes)}) …")
+    empty_button = QPushButton(tr("Papierkorb leeren ({size}) …", size=human(report.trash_bytes)))
     empty_button.clicked.connect(empty)
-    close_button = QPushButton("Schließen")
+    close_button = QPushButton(tr("Schließen"))
     close_button.clicked.connect(dialog.accept)
     for button in (remove_button, empty_button):
         row.addWidget(button)

@@ -1,4 +1,5 @@
 """Named tool presets (color, width, font size, tool) stored next to the app."""
+from .i18n import tr
 import json
 from pathlib import Path
 from .paths import application_root
@@ -50,7 +51,7 @@ def load_presets(path=None):
 def save_preset(name, values, path=None):
     name = name.strip()
     if not name:
-        raise ValueError("Name fehlt")
+        raise ValueError(tr("Name fehlt"))
     path = Path(path) if path else preset_file()
     presets = load_presets(path)
     presets[name] = {k: values[k] for k in KEYS if k in values}

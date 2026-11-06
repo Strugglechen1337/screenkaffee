@@ -18,6 +18,7 @@ import time
 from urllib.parse import quote, urlsplit, parse_qs
 
 from PIL import Image
+from .i18n import tr, language
 
 LOG = logging.getLogger(__name__)
 TIMEOUT = 15 * 60
@@ -85,15 +86,15 @@ def page(files, token):
             preview = f'<video src="{link}" controls playsinline preload="metadata"></video>'
         else:
             preview = ""
-        items.append(f'<section>{preview}<p>{name}</p><a class="button" href="{link}?download=1" download>Herunterladen</a></section>')
-    return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
+        items.append(f'<section>{preview}<p>{name}</p><a class="button" href="{link}?download=1" download>{html.escape(tr("Herunterladen"))}</a></section>')
+    return f"""<!doctype html><html lang="{language()}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>screenkaffee</title>
 <style>body{{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#f4f4f4;color:#222}}
 h1{{font-size:20px}}section{{background:#fff;border-radius:10px;padding:12px;margin:0 0 16px;box-shadow:0 1px 4px #0002}}
 img,video{{max-width:100%;border-radius:6px;display:block}}p{{margin:10px 0;word-break:break-word}}
 .button{{display:inline-block;background:#e8912d;color:#fff;padding:10px 18px;border-radius:20px;text-decoration:none;font-weight:600}}
 small{{color:#777}}</style></head><body><h1>screenkaffee</h1>{''.join(items)}
-<small>Bilder lassen sich auch lange antippen und speichern. Die Freigabe endet, sobald das Fenster am PC geschlossen wird.</small>
+<small>{html.escape(tr("Bilder lassen sich auch lange antippen und speichern. Die Freigabe endet, sobald das Fenster am PC geschlossen wird."))}</small>
 </body></html>""".encode("utf-8")
 
 
@@ -117,7 +118,7 @@ class _StoppableReader(io.RawIOBase):
                 return 0
             remaining = self.deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("Anfrage kam nicht rechtzeitig an")
+                raise TimeoutError(tr("Anfrage kam nicht rechtzeitig an"))
             ready, _, _ = select.select([self.sock], [], [], min(POLL, remaining))
             if ready:
                 return self.sock.recv_into(buffer)
@@ -185,11 +186,11 @@ class Share:
                  request_timeout=REQUEST_TIMEOUT):
         self.files = [(Path(path), title) for path, title in files]
         if not self.files or not all(path.is_file() for path, _ in self.files):
-            raise ValueError("Keine Datei zum Senden vorhanden.")
+            raise ValueError(tr("Keine Datei zum Senden vorhanden."))
         if address is None:
             addresses = local_addresses()
             if not addresses:
-                raise RuntimeError("Kein lokales Netzwerk gefunden. PC und Handy müssen im selben WLAN sein.")
+                raise RuntimeError(tr("Kein lokales Netzwerk gefunden. PC und Handy müssen im selben WLAN sein."))
             address = addresses[0]
         self.address = address
         self.token = secrets.token_urlsafe(12)
@@ -287,12 +288,12 @@ class Share:
 
 def status_text(share):
     if share.expired:
-        return "Freigabe abgelaufen – zum erneuten Senden das Fenster neu öffnen."
+        return tr("Freigabe abgelaufen – zum erneuten Senden das Fenster neu öffnen.")
     if share.downloads:
-        return f"✓ {share.downloads}× heruntergeladen"
+        return tr("✓ {count}× heruntergeladen", count=share.downloads)
     if share.visits:
-        return "Seite auf dem Handy geöffnet …"
-    return "Warte auf das Handy …"
+        return tr("Seite auf dem Handy geöffnet …")
+    return tr("Warte auf das Handy …")
 
 
 def share_dialog(parent, files, cleanup=None):
@@ -304,12 +305,12 @@ def share_dialog(parent, files, cleanup=None):
     from .editor import pil_to_qimage
     addresses = local_addresses()
     if not addresses:
-        raise RuntimeError("Kein lokales Netzwerk gefunden. PC und Handy müssen im selben WLAN sein.")
+        raise RuntimeError(tr("Kein lokales Netzwerk gefunden. PC und Handy müssen im selben WLAN sein."))
     dialog = QDialog(parent)
-    dialog.setWindowTitle("Aufs Handy senden")
+    dialog.setWindowTitle(tr("Aufs Handy senden"))
     dialog.setMinimumWidth(420)
     layout = QVBoxLayout(dialog)
-    intro = QLabel("Mit der Handykamera scannen. Handy und PC müssen im selben WLAN sein.")
+    intro = QLabel(tr("Mit der Handykamera scannen. Handy und PC müssen im selben WLAN sein."))
     intro.setWordWrap(True)
     layout.addWidget(intro)
     dialog.qr = QLabel()
@@ -319,14 +320,14 @@ def share_dialog(parent, files, cleanup=None):
     for address in addresses:
         dialog.address.addItem(address, address)
     row = QHBoxLayout()
-    row.addWidget(QLabel("Netzwerkadresse"))
+    row.addWidget(QLabel(tr("Netzwerkadresse")))
     row.addWidget(dialog.address, 1)
     layout.addLayout(row)
     dialog.address.setVisible(len(addresses) > 1)
     row.itemAt(0).widget().setVisible(len(addresses) > 1)
     dialog.link = QLineEdit()
     dialog.link.setReadOnly(True)
-    copy = QPushButton("Link kopieren")
+    copy = QPushButton(tr("Link kopieren"))
     copy.clicked.connect(lambda: QApplication.clipboard().setText(dialog.link.text()))
     link_row = QHBoxLayout()
     link_row.addWidget(dialog.link, 1)
@@ -334,12 +335,12 @@ def share_dialog(parent, files, cleanup=None):
     layout.addLayout(link_row)
     dialog.status = QLabel()
     layout.addWidget(dialog.status)
-    hint = QLabel("Die Freigabe endet beim Schließen, spätestens nach 15 Minuten. Fragt die Windows-Firewall nach, "
-                  "den Zugriff für „Private Netzwerke“ erlauben.")
+    hint = QLabel(tr("Die Freigabe endet beim Schließen, spätestens nach 15 Minuten. Fragt die Windows-Firewall nach, "
+                  "den Zugriff für „Private Netzwerke“ erlauben."))
     hint.setObjectName("muted")
     hint.setWordWrap(True)
     layout.addWidget(hint)
-    close = QPushButton("Schließen")
+    close = QPushButton(tr("Schließen"))
     close.clicked.connect(dialog.accept)
     layout.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
     dialog.share = None

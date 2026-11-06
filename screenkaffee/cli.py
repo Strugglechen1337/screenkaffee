@@ -5,6 +5,7 @@ Both run without a window and exit with 0 on success. "-1;-1;-1;-1" means the wh
 import argparse
 import sys
 from pathlib import Path
+from .i18n import tr
 
 
 def parse_rect(text):
@@ -12,13 +13,13 @@ def parse_rect(text):
     try:
         values = [int(part) for part in str(text).replace(",", ";").split(";")]
     except ValueError:
-        raise ValueError("Ungültiges Rechteck. Erwartet: X;Y;Breite;Höhe") from None
+        raise ValueError(tr("Ungültiges Rechteck. Erwartet: X;Y;Breite;Höhe")) from None
     if len(values) != 4:
-        raise ValueError("Ungültiges Rechteck. Erwartet: X;Y;Breite;Höhe")
+        raise ValueError(tr("Ungültiges Rechteck. Erwartet: X;Y;Breite;Höhe"))
     if values == [-1, -1, -1, -1]:
         return None
     if values[2] < 2 or values[3] < 2:
-        raise ValueError("Breite und Höhe des Rechtecks müssen mindestens 2 Pixel betragen.")
+        raise ValueError(tr("Breite und Höhe des Rechtecks müssen mindestens 2 Pixel betragen."))
     return tuple(values)
 
 
@@ -38,7 +39,7 @@ def cli_policy(*features):
     policy = load_policy()
     for feature in features:
         if feature in policy["disabled"]:
-            raise RuntimeError(f"Die Funktion {feature} ist durch eine Richtlinie gesperrt.")
+            raise RuntimeError(tr("Die Funktion {feature} ist durch eine Richtlinie gesperrt.", feature=feature))
     settings = {}
     try:
         data = json.loads((portable_root() / "settings.json").read_text(encoding="utf-8"))
@@ -58,11 +59,11 @@ def run_video(args, recorder_factory=None, sleep=None, clock=None):
     sleep = sleep or time.sleep
     clock = clock or time.monotonic
     if args.rect is None:
-        raise SystemExit("Für Videos wird --rect X;Y;Breite;Höhe benötigt (-1;-1;-1;-1 = ganzer Desktop).")
+        raise SystemExit(tr("Für Videos wird --rect X;Y;Breite;Höhe benötigt (-1;-1;-1;-1 = ganzer Desktop)."))
     bounds = parse_rect(args.rect)
     minutes = 60 if args.delay is None else args.delay
     if not 0 < minutes <= 600:
-        raise ValueError("--delay (Höchstdauer in Minuten) muss zwischen 0 und 600 liegen.")
+        raise ValueError(tr("--delay (Höchstdauer in Minuten) muss zwischen 0 und 600 liegen."))
     if recorder_factory is None:
         from .integrations import VideoRecorder as recorder_factory
     recorder = recorder_factory()
@@ -85,16 +86,16 @@ def run_video(args, recorder_factory=None, sleep=None, clock=None):
             try:
                 recorder.stop()
             except Exception as stop_error:
-                print(f"Beim Stoppen der Aufnahme trat zusätzlich ein Fehler auf: {stop_error}", file=sys.stderr)
+                print(tr("Beim Stoppen der Aufnahme trat zusätzlich ein Fehler auf: {error}", error=stop_error), file=sys.stderr)
             raise
         result = recorder.stop()
         if not result:
-            raise RuntimeError("Die Aufnahme lieferte kein Video.")
+            raise RuntimeError(tr("Die Aufnahme lieferte kein Video."))
         target = args.filepath or Path.cwd() / Path(result).name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(result, target)
     except BaseException:
-        print(f"Aufnahmedaten zur Wiederherstellung bleiben erhalten: {folder}", file=sys.stderr)
+        print(tr("Aufnahmedaten zur Wiederherstellung bleiben erhalten: {folder}", folder=folder), file=sys.stderr)
         raise
     shutil.rmtree(folder)
     print(target)
@@ -102,13 +103,13 @@ def run_video(args, recorder_factory=None, sleep=None, clock=None):
 
 
 def run_capture(argv, capture=None, recorder_factory=None, sleep=None, clock=None):
-    parser = argparse.ArgumentParser(prog="screenkaffee capture", description="Bereich ohne Fenster aufnehmen und speichern.")
+    parser = argparse.ArgumentParser(prog="screenkaffee capture", description=tr("Bereich ohne Fenster aufnehmen und speichern."))
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--screenshotregion", "-screenshotregion", action="store_true")
     mode.add_argument("--videoregion", "-videoregion", action="store_true")
-    parser.add_argument("--rect", "-rect", help="X;Y;Breite;Höhe, -1;-1;-1;-1 = ganzer Desktop")
-    parser.add_argument("--filepath", "-filepath", type=Path, help="Zieldatei (Bild: PNG, JPEG, WebP, TIFF, BMP, GIF; Video: MP4)")
-    parser.add_argument("--delay", "-delay", type=float, help="Videoaufnahme: Höchstdauer in Minuten (Standard 60)")
+    parser.add_argument("--rect", "-rect", help=tr("X;Y;Breite;Höhe, -1;-1;-1;-1 = ganzer Desktop"))
+    parser.add_argument("--filepath", "-filepath", type=Path, help=tr("Zieldatei (Bild: PNG, JPEG, WebP, TIFF, BMP, GIF; Video: MP4)"))
+    parser.add_argument("--delay", "-delay", type=float, help=tr("Videoaufnahme: Höchstdauer in Minuten (Standard 60)"))
     argv = list(argv)
     for index, token in enumerate(argv[:-1]):
         if token in ("--rect", "-rect") and argv[index + 1].startswith("-"):
@@ -120,7 +121,7 @@ def run_capture(argv, capture=None, recorder_factory=None, sleep=None, clock=Non
     settings = cli_policy("capture", "capture.cli", "capture.region")
     bounds = parse_rect(args.rect) if args.rect else None
     if args.rect is None:
-        raise SystemExit("Ohne --rect wird der Bereich interaktiv gewählt: screenkaffee --capture region")
+        raise SystemExit(tr("Ohne --rect wird der Bereich interaktiv gewählt: screenkaffee --capture region"))
     if capture is None:
         from .capture import capture_region
         capture = lambda bounds: capture_region(bounds, settings.get("tone_mapping", "neutral"), settings.get("capture_cursor", False))
@@ -141,13 +142,13 @@ def run_capture(argv, capture=None, recorder_factory=None, sleep=None, clock=Non
 
 def run_videos(argv):
     cli_policy("video", "videos")
-    parser = argparse.ArgumentParser(prog="screenkaffee videos", description="Videos mit gleichem Format zusammenfügen.")
-    parser.add_argument("--merge", "-merge", nargs="+", type=Path, required=True, metavar="DATEI",
-                        help="Zwei oder mehr Videos; die Ausgabe landet neben dem ersten Video")
-    parser.add_argument("--output", "-output", type=Path, help="Zieldatei (Standard: <erstes>-kombiniert.mp4)")
+    parser = argparse.ArgumentParser(prog="screenkaffee videos", description=tr("Videos mit gleichem Format zusammenfügen."))
+    parser.add_argument("--merge", "-merge", nargs="+", type=Path, required=True, metavar=tr("DATEI"),
+                        help=tr("Zwei oder mehr Videos; die Ausgabe landet neben dem ersten Video"))
+    parser.add_argument("--output", "-output", type=Path, help=tr("Zieldatei (Standard: <erstes>-kombiniert.mp4)"))
     args = parser.parse_args(argv)
     if len(args.merge) < 2:
-        raise SystemExit("Zum Zusammenfügen werden mindestens zwei Videos benötigt.")
+        raise SystemExit(tr("Zum Zusammenfügen werden mindestens zwei Videos benötigt."))
     from .media import merge_videos
     output = args.output or args.merge[0].with_name(args.merge[0].stem + "-kombiniert.mp4")
     print(merge_videos(args.merge, output))
@@ -192,6 +193,6 @@ def dispatch(argv):
         try:
             return COMMANDS[argv[0]](argv[1:])
         except (ValueError, RuntimeError, OSError) as exc:
-            print(f"Fehler: {exc}", file=sys.stderr)
+            print(tr("Fehler: {error}", error=exc), file=sys.stderr)
             return 1
     return None

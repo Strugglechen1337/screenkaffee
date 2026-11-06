@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import uuid
+from .i18n import tr
 
 
 def file_hash(path):
@@ -45,18 +46,18 @@ def record(workspace, ident):
 
 def validate_record(ident, value, folder):
     if not re.fullmatch(r"[0-9a-f]{32}", ident) or value["row"]["id"] != ident:
-        raise ValueError("Ungültige Aufnahme-ID im Austauschordner.")
+        raise ValueError(tr("Ungültige Aufnahme-ID im Austauschordner."))
     for name, expected in value["files"].items():
         if Path(name).name != name or any(c in name for c in "/\\:") or not name.startswith(ident + ".") or (folder / name).is_symlink():
-            raise ValueError("Ungültiger Dateipfad im Austauschordner.")
+            raise ValueError(tr("Ungültiger Dateipfad im Austauschordner."))
         if file_hash(folder / name) != expected:
-            raise ValueError("Datei im Austauschordner wurde während der Synchronisierung verändert.")
+            raise ValueError(tr("Datei im Austauschordner wurde während der Synchronisierung verändert."))
     if value["row"]["filename"] not in value["files"]:
-        raise ValueError("Originaldatei fehlt im Austauschordner.")
+        raise ValueError(tr("Originaldatei fehlt im Austauschordner."))
     content = {"row": value["row"], "files": value["files"]}
     digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     if digest != value["digest"] or value["row"].get("kind") not in ("image", "video", "document"):
-        raise ValueError("Ungültige Medienbeschreibung im Austauschordner.")
+        raise ValueError(tr("Ungültige Medienbeschreibung im Austauschordner."))
 
 
 def import_record(workspace, value, media, conflict=False):
@@ -80,7 +81,7 @@ def import_record(workspace, value, media, conflict=False):
     row["id"] = ident
     row["filename"] = ident + row["filename"][len(original):]
     if conflict:
-        row["title"] += " (Konfliktkopie)"
+        row["title"] += tr(" (Konfliktkopie)")
     columns = ("id", "title", "created", "filename", "width", "height", "tags", "collection", "metadata", "kind", "favorite")
     workspace.db.execute("INSERT OR REPLACE INTO captures (" + ",".join(columns) + ") VALUES (" + ",".join("?" for _ in columns) + ")",
                          [row.get(key, 0) if key == "favorite" else row[key] for key in columns])
@@ -91,25 +92,25 @@ def import_record(workspace, value, media, conflict=False):
 def sync_workspace(workspace, folder, propagate_deletions=False):
     folder = Path(folder).resolve()
     if folder == workspace.root.resolve() or folder.is_relative_to(workspace.images.resolve()):
-        raise ValueError("Bitte einen separaten Austauschordner auswählen.")
+        raise ValueError(tr("Bitte einen separaten Austauschordner auswählen."))
     folder.mkdir(parents=True, exist_ok=True)
     lock = folder / ".screenkaffee.lock"
     try:
         descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError as exc:
-        raise RuntimeError("Der Austauschordner ist gesperrt. Bei abgebrochenem Austausch die Sperrdatei erst nach Prüfung anderer Instanzen entfernen.") from exc
+        raise RuntimeError(tr("Der Austauschordner ist gesperrt. Bei abgebrochenem Austausch die Sperrdatei erst nach Prüfung anderer Instanzen entfernen.")) from exc
     os.close(descriptor)
     try:
         manifest = folder / "screenkaffee-index.json"
         remote = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {"version": 1, "captures": {}}
         if remote.get("version") != 1 or not isinstance(remote.get("captures"), dict):
-            raise ValueError("Unbekanntes Austauschformat.")
+            raise ValueError(tr("Unbekanntes Austauschformat."))
         media_name = remote.get("media", "media")
         if not re.fullmatch(r"media(?:-[0-9a-f]{32})?", media_name):
-            raise ValueError("Ungültiger Medienordner.")
+            raise ValueError(tr("Ungültiger Medienordner."))
         media = folder / media_name
         if media.is_symlink():
-            raise ValueError("Der Medienordner darf keine symbolische Verknüpfung sein.")
+            raise ValueError(tr("Der Medienordner darf keine symbolische Verknüpfung sein."))
         media.mkdir(exist_ok=True)
         records = remote["captures"]
         tombstones = remote.setdefault("deleted", {}) if propagate_deletions else {}

@@ -5,6 +5,7 @@ import shutil
 import threading
 import time
 import logging
+from .i18n import tr
 
 LOG = logging.getLogger(__name__)
 PATTERN = "frame_%06d.jpg"
@@ -22,7 +23,7 @@ def describe(interval, fps):
     seconds = video_seconds(3600, interval, fps)
     speed = interval * fps
     length = f"{seconds:.0f} s" if seconds < 120 else f"{seconds / 60:.1f} min".replace(".", ",")
-    return f"1 Stunde Aufnahme → {length} Video ({speed:g}× schneller)"
+    return tr("1 Stunde Aufnahme → {length} Video ({speed}× schneller)", length=length, speed=f"{speed:g}")
 
 
 class Timelapse:
@@ -30,7 +31,7 @@ class Timelapse:
 
     def __init__(self, folder, grab, interval=5.0, fps=30, max_seconds=0, clock=time.monotonic):
         if interval <= 0 or not 1 <= int(fps) <= 60:
-            raise ValueError("Ungültiger Abstand oder ungültige Bildrate.")
+            raise ValueError(tr("Ungültiger Abstand oder ungültige Bildrate."))
         self.folder = Path(folder) / ("timelapse-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
         self.grab, self.interval, self.fps, self.max_seconds, self.clock = grab, float(interval), int(fps), max_seconds, clock
         self.frames = 0
@@ -60,10 +61,10 @@ class Timelapse:
         while not self.stop_event.is_set():
             self.shoot()
             if self.failures >= MAX_FAILURES:
-                self.finished_reason = "Aufnahme mehrfach fehlgeschlagen: " + str(self.last_error)
+                self.finished_reason = tr("Aufnahme mehrfach fehlgeschlagen: {error}", error=self.last_error)
                 break
             if self.max_seconds and self.elapsed() >= self.max_seconds:
-                self.finished_reason = "Höchstdauer erreicht"
+                self.finished_reason = tr("Höchstdauer erreicht")
                 break
             next_shot += self.interval
             self.stop_event.wait(max(0.0, next_shot - self.clock()))
@@ -96,12 +97,12 @@ class Timelapse:
         """Bilder zu einem MP4 zusammensetzen; danach werden die Einzelbilder gelöscht (bei Fehlern bleiben sie)."""
         if not self.stop(timeout):
             # Ein hängendes Bild läuft noch: weder rendern noch löschen, sonst geht es verloren oder landet im Nichts.
-            raise RuntimeError("Die Zeitraffer-Aufnahme reagiert nicht (die letzte Bildaufnahme hängt). "
-                               f"Das Video wurde nicht erstellt; die bisherigen {self.frames} Einzelbilder bleiben "
-                               f"erhalten in:\n{self.folder}")
+            raise RuntimeError(tr("Die Zeitraffer-Aufnahme reagiert nicht (die letzte Bildaufnahme hängt). "
+                                  "Das Video wurde nicht erstellt; die bisherigen {frames} Einzelbilder bleiben "
+                                  "erhalten in:\n{folder}", frames=self.frames, folder=self.folder))
         if self.frames < 2:
             self.discard()
-            raise RuntimeError("Zu wenige Bilder für einen Zeitraffer (mindestens 2). Bitte länger aufnehmen.")
+            raise RuntimeError(tr("Zu wenige Bilder für einen Zeitraffer (mindestens 2). Bitte länger aufnehmen."))
         from .media import _codec_options, _render
         destination = Path(destination or self.folder.with_suffix(".mp4"))
         args = ["-framerate", str(self.fps), "-i", str(self.folder / PATTERN), "-an", *_codec_options(".mp4", "high")]
