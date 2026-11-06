@@ -4,13 +4,14 @@ Projekt **screenkaffee**: portable Screenshot-/Video-App (Windows + Linux/Omarch
 entwickelt. Das Repository ist **öffentlich**: keine Tokens, Zugangsdaten, persönlichen Daten,
 fremden Handbücher/Programmdateien und keine Namen fremder Produkte in Code, Doku oder Commits.
 Nutzerziel: vollständige Screenshot-/Video-Werkzeuge; Screenshots auf HDR-Desktops als normale PNGs
-mit korrekten (SDR-)Farben; Start ohne Installation. Sprache der UI/Doku: Deutsch.
+mit korrekten (SDR-)Farben; Start ohne Installation. Oberfläche: Deutsch und Englisch (ab 1.2.0, `screenkaffee/i18n.py`); Doku, Commits und Release-Notizen: Deutsch.
 
 ## Arbeitsregeln
-- Vom Nutzer ausgeschlossen (nicht bauen): Cloud-Sharing, KI-Editor, weitere UI-Sprachen (nur Deutsch), Übersetzung von erkanntem Text, Schaltfläche „Text erkennen“ und „Sensible Daten erkennen“ (entfernt 28.10.2026).
+- Vom Nutzer ausgeschlossen (nicht bauen): Cloud-Sharing, KI-Editor, weitere UI-Sprachen außer Deutsch/Englisch, Übersetzung von erkanntem Text, Schaltfläche „Text erkennen“ und „Sensible Daten erkennen“ (entfernt 28.10.2026).
 - Single Source of Truth für den Stand: `screenkaffee/parity.py` (`FEATURES`). Ein Eintrag wird
   nur `implemented`, wenn Code UND Test existieren. Nie schönreden; `FEATURES.md` stimmt dazu.
 - Tests: `.\.venv\Scripts\python.exe -m pytest -q` (aktuell 488 grün, 4 X11-Opt-in + test_ocr ohne tesserocr übersprungen). Neue Funktion = neuer Test.
+- **Übersetzung (ab 1.2.0):** Jeder sichtbare Text läuft durch `tr("deutscher Text", platzhalter=…)` aus `screenkaffee/i18n.py`; Konstanten mit `N_()` markieren und bei der Anzeige `tr(wert)`. Englisch steht in `screenkaffee/i18n_en/{general,app,editor}.py` (deutscher Text → englischer Text). Keine f-Strings in `tr()` – Platzhalter benutzen. `scripts/i18n_check.py` zeigt fehlende/unübersetzte Texte; `tests/test_i18n.py` verlangt für jedes `tr("…")` einen englischen Eintrag. Tests laufen auf Deutsch (`SCREENKAFFEE_LANG=de` in `conftest.py`).
 - Dateien UTF-8 schreiben (Windows-Konsole zeigt Umlaute teils kaputt, Dateien sind ok).
 - Keine automatischen Uploads, keine Telemetrie. Alles lokal. Netzfunktionen gibt es nur zwei: den Updater (`updater.py`, standardmäßig aus, nur lesend gegen die öffentlichen GitHub-Releases, ohne Token) und „Aufs Handy senden“ (`lanshare.py`, lokaler Server nur im WLAN, nur auf Klick, endet beim Schließen).
 - Auf Windows nicht Python systemweit installieren; `.venv` im Projekt nutzen.

@@ -1,5 +1,6 @@
 import os
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
+os.environ.setdefault("SCREENKAFFEE_LANG", "de")  # Tests prüfen deutsche Texte, unabhängig von der Systemsprache
 import pytest
 from PySide6.QtWidgets import QApplication
 

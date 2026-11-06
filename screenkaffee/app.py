@@ -2211,6 +2211,18 @@ class MainWindow(QMainWindow):
         scroll.setWidget(body)
         outer.addWidget(scroll)
         layout = QVBoxLayout(body)
+        from .i18n import LANGUAGES, tr
+        language_row = QHBoxLayout()
+        language_row.addWidget(QLabel("Sprache / Language"))
+        language_box = QComboBox()
+        for code, label in LANGUAGES:
+            language_box.addItem(tr(label), code)
+        language_box.setCurrentIndex(max(0, language_box.findData(self.settings.get("language", "auto"))))
+        language_row.addWidget(language_box, 1)
+        layout.addLayout(language_row)
+        language_hint = QLabel(tr("Wirkt nach dem Neustart."))
+        language_hint.setObjectName("muted")
+        layout.addWidget(language_hint)
         layout.addWidget(QLabel("HDR → normale PNGs (Windows)"))
         tone = QComboBox()
         tone.addItem("SDR-Farben erhalten · HDR-Spitzen abschneiden", "neutral")
@@ -2337,7 +2349,7 @@ class MainWindow(QMainWindow):
             self.settings.update(capture_values)
             self.settings.update({key: box.isChecked() for key, box in boxes.items()})
             self.settings.update(tone_mapping=tone.currentData(), microphone=microphone.text(), update_mode=update_mode.currentData(),
-                                 update_keep_previous=keep_previous.isChecked())
+                                 update_keep_previous=keep_previous.isChecked(), language=language_box.currentData())
             if autostart_box.isChecked() != autostart_now:
                 try:
                     autostart.set_enabled(autostart_box.isChecked())

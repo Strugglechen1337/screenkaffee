@@ -1,0 +1,4 @@
+"""Englische Texte: editor."""
+
+TEXTS = {
+}
