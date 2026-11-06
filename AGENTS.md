@@ -196,13 +196,14 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - `MainWindow.start_tour` / `schedule_tour`; Einstellung `tour_done` (auch Abbrechen zählt). Start in `startup_update` – nach dem Einrichtungsdialog (`setup_dialog.finished`) bzw. 0,9 s nach dem Start, nie unter `QT_QPA_PLATFORM=offscreen`. Bestehende Nutzer sehen die Tour einmal nach dem Update. Menü „Hilfe und Updates → Tour: die besten Funktionen …“ (damit auch in Strg+K).
 - Ziele: `capture_button`, `list` (Vergleichen), `edit_button`, `share_button`, `video_button`, `more_button`, `version_button` – neue Attribute dafür in `MainWindow.__init__`. Wer diese Schaltflächen umbenennt, muss `tour.steps` mitziehen (fehlt ein Ziel, erscheint die Blase mittig ohne Spotlight).
 - Tests: `tests/test_tour.py` (4). Darstellung offscreen gerendert und geprüft; an echten Bildschirmen/DPI nicht von Hand abgenommen.
+- **v1.0.0 ist als GitHub-Release (Latest) veröffentlicht** (429 Tests grün, erste große Version, README ohne „frühe Testversion“). SHA256: x64 `ee8b041c92dbd507f5440635482e9e11763bda2934e8f58345318e3c283d0124` (110 MB), ARM64 `df3dcf4407f563dfe67581f3b03681fc7dc174643b4c997f90391ca83e197125` (104 MB), Linux `aa67751a00551f452edc50cc015c755dac507594a4824f4b3f330beb5e1df8aa` (211 MB), Untertitel x64 `03f983ae668b7fbd4022529fb4ac668de2b0712346ca9694404f9c8a6a59895b`, Untertitel Linux `7a6b114ab76df1c5c2b4c6fe75dfc4d2832be9f7e68074596e5c6d9e6f015822`. Hinweis: Der Sprach-Selbsttest in `verify_release.py` schlug einmal ohne Meldung fehl; Wiederholung (einzeln und komplett) grün – vermutlich sporadisch.
 
 ## Funktions-Poster (README)
 - `docs/screenkaffee-features.png` steht oben in der README; Quelle ist `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
   `msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1.5 --window-size=1600,1500 --screenshot=<Ziel>.png file:///<Pfad>/docs/poster.html` (Höhe an den Inhalt anpassen), danach mit Pillow `optimize=True` speichern.
 
 ## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)
-Aktueller Stand: **v0.10.2** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
+Aktueller Stand: **v1.0.0** ist das neueste Release. Nutzer mit 0.7.0+ bekommen jedes neue Release über den Updater.
 1. Version an **drei** Stellen erhöhen: `pyproject.toml`, `screenkaffee/__init__.py` (`__version__`), `README.md` (Zeile 5). Der Updater vergleicht `__version__` numerisch mit dem Tag; ein Tag, der nicht größer ist, wird nicht angeboten.
 2. Tests: `QT_QPA_PLATFORM=offscreen` + `python -m pytest -q` (alle grün).
 3. Bauen und prüfen: `python scripts/release.py --tag vX.Y.Z` (Tests, drei Pakete, `verify_release.py`). Alle Werte in `dist/verification.json` müssen `true` sein (außer den `*_tested`-Hardwarefeldern). Bei laufender App Windows mit `--app-folder screenkaffee-update` separat bauen.

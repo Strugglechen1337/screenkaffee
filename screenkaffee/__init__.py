@@ -1,3 +1,3 @@
 """screenkaffee — independent screenshot application."""
-__version__ = "0.10.2"
+__version__ = "1.0.0"
 
