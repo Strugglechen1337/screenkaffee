@@ -4,6 +4,8 @@ import unicodedata
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QLabel
 
+from .i18n import tr
+
 
 def fold(text):
     """Klein, ohne Akzente, Umlaute als ae/oe/ue/ss, ohne „…“ – damit „zeitraf“, „groesse“ und „Größe“ passen."""
@@ -51,7 +53,7 @@ def search(query, entries, limit=40):
 class CommandPalette(QDialog):
     def __init__(self, entries, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Befehl suchen")
+        self.setWindowTitle(tr("Befehl suchen"))
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.setObjectName("commandPalette")
         self.setStyleSheet("#commandPalette{border:1px solid #4a5560}")
@@ -60,12 +62,12 @@ class CommandPalette(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         self.field = QLineEdit()
-        self.field.setPlaceholderText("Befehl suchen … (z. B. „zeitraffer“, „vergleichen“, „updates“)")
+        self.field.setPlaceholderText(tr("Befehl suchen … (z. B. „zeitraffer“, „vergleichen“, „updates“)"))
         self.field.setClearButtonEnabled(True)
         layout.addWidget(self.field)
         self.listing = QListWidget()
         layout.addWidget(self.listing)
-        hint = QLabel("↑ ↓ auswählen · Enter ausführen · Esc schließen")
+        hint = QLabel(tr("↑ ↓ auswählen · Enter ausführen · Esc schließen"))
         hint.setObjectName("muted")
         layout.addWidget(hint)
         self.field.textChanged.connect(self.refresh)

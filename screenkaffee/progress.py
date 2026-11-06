@@ -8,13 +8,20 @@ import time
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout
 
+from .i18n import language, tr
+
 
 class Cancelled(Exception):
     """Der Nutzer hat den Download abgebrochen."""
 
 
+def decimal(text):
+    """Dezimalkomma auf Deutsch, Punkt auf Englisch."""
+    return text if language() == "en" else text.replace(".", ",")
+
+
 def megabytes(value):
-    return f"{value / 1e6:.0f}".replace(".", ",")
+    return decimal(f"{value / 1e6:.0f}")
 
 
 def duration(seconds):
@@ -28,13 +35,13 @@ def duration(seconds):
 def describe(done, total, elapsed):
     """'45 von 110 MB · 3,2 MB/s · noch ca. 20 s' – ohne Tempo/Restzeit, solange es keine sinnvolle Schätzung gibt."""
     if total <= 0:
-        return f"{megabytes(done)} MB geladen"
-    text = f"{megabytes(done)} von {megabytes(total)} MB"
+        return tr("{done} MB geladen", done=megabytes(done))
+    text = tr("{done} von {total} MB", done=megabytes(done), total=megabytes(total))
     if elapsed >= 1 and done > 0:
         speed = done / elapsed
-        text += f" · {speed / 1e6:.1f} MB/s".replace(".", ",")
+        text += " · " + decimal(f"{speed / 1e6:.1f}") + " MB/s"
         if done < total:
-            text += f" · noch ca. {duration((total - done) / speed)}"
+            text += " · " + tr("noch ca. {time}", time=duration((total - done) / speed))
     return text
 
 
@@ -74,14 +81,15 @@ class Progress:
         names = [name for name, _, _ in self.phases]
         index = names.index(self.state["phase"]) if self.state["phase"] in names else len(names) - 1
         label = self.phases[index][2]
-        return f"Schritt {index + 1} von {len(names)}: {label}" if len(names) > 1 else label
+        return tr("Schritt {number} von {total}: {label}", number=index + 1, total=len(names), label=tr(label)) \
+            if len(names) > 1 else tr(label)
 
     def detail_text(self):
         state = self.state
         if state["phase"] == self.phases[0][0]:
             return describe(state["done"], state["total"], self.clock() - state["started"])
         if state["total"] > 0:
-            return f"{state['done']} von {state['total']} Dateien"
+            return tr("{done} von {total} Dateien", done=state["done"], total=state["total"])
         return ""
 
 
@@ -113,11 +121,11 @@ class ProgressWindow(QDialog):
         layout.addWidget(self.detail)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        self.hide_button = QPushButton("Im Hintergrund")
+        self.hide_button = QPushButton(tr("Im Hintergrund"))
         self.hide_button.clicked.connect(self.hide)
-        self.cancel_button = QPushButton("Abbrechen")
+        self.cancel_button = QPushButton(tr("Abbrechen"))
         self.cancel_button.clicked.connect(self.request_cancel)
-        self.close_button = QPushButton("Schließen")
+        self.close_button = QPushButton(tr("Schließen"))
         self.close_button.clicked.connect(self.close)
         self.close_button.hide()
         for button in (self.hide_button, self.cancel_button, self.close_button):
@@ -138,7 +146,7 @@ class ProgressWindow(QDialog):
     def request_cancel(self):
         self.progress.state["cancel"] = True
         self.cancel_button.setEnabled(False)
-        self.step.setText("Wird abgebrochen …")
+        self.step.setText(tr("Wird abgebrochen …"))
 
     def status_line(self):
         """Kurzfassung für die Statusleiste, solange das Fenster ausgeblendet ist."""

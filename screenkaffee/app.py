@@ -22,13 +22,17 @@ from .hotkeys import DEFAULT_HOTKEYS, ACTIONS
 from .integrations import tool, omarchy_capture, VideoRecorder, android_capture, AndroidRecorder
 from .app_widgets import *  # noqa: F401,F403
 from .app_widgets import _arrow_url  # noqa: F401
+from .hotkeys import display_hotkey, hotkey_for_settings, action_label
+from .i18n import tr, N_
 
 
 def monitor_label(index, screen, primary=None):
     """'Monitor 1 · 2560×1440 (Hauptbildschirm)' in physical pixels instead of raw Windows device names."""
     size = screen.geometry().size() * screen.devicePixelRatio()
-    label = f"Monitor {index + 1} · {round(size.width())}×{round(size.height())}"
-    return label + " (Hauptbildschirm)" if primary is not None and screen == primary else label
+    values = dict(number=index + 1, width=round(size.width()), height=round(size.height()))
+    if primary is not None and screen == primary:
+        return tr("Monitor {number} · {width}×{height} (Hauptbildschirm)", **values)
+    return tr("Monitor {number} · {width}×{height}", **values)
 
 
 class MainWindow(QMainWindow):
@@ -38,7 +42,7 @@ class MainWindow(QMainWindow):
         if log.is_file() and log.stat().st_size:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(log)))
         else:
-            QMessageBox.information(self, "Fehlerprotokoll", "Es wurden noch keine Fehler protokolliert.")
+            QMessageBox.information(self, tr("Fehlerprotokoll"), tr("Es wurden noch keine Fehler protokolliert."))
 
     def __init__(self, workspace=None):
         super().__init__()
@@ -60,12 +64,12 @@ class MainWindow(QMainWindow):
         self.policy = load_policy()
         apply_policy(self.settings, self.policy)
         from . import __version__
-        self.setWindowTitle(f"screenkaffee {__version__} · Dein Screenshot-Studio")
+        self.setWindowTitle(tr("screenkaffee {version} · Dein Screenshot-Studio", version=__version__))
         self.version_button = QToolButton()
         self.version_button.setObjectName("versionButton")
         self.version_button.setAutoRaise(True)
-        self.version_button.setText(f"Version {__version__}")
-        self.version_button.setToolTip("Installierte Version – klicken, um nach Updates zu suchen")
+        self.version_button.setText(tr("Version {version}", version=__version__))
+        self.version_button.setToolTip(tr("Installierte Version – klicken, um nach Updates zu suchen"))
         self.version_button.clicked.connect(lambda: self.check_updates(manual=True))
         self.statusBar().addPermanentWidget(self.version_button)
         self.setWindowIcon(app_icon())
@@ -113,23 +117,23 @@ class MainWindow(QMainWindow):
         self.workspaces_toggle.setObjectName("headerIcon")
         self.workspaces_toggle.setIcon(header_icon("workspaces"))
         self.workspaces_toggle.setIconSize(QSize(20, 20))
-        self.workspaces_toggle.setText("Arbeitsbereiche")
+        self.workspaces_toggle.setText(tr("Arbeitsbereiche"))
         self.workspaces_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.workspaces_toggle.setCheckable(True)
         self.workspaces_toggle.setChecked(True)
-        self.workspaces_toggle.setToolTip("Sammlungen / Arbeitsbereiche ein-/ausblenden (F10)")
+        self.workspaces_toggle.setToolTip(tr("Sammlungen / Arbeitsbereiche ein-/ausblenden (F10)"))
         self.workspaces_toggle.toggled.connect(self.toggle_collections_panel)
         top.addWidget(self.workspaces_toggle)
         capture_actions = self.command_group(top)
-        self.capture_button = self.add_button(capture_actions, "+ Bereich aufnehmen", lambda: self.capture("region"), primary=True)
-        self.add_button(capture_actions, "Bildschirm", lambda: self.capture("screen"))
-        self.add_button(capture_actions, "Fenster", lambda: self.capture("window"))
+        self.capture_button = self.add_button(capture_actions, tr("+ Bereich aufnehmen"), lambda: self.capture("region"), primary=True)
+        self.add_button(capture_actions, tr("Bildschirm"), lambda: self.capture("screen"))
+        self.add_button(capture_actions, tr("Fenster"), lambda: self.capture("window"))
         video_actions = self.command_group(top)
-        self.video_button = self.add_button(video_actions, "● Video", self.toggle_video)
-        self.video_button.setToolTip("Videoaufnahme starten / stoppen (SDR)")
+        self.video_button = self.add_button(video_actions, tr("● Video"), self.toggle_video)
+        self.video_button.setToolTip(tr("Videoaufnahme starten / stoppen (SDR)"))
         self.video_more_button = QPushButton("▾")
         self.video_more_button.setObjectName("menuArrow")
-        self.video_more_button.setToolTip("Zeitraffer, Android-Video, Videos importieren und zusammenfügen")
+        self.video_more_button.setToolTip(tr("Zeitraffer, Android-Video, Videos importieren und zusammenfügen"))
         self.video_more_button.setMenu(QMenu(self))
         video_actions.addWidget(self.video_more_button)
         self.screen_combo = QComboBox()
@@ -140,9 +144,9 @@ class MainWindow(QMainWindow):
         top.addWidget(self.screen_combo)
         self.delay = QSpinBox()
         self.delay.setRange(0, 30)
-        self.delay.setPrefix("Verzögerung ")
+        self.delay.setPrefix(tr("Verzögerung "))
         self.delay.setSuffix(" s")
-        self.delay.setToolTip("Aufnahmeverzögerung in Sekunden")
+        self.delay.setToolTip(tr("Aufnahmeverzögerung in Sekunden"))
         top.addWidget(self.delay)
         top.addStretch()
         brand = QLabel("screenkaffee")
@@ -152,7 +156,7 @@ class MainWindow(QMainWindow):
         import_btn.setObjectName("headerIcon")
         import_btn.setIcon(header_icon("import"))
         import_btn.setIconSize(QSize(18, 18))
-        import_btn.setText("Importieren …")
+        import_btn.setText(tr("Importieren …"))
         import_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         import_btn.clicked.connect(self.import_files)
         top.addWidget(import_btn)
@@ -160,7 +164,7 @@ class MainWindow(QMainWindow):
         settings_btn.setObjectName("headerIcon")
         settings_btn.setIcon(header_icon("settings"))
         settings_btn.setIconSize(QSize(18, 18))
-        settings_btn.setText("Einstellungen")
+        settings_btn.setText(tr("Einstellungen"))
         settings_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         settings_btn.clicked.connect(self.preferences)
         top.addWidget(settings_btn)
@@ -168,26 +172,26 @@ class MainWindow(QMainWindow):
         filterbar = QHBoxLayout()
         filterbar.setSpacing(6)
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Aufnahmen filtern (einfach tippen, Strg+F oder Esc) …")
+        self.search.setPlaceholderText(tr("Aufnahmen filtern (einfach tippen, Strg+F oder Esc) …"))
         self.search.textChanged.connect(self.refresh)
         filterbar.addWidget(self.search, 1)
         self.collection = QComboBox(root)
-        self.collection.addItem("Alle Aufnahmen")
-        self.collection.currentTextChanged.connect(self.refresh)
-        self.collection.currentTextChanged.connect(self.sync_collection_list)
+        self.add_collection_item(self.workspace.DEFAULT_COLLECTION)
+        self.collection.currentIndexChanged.connect(self.refresh)
+        self.collection.currentIndexChanged.connect(lambda _index: self.sync_collection_list())
         self.collection.hide()
         self.type_filter = QComboBox()
-        for label, value in [("Alle Medien", ""), ("Bilder", "image"), ("Videos", "video"), ("Dokumente", "document")]:
+        for label, value in [(tr("Alle Medien"), ""), (tr("Bilder"), "image"), (tr("Videos"), "video"), (tr("Dokumente"), "document")]:
             self.type_filter.addItem(label, value)
         self.type_filter.currentIndexChanged.connect(self.refresh)
         filterbar.addWidget(self.type_filter)
         self.sort_order = QComboBox()
-        for label, value in [("Neueste zuerst", "newest"), ("Älteste zuerst", "oldest"), ("Titel", "title"), ("Medientyp", "type"), ("Bildgröße", "size")]:
+        for label, value in [(tr("Neueste zuerst"), "newest"), (tr("Älteste zuerst"), "oldest"), (tr("Titel"), "title"), (tr("Medientyp"), "type"), (tr("Bildgröße"), "size")]:
             self.sort_order.addItem(label, value)
         self.sort_order.currentIndexChanged.connect(self.refresh)
         filterbar.addWidget(self.sort_order)
         self.time_filter = QComboBox()
-        for label, value in [("Jederzeit", 0), ("Letzte 24 Stunden", 1), ("Letzte 7 Tage", 7), ("Letzte 30 Tage", 30)]:
+        for label, value in [(tr("Jederzeit"), 0), (tr("Letzte 24 Stunden"), 1), (tr("Letzte 7 Tage"), 7), (tr("Letzte 30 Tage"), 30)]:
             self.time_filter.addItem(label, value)
         self.time_filter.currentIndexChanged.connect(self.refresh)
         filterbar.addWidget(self.time_filter)
@@ -203,108 +207,110 @@ class MainWindow(QMainWindow):
         tools_row.setSpacing(14)
         tools = tools_row
         self.media_buttons = []
-        for label, glyph, color, callback in [("Aufnehmen", "camera", "#e5332a", lambda: self.capture("region")),
-            ("Bearbeiten", "edit", "#4caf50", self.edit_selected), ("Kopieren", "copy", "#2c82c9", self.copy_selected),
-            ("Exportieren", "export", "#2c82c9", self.export_selected)]:
+        for label, glyph, color, callback in [(tr("Aufnehmen"), "camera", "#e5332a", lambda: self.capture("region")),
+            (tr("Bearbeiten"), "edit", "#4caf50", self.edit_selected), (tr("Kopieren"), "copy", "#2c82c9", self.copy_selected),
+            (tr("Exportieren"), "export", "#2c82c9", self.export_selected)]:
             button = self.round_button(tools, label, glyph, color, callback)
-            if label != "Aufnehmen":
+            if glyph != "camera":
                 self.media_buttons.append(button)
-            if label == "Bearbeiten":
+            if glyph == "edit":
                 self.edit_button = button
-        share = self.round_button(tools, "Teilen", "share", "#2c82c9", None)
+        share = self.round_button(tools, tr("Teilen"), "share", "#2c82c9", None)
         self.share_button = share
-        share.setToolTip("Aufs Handy senden, schicker Screenshot, drucken, E-Mail")
+        share.setToolTip(tr("Aufs Handy senden, schicker Screenshot, drucken, E-Mail"))
         share_popup = QMenu(self)
         share.setMenu(share_popup)
         share.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.media_buttons.append(share)
-        self.media_buttons.append(self.round_button(tools, "Dokument", "document", "#2c82c9", self.document_export))
+        self.media_buttons.append(self.round_button(tools, tr("Dokument"), "document", "#2c82c9", self.document_export))
         self.trash_buttons = [self.round_button(tools, label, glyph, "#808080", callback) for label, glyph, callback in [
-            ("Wiederherstellen", "restore", self.restore_trash_selected),
-            ("Endgültig löschen", "trash", self.delete_trash_selected),
-            ("Papierkorb leeren", "trash", self.empty_trash_view)]]
+            (tr("Wiederherstellen"), "restore", self.restore_trash_selected),
+            (tr("Endgültig löschen"), "trash", self.delete_trash_selected),
+            (tr("Papierkorb leeren"), "trash", self.empty_trash_view)]]
         menu = QMenu(self)
-        self.timelapse_action = QAction("Zeitraffer starten …", self)
+        self.timelapse_action = QAction(tr("Zeitraffer starten …"), self)
         self.timelapse_action.triggered.connect(lambda _=False: self.toggle_timelapse())
-        self.android_video_action = QAction("Android-Video starten", self)
+        self.android_video_action = QAction(tr("Android-Video starten"), self)
         self.android_video_action.triggered.connect(lambda _=False: self.android_video())
-        self.step_guide_action = QAction("Schritt-Anleitung aufnehmen …", self)
-        self.step_guide_action.setToolTip("Bei jedem Mausklick ein Bild mit markierter Klickstelle – daraus wird ein Dokument")
+        self.step_guide_action = QAction(tr("Schritt-Anleitung aufnehmen …"), self)
+        self.step_guide_action.setToolTip(tr("Bei jedem Mausklick ein Bild mit markierter Klickstelle – daraus wird ein Dokument"))
         self.step_guide_action.triggered.connect(lambda _=False: self.toggle_step_guide())
-        self.live_draw_action = QAction("Live-Zeichnen auf dem Bildschirm", self)
+        self.live_draw_action = QAction(tr("Live-Zeichnen auf dem Bildschirm"), self)
         self.live_draw_action.triggered.connect(lambda _=False: self.toggle_live_draw())
-        self.measure_action = QAction("Bildschirm ausmessen (Lineal)", self)
+        self.measure_action = QAction(tr("Bildschirm ausmessen (Lineal)"), self)
         self.measure_action.triggered.connect(lambda _=False: self.capture("measure"))
-        capture_menu = menu.addMenu("Aufnehmen")
-        capture_menu.addAction("Vorherigen Bereich erneut aufnehmen", lambda: self.capture("previous"))
-        capture_menu.addAction("Alle Bildschirme aufnehmen", lambda: self.capture("all"))
-        capture_menu.addAction("Webseite komplett aufnehmen …", self.webpage)
-        capture_menu.addAction("Farbpipette", lambda: self.capture("color"))
-        capture_menu.addAction("Android-Screenshot", self.android)
+        capture_menu = menu.addMenu(tr("Aufnehmen"))
+        capture_menu.addAction(tr("Vorherigen Bereich erneut aufnehmen"), lambda: self.capture("previous"))
+        capture_menu.addAction(tr("Alle Bildschirme aufnehmen"), lambda: self.capture("all"))
+        capture_menu.addAction(tr("Webseite komplett aufnehmen …"), self.webpage)
+        capture_menu.addAction(tr("Farbpipette"), lambda: self.capture("color"))
+        capture_menu.addAction(tr("Android-Screenshot"), self.android)
         capture_menu.addSeparator()
         capture_menu.addAction(self.step_guide_action)
         capture_menu.addAction(self.measure_action)
         capture_menu.addSeparator()
-        capture_menu.addAction("Automatische Scrollaufnahme …", lambda: self.capture("scroll"))
-        capture_menu.addAction("Manuelle Scrollserie starten …", lambda: self.capture("manual-scroll"))
-        capture_menu.addAction("Scrollserie: nächstes Bild (Strg+Alt+F7)", self.manual_scroll_frame)
-        capture_menu.addAction("Scrollserie: fertigstellen (Strg+Alt+F8)", self.finish_manual_scroll)
+        capture_menu.addAction(tr("Automatische Scrollaufnahme …"), lambda: self.capture("scroll"))
+        capture_menu.addAction(tr("Manuelle Scrollserie starten …"), lambda: self.capture("manual-scroll"))
+        capture_menu.addAction(tr("Scrollserie: nächstes Bild (Strg+Alt+F7)"), self.manual_scroll_frame)
+        capture_menu.addAction(tr("Scrollserie: fertigstellen (Strg+Alt+F8)"), self.finish_manual_scroll)
         capture_menu.addSeparator()
-        capture_menu.addAction("Aus Zwischenablage importieren", self.paste_image)
-        self.fill_video_menu(menu.addMenu("Video"))
-        selection_menu = menu.addMenu("Auswahl bearbeiten")
-        selection_menu.addAction("Umbenennen / Tags / Sammlung (F2)", self.edit_details)
-        selection_menu.addAction("Schnellansicht (Leertaste)", self.quick_view_selected)
-        selection_menu.addAction("Medieneigenschaften anzeigen", self.show_media_properties)
-        selection_menu.addAction("Auswahl im Dateimanager zeigen", self.reveal_selected)
+        capture_menu.addAction(tr("Aus Zwischenablage importieren"), self.paste_image)
+        self.fill_video_menu(menu.addMenu(tr("Video")))
+        selection_menu = menu.addMenu(tr("Auswahl bearbeiten"))
+        selection_menu.addAction(tr("Umbenennen / Tags / Sammlung (F2)"), self.edit_details)
+        selection_menu.addAction(tr("Schnellansicht (Leertaste)"), self.quick_view_selected)
+        selection_menu.addAction(tr("Medieneigenschaften anzeigen"), self.show_media_properties)
+        selection_menu.addAction(tr("Auswahl im Dateimanager zeigen"), self.reveal_selected)
         selection_menu.addSeparator()
-        selection_menu.addAction("Zwei Aufnahmen vergleichen …", self.compare_selected)
-        selection_menu.addAction("Scrollbilder verbinden", self.stitch_selected)
-        selection_menu.addAction("QR-Code lesen", self.qr_selected)
+        selection_menu.addAction(tr("Zwei Aufnahmen vergleichen …"), self.compare_selected)
+        selection_menu.addAction(tr("Scrollbilder verbinden"), self.stitch_selected)
+        selection_menu.addAction(tr("QR-Code lesen"), self.qr_selected)
         selection_menu.addSeparator()
-        selection_menu.addAction("Auto-Umbenennen (screenshot_1, …)", self.renumber_selected)
-        selection_menu.addAction("Neu komprimieren (verlustfrei)", self.recompress_selected)
-        share_menu = menu.addMenu("Teilen und ausgeben")
+        selection_menu.addAction(tr("Auto-Umbenennen (screenshot_1, …)"), self.renumber_selected)
+        selection_menu.addAction(tr("Neu komprimieren (verlustfrei)"), self.recompress_selected)
+        share_menu = menu.addMenu(tr("Teilen und ausgeben"))
+        self.selection_menu_action = selection_menu.menuAction()
+        self.share_menu_action = share_menu.menuAction()
         self.fill_share_menu(share_menu)
         share_menu.addSeparator()
-        share_menu.addAction("Stapelexport mit Größe und Effekten …", self.batch_export_selected)
-        data_menu = menu.addMenu("Sammlungen und Daten")
-        data_menu.addAction("Neue Sammlung …", self.new_collection)
-        data_menu.addAction("Sammlungsleiste ein-/ausblenden (F10)", self.workspaces_toggle.toggle)
-        data_menu.addAction("Vorschau-Seitenleiste ein-/ausblenden", self.toggle_inspector_panel)
+        share_menu.addAction(tr("Stapelexport mit Größe und Effekten …"), self.batch_export_selected)
+        data_menu = menu.addMenu(tr("Sammlungen und Daten"))
+        data_menu.addAction(tr("Neue Sammlung …"), self.new_collection)
+        data_menu.addAction(tr("Sammlungsleiste ein-/ausblenden (F10)"), self.workspaces_toggle.toggle)
+        data_menu.addAction(tr("Vorschau-Seitenleiste ein-/ausblenden"), self.toggle_inspector_panel)
         data_menu.addSeparator()
-        data_menu.addAction("Arbeitsbereich wechseln …", self.switch_workspace)
-        data_menu.addAction("Mit lokalem Ordner abgleichen …", self.sync_local_folder)
-        data_menu.addAction("Aufbewahrungsregeln jetzt anwenden …", lambda: self.apply_retention(confirm=True))
-        data_menu.addAction("Gelöschte Aufnahmen wiederherstellen …", self.restore_deleted)
-        data_menu.addAction("Aufräumen (doppelte Bilder, große Videos) …", self.cleanup_library)
+        data_menu.addAction(tr("Arbeitsbereich wechseln …"), self.switch_workspace)
+        data_menu.addAction(tr("Mit lokalem Ordner abgleichen …"), self.sync_local_folder)
+        data_menu.addAction(tr("Aufbewahrungsregeln jetzt anwenden …"), lambda: self.apply_retention(confirm=True))
+        data_menu.addAction(tr("Gelöschte Aufnahmen wiederherstellen …"), self.restore_deleted)
+        data_menu.addAction(tr("Aufräumen (doppelte Bilder, große Videos) …"), self.cleanup_library)
         data_menu.addSeparator()
-        data_menu.addAction("Einstellungen exportieren …", self.export_settings)
-        data_menu.addAction("Einstellungen importieren …", self.import_settings)
-        data_menu.addAction("Datenordner öffnen", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.root))))
-        help_menu = menu.addMenu("Hilfe und Updates")
-        help_menu.addAction("Befehl suchen … (Strg+K)", self.open_command_palette)
-        help_menu.addAction("Tour: die besten Funktionen …", self.start_tour)
+        data_menu.addAction(tr("Einstellungen exportieren …"), self.export_settings)
+        data_menu.addAction(tr("Einstellungen importieren …"), self.import_settings)
+        data_menu.addAction(tr("Datenordner öffnen"), lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.root))))
+        help_menu = menu.addMenu(tr("Hilfe und Updates"))
+        help_menu.addAction(tr("Befehl suchen … (Strg+K)"), self.open_command_palette)
+        help_menu.addAction(tr("Tour: die besten Funktionen …"), self.start_tour)
         help_menu.addSeparator()
-        help_menu.addAction("Nach Updates suchen …", lambda: self.check_updates(manual=True))
-        help_menu.addAction("Vorige Version wiederherstellen …", self.restore_previous_version)
-        help_menu.addAction("Einrichtung (Taste, Autostart, Updates) …", self.first_run_setup)
+        help_menu.addAction(tr("Nach Updates suchen …"), lambda: self.check_updates(manual=True))
+        help_menu.addAction(tr("Vorige Version wiederherstellen …"), self.restore_previous_version)
+        help_menu.addAction(tr("Einrichtung (Taste, Autostart, Updates) …"), self.first_run_setup)
         help_menu.addSeparator()
-        help_menu.addAction("Fehlerprotokoll öffnen", self.open_log)
-        help_menu.addAction("Funktionsstand / Hinweise", self.about)
+        help_menu.addAction(tr("Fehlerprotokoll öffnen"), self.open_log)
+        help_menu.addAction(tr("Funktionsstand / Hinweise"), self.about)
         menu.addSeparator()
-        menu.addAction("Auswahl entfernen …", self.remove_selected)
+        menu.addAction(tr("Auswahl entfernen …"), self.remove_selected)
         self.fill_video_menu(self.video_more_button.menu())
         self.fill_share_menu(share_popup)
         self.more_menu = menu
         palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         palette_shortcut.activated.connect(self.open_command_palette)
-        more = self.round_button(tools, "Mehr", "more", "#808080", None)
+        more = self.round_button(tools, tr("Mehr"), "more", "#808080", None)
         self.more_button = more
         more.setMenu(menu)
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         tools_row.addStretch()
-        self.round_button(tools, "Schließen", "close", "#e8912d", self.close)
+        self.round_button(tools, tr("Schließen"), "close", "#e8912d", self.close)
         splitter = QSplitter()
         self.list = CaptureList(self)
         self.list.setViewMode(QListWidget.ViewMode.IconMode)
@@ -323,10 +329,10 @@ class MainWindow(QMainWindow):
         for keys, step in (("Ctrl+Up", -1), ("Ctrl+Down", 1)):
             shortcut = QShortcut(QKeySequence(keys), self.collection_list)
             shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
-            shortcut.activated.connect(lambda step=step: self.shift_collection(self.collection.currentText(), step))
+            shortcut.activated.connect(lambda step=step: self.shift_collection(self.current_collection(), step))
         rename = QShortcut(QKeySequence("F2"), self.collection_list)
         rename.setContext(Qt.ShortcutContext.WidgetShortcut)
-        rename.activated.connect(lambda: self.rename_collection(self.collection.currentText()))
+        rename.activated.connect(lambda: self.rename_collection(self.current_collection()))
         self.collection_list.setObjectName("collections")
         self.collection_list.setViewMode(QListWidget.ViewMode.IconMode)
         self.collection_list.setFlow(QListWidget.Flow.TopToBottom)
@@ -337,7 +343,7 @@ class MainWindow(QMainWindow):
         self.collection_list.setWordWrap(True)
         self.collection_list.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.collection_list.setGridSize(QSize(110, 74))
-        self.collection_list.currentTextChanged.connect(self.collection_chosen)
+        self.collection_list.currentItemChanged.connect(self.collection_chosen)
         splitter.addWidget(self.collection_list)
         splitter.addWidget(self.list)
         side = QWidget()
@@ -345,21 +351,21 @@ class MainWindow(QMainWindow):
         side.setMaximumWidth(320)
         sidelay = QVBoxLayout(side)
         sidelay.setContentsMargins(18, 20, 18, 20)
-        heading = QLabel("VORSCHAU & DETAILS")
+        heading = QLabel(tr("VORSCHAU & DETAILS"))
         heading.setObjectName("eyebrow")
         sidelay.addWidget(heading)
-        self.preview = QLabel("Dein nächster guter Screenshot\nbeginnt hier.")
+        self.preview = QLabel(tr("Dein nächster guter Screenshot\nbeginnt hier."))
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumSize(260, 190)
         self.preview.setWordWrap(True)
         sidelay.addWidget(self.preview)
-        self.detail = QLabel("Bereich, Fenster oder Bildschirm aufnehmen.\n\nBilder lassen sich auch hierher ziehen.")
+        self.detail = QLabel(tr("Bereich, Fenster oder Bildschirm aufnehmen.\n\nBilder lassen sich auch hierher ziehen."))
         self.detail.setWordWrap(True)
         self.detail.setObjectName("muted")
         sidelay.addWidget(self.detail)
         sidelay.addStretch()
-        platform = "Windows · FP16-Aufnahme → sRGB-PNG" if sys.platform == "win32" else "Linux · Compositor → sRGB-PNG\nHDR-Farben auf Omarchy noch zu validieren"
-        note = QLabel(platform + "\n\nLokal gespeichert · Keine Cloud-Uploads\nDaten neben der App")
+        platform = tr("Windows · FP16-Aufnahme → sRGB-PNG") if sys.platform == "win32" else tr("Linux · Compositor → sRGB-PNG\nHDR-Farben auf Omarchy noch zu validieren")
+        note = QLabel(platform + tr("\n\nLokal gespeichert · Keine Cloud-Uploads\nDaten neben der App"))
         note.setObjectName("muted")
         note.setWordWrap(True)
         sidelay.addWidget(note)
@@ -375,21 +381,21 @@ class MainWindow(QMainWindow):
         self.tray = QSystemTrayIcon(self.windowIcon(), self)
         self.tray.setToolTip("screenkaffee")
         traymenu = QMenu(self)
-        traymenu.addAction("Bereich aufnehmen", lambda: self.capture("region"))
-        traymenu.addAction("Workspace öffnen", self.restore)
-        traymenu.addAction("Video pausieren / fortsetzen", self.pause_video)
-        traymenu.addAction("Video: hineinzoomen", lambda: self.change_video_zoom(1))
-        traymenu.addAction("Video: herauszoomen", lambda: self.change_video_zoom(-1))
-        traymenu.addAction("Video: Zoom zurücksetzen", lambda: self.change_video_zoom(0))
-        traymenu.addAction("Video stoppen", lambda: self.toggle_video() if self.recorder.active else None)
-        traymenu.addAction("Scrollaufnahme beenden", self.scroll_cancel.set)
-        traymenu.addAction("Scrollserie: nächstes Bild", self.manual_scroll_frame)
-        traymenu.addAction("Scrollserie: fertigstellen", self.finish_manual_scroll)
-        traymenu.addAction("Zeitraffer stoppen", lambda: self.stop_timelapse() if self.timelapse else None)
-        traymenu.addAction("Schritt-Anleitung beenden", lambda: self.step_session.finish() if self.step_session else None)
-        traymenu.addAction("Live-Zeichnen ein / aus", self.toggle_live_draw)
+        traymenu.addAction(tr("Bereich aufnehmen"), lambda: self.capture("region"))
+        traymenu.addAction(tr("Workspace öffnen"), self.restore)
+        traymenu.addAction(tr("Video pausieren / fortsetzen"), self.pause_video)
+        traymenu.addAction(tr("Video: hineinzoomen"), lambda: self.change_video_zoom(1))
+        traymenu.addAction(tr("Video: herauszoomen"), lambda: self.change_video_zoom(-1))
+        traymenu.addAction(tr("Video: Zoom zurücksetzen"), lambda: self.change_video_zoom(0))
+        traymenu.addAction(tr("Video stoppen"), lambda: self.toggle_video() if self.recorder.active else None)
+        traymenu.addAction(tr("Scrollaufnahme beenden"), self.scroll_cancel.set)
+        traymenu.addAction(tr("Scrollserie: nächstes Bild"), self.manual_scroll_frame)
+        traymenu.addAction(tr("Scrollserie: fertigstellen"), self.finish_manual_scroll)
+        traymenu.addAction(tr("Zeitraffer stoppen"), lambda: self.stop_timelapse() if self.timelapse else None)
+        traymenu.addAction(tr("Schritt-Anleitung beenden"), lambda: self.step_session.finish() if self.step_session else None)
+        traymenu.addAction(tr("Live-Zeichnen ein / aus"), self.toggle_live_draw)
         traymenu.addSeparator()
-        traymenu.addAction("Beenden", self.quit_app)
+        traymenu.addAction(tr("Beenden"), self.quit_app)
         self.tray.setContextMenu(traymenu)
         self.tray.activated.connect(lambda reason: self.restore() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
         if QSystemTrayIcon.isSystemTrayAvailable():
@@ -424,34 +430,35 @@ class MainWindow(QMainWindow):
         from shiboken6 import isValid
         QTimer.singleShot(0, lambda: self.startup_update() if isValid(self) else None)
         if self.hotkeys and self.hotkeys.registered:
-            keys = ", ".join(f"{self.settings['hotkeys'][k]}: {label}" for k, label in ACTIONS if self.settings["hotkeys"].get(k))
-            self.statusBar().showMessage("Bereit · " + keys)
+            keys = ", ".join(tr("{key}: {action}", key=display_hotkey(self.settings["hotkeys"][k]), action=action_label(k))
+                             for k, _label in ACTIONS if self.settings["hotkeys"].get(k))
+            self.statusBar().showMessage(tr("Bereit · {keys}", keys=keys))
         else:
-            self.statusBar().showMessage("Bereit · Strg+N: Aufnahme · Tastenkürzel unter Einstellungen festlegen")
+            self.statusBar().showMessage(tr("Bereit · Strg+N: Aufnahme · Tastenkürzel unter Einstellungen festlegen"))
 
     def fill_video_menu(self, menu):
         """Gemeinsamer Inhalt für „Mehr → Video“ und das Aufklappmenü am Video-Knopf."""
-        menu.addAction("Videoaufnahme starten / stoppen …", self.toggle_video)
+        menu.addAction(tr("Videoaufnahme starten / stoppen …"), self.toggle_video)
         menu.addAction(self.timelapse_action)
         menu.addAction(self.android_video_action)
         menu.addAction(self.live_draw_action)
         menu.addSeparator()
-        menu.addAction("Video pausieren / fortsetzen", self.pause_video)
-        menu.addAction("Video: hineinzoomen (Strg+Alt+↑)", lambda: self.change_video_zoom(1))
-        menu.addAction("Video: herauszoomen (Strg+Alt+↓)", lambda: self.change_video_zoom(-1))
-        menu.addAction("Video: Zoom zurücksetzen (Strg+Alt+Pos1)", lambda: self.change_video_zoom(0))
+        menu.addAction(tr("Video pausieren / fortsetzen"), self.pause_video)
+        menu.addAction(tr("Video: hineinzoomen (Strg+Alt+↑)"), lambda: self.change_video_zoom(1))
+        menu.addAction(tr("Video: herauszoomen (Strg+Alt+↓)"), lambda: self.change_video_zoom(-1))
+        menu.addAction(tr("Video: Zoom zurücksetzen (Strg+Alt+Pos1)"), lambda: self.change_video_zoom(0))
         menu.addSeparator()
-        menu.addAction("Videos importieren …", self.import_videos)
-        menu.addAction("Ausgewählte Videos zusammenfügen …", self.merge_selected_videos)
+        menu.addAction(tr("Videos importieren …"), self.import_videos)
+        menu.addAction(tr("Ausgewählte Videos zusammenfügen …"), self.merge_selected_videos)
 
     def fill_share_menu(self, menu):
         """Gemeinsamer Inhalt für den Knopf „Teilen“ und „Mehr → Teilen und ausgeben“."""
-        menu.addAction("Aufs Handy senden (QR-Code) …", self.share_to_phone)
-        menu.addAction("Schicker Screenshot (Hintergrund, Rahmen) …", self.beautify_selected)
+        menu.addAction(tr("Aufs Handy senden (QR-Code) …"), self.share_to_phone)
+        menu.addAction(tr("Schicker Screenshot (Hintergrund, Rahmen) …"), self.beautify_selected)
         menu.addSeparator()
-        menu.addAction("In Zwischenablage kopieren", self.copy_selected)
-        menu.addAction("Drucken …", self.print_selected)
-        menu.addAction("E-Mail-Entwurf speichern …", self.mail_draft)
+        menu.addAction(tr("In Zwischenablage kopieren"), self.copy_selected)
+        menu.addAction(tr("Drucken …"), self.print_selected)
+        menu.addAction(tr("E-Mail-Entwurf speichern …"), self.mail_draft)
 
     def toggle_collections_panel(self, checked=None):
         visible = not self.collection_list.isVisible() if checked is None else bool(checked)
@@ -467,45 +474,45 @@ class MainWindow(QMainWindow):
     def show_capture_context_menu(self, global_pos):
         menu = QMenu(self)
         if self.in_trash():
-            menu.addAction("Wiederherstellen", self.restore_trash_selected)
-            menu.addAction("Endgültig löschen …", self.delete_trash_selected)
-            menu.addAction("Papierkorb leeren …", self.empty_trash_view)
+            menu.addAction(tr("Wiederherstellen"), self.restore_trash_selected)
+            menu.addAction(tr("Endgültig löschen …"), self.delete_trash_selected)
+            menu.addAction(tr("Papierkorb leeren …"), self.empty_trash_view)
             menu.exec(global_pos)
             return
         ids = self.selected_ids()
         if ids:
-            menu.addAction("Bearbeiten (Strg+E)", self.edit_selected)
-            menu.addAction("In externem Programm öffnen", self.open_in_external_editor)
-            menu.addAction("Schnellansicht (Leertaste)", self.quick_view_selected)
-            menu.addAction("Anheften (immer im Vordergrund)", self.pin_selected)
-            menu.addAction("Schicker Screenshot (Hintergrund, Rahmen) …", self.beautify_selected)
+            menu.addAction(tr("Bearbeiten (Strg+E)"), self.edit_selected)
+            menu.addAction(tr("In externem Programm öffnen"), self.open_in_external_editor)
+            menu.addAction(tr("Schnellansicht (Leertaste)"), self.quick_view_selected)
+            menu.addAction(tr("Anheften (immer im Vordergrund)"), self.pin_selected)
+            menu.addAction(tr("Schicker Screenshot (Hintergrund, Rahmen) …"), self.beautify_selected)
             if len(ids) == 2:
-                menu.addAction("Vergleichen (vorher ↔ nachher)", self.compare_selected)
-            menu.addAction("Aufs Handy senden (QR-Code) …", self.share_to_phone)
+                menu.addAction(tr("Vergleichen (vorher ↔ nachher)"), self.compare_selected)
+            menu.addAction(tr("Aufs Handy senden (QR-Code) …"), self.share_to_phone)
             menu.addSeparator()
-            menu.addAction("In Zwischenablage kopieren", self.copy_selected)
-            menu.addAction("Exportieren / Speichern unter …", self.export_selected)
-            menu.addAction("Stapelexport mit Größe und Effekten …", self.batch_export_selected)
-            menu.addAction("Dokument erstellen …", self.document_export)
-            menu.addAction("Scrollbilder verbinden", self.stitch_selected)
-            menu.addAction("Drucken …", self.print_selected)
-            menu.addAction("E-Mail-Entwurf speichern …", self.mail_draft)
+            menu.addAction(tr("In Zwischenablage kopieren"), self.copy_selected)
+            menu.addAction(tr("Exportieren / Speichern unter …"), self.export_selected)
+            menu.addAction(tr("Stapelexport mit Größe und Effekten …"), self.batch_export_selected)
+            menu.addAction(tr("Dokument erstellen …"), self.document_export)
+            menu.addAction(tr("Scrollbilder verbinden"), self.stitch_selected)
+            menu.addAction(tr("Drucken …"), self.print_selected)
+            menu.addAction(tr("E-Mail-Entwurf speichern …"), self.mail_draft)
             menu.addSeparator()
             all_fav = all(self.workspace.get(i)["favorite"] for i in ids)
-            menu.addAction("★ Favorit entfernen" if all_fav else "★ Als Favorit markieren", self.toggle_favorite_selected)
-            menu.addAction("Umbenennen / Tags / Sammlung (F2)", self.edit_details)
-            menu.addAction("Auto-Umbenennen (screenshot_1, …)", self.renumber_selected)
-            menu.addAction("Neu komprimieren (verlustfrei)", self.recompress_selected)
-            menu.addAction("Medieneigenschaften anzeigen", self.show_media_properties)
-            menu.addAction("Im Dateimanager zeigen", self.reveal_selected)
+            menu.addAction(tr("★ Favorit entfernen") if all_fav else tr("★ Als Favorit markieren"), self.toggle_favorite_selected)
+            menu.addAction(tr("Umbenennen / Tags / Sammlung (F2)"), self.edit_details)
+            menu.addAction(tr("Auto-Umbenennen (screenshot_1, …)"), self.renumber_selected)
+            menu.addAction(tr("Neu komprimieren (verlustfrei)"), self.recompress_selected)
+            menu.addAction(tr("Medieneigenschaften anzeigen"), self.show_media_properties)
+            menu.addAction(tr("Im Dateimanager zeigen"), self.reveal_selected)
             menu.addSeparator()
-            menu.addAction("Auswahl entfernen (Entf)", self.remove_selected)
+            menu.addAction(tr("Auswahl entfernen (Entf)"), self.remove_selected)
         else:
-            menu.addAction("Aus Zwischenablage importieren (Strg+V)", self.paste_image)
-            menu.addAction("Bilder importieren … (Strg+O)", self.import_files)
-            menu.addAction("Videos importieren …", self.import_videos)
-            menu.addAction("Gelöschte Aufnahmen wiederherstellen …", self.restore_deleted)
-            menu.addAction("Datenordner öffnen", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.root))))
+            menu.addAction(tr("Aus Zwischenablage importieren (Strg+V)"), self.paste_image)
+            menu.addAction(tr("Bilder importieren … (Strg+O)"), self.import_files)
+            menu.addAction(tr("Videos importieren …"), self.import_videos)
+            menu.addAction(tr("Gelöschte Aufnahmen wiederherstellen …"), self.restore_deleted)
+            menu.addAction(tr("Datenordner öffnen"), lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.root))))
         menu.exec(global_pos)
 
     def open_in_external_editor(self):
@@ -540,10 +547,10 @@ class MainWindow(QMainWindow):
 
     def report_hotkey_problems(self, problems):
         """Startup notice for hotkeys that could not be registered: which action, which key, where to change it."""
-        text = "\n".join(problems.values()) + "\nÄndern unter Einstellungen → Tastenkürzel."
-        self.statusBar().showMessage("Tastenkürzel nicht verfügbar – " + "; ".join(problems.values()), 30000)
+        text = "\n".join(problems.values()) + "\n" + tr("Ändern unter Einstellungen → Tastenkürzel.")
+        self.statusBar().showMessage(tr("Tastenkürzel nicht verfügbar – {problems}", problems="; ".join(problems.values())), 30000)
         if self.tray.isVisible():
-            self.tray.showMessage("screenkaffee: Tastenkürzel belegt", text, QSystemTrayIcon.MessageIcon.Warning, 10000)
+            self.tray.showMessage(tr("screenkaffee: Tastenkürzel belegt"), text, QSystemTrayIcon.MessageIcon.Warning, 10000)
         return text
 
     def command_action(self, action):
@@ -591,7 +598,8 @@ class MainWindow(QMainWindow):
         focus = (min(1, max(0, (pos.x() - x) / max(1, width))), min(1, max(0, (pos.y() - y) / max(1, height))))
         self.recorder.set_zoom(self.video_zoom_factor, *focus)
         self.update_zoom_frame([x, y, width, height], focus)
-        self.statusBar().showMessage(f"Video-Zoom: {self.video_zoom_factor:g}× · Ausschnitt an Mausposition · wird beim Speichern eingerechnet")
+        self.statusBar().showMessage(tr("Video-Zoom: {factor}× · Ausschnitt an Mausposition · wird beim Speichern eingerechnet",
+                                        factor=f"{self.video_zoom_factor:g}"))
 
     def screen_for_region(self, region=None):
         """Return the QScreen containing the given native/logical region (or the chosen/cursor screen)."""
@@ -649,44 +657,40 @@ class MainWindow(QMainWindow):
 
     def collection_menu(self, position):
         item = self.collection_list.itemAt(position)
-        if item is None or item.text().startswith("+"):
+        if item is None or item.data(COLLECTION_KIND) != "collection":
             return
-        name = item.text()
-        if name.startswith("Papierkorb ("):
-            return
+        name = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
-        menu.addAction("Ordner im Dateimanager zeigen", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.images))))
+        menu.addAction(tr("Ordner im Dateimanager zeigen"), lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.workspace.images))))
         if name != self.workspace.DEFAULT_COLLECTION:
-            menu.addAction("Umbenennen … (F2)", lambda: self.rename_collection(name))
-            menu.addAction("Symbol wählen …", lambda: self.choose_collection_icon(name))
-            menu.addAction("Nach oben (Strg+↑)", lambda: self.shift_collection(name, -1))
-            menu.addAction("Nach unten (Strg+↓)", lambda: self.shift_collection(name, 1))
+            menu.addAction(tr("Umbenennen … (F2)"), lambda: self.rename_collection(name))
+            menu.addAction(tr("Symbol wählen …"), lambda: self.choose_collection_icon(name))
+            menu.addAction(tr("Nach oben (Strg+↑)"), lambda: self.shift_collection(name, -1))
+            menu.addAction(tr("Nach unten (Strg+↓)"), lambda: self.shift_collection(name, 1))
             menu.addSeparator()
-            menu.addAction("Löschen …", lambda: self.delete_collection(name))
+            menu.addAction(tr("Löschen …"), lambda: self.delete_collection(name))
         menu.exec(self.collection_list.mapToGlobal(position))
 
     def rename_collection(self, name):
-        if name.startswith("Papierkorb ("):
+        if not name or name == self.workspace.DEFAULT_COLLECTION:
             return
-        if name == self.workspace.DEFAULT_COLLECTION:
-            return
-        new, ok = QInputDialog.getText(self, "Sammlung umbenennen", "Neuer Name", text=name)
+        new, ok = QInputDialog.getText(self, tr("Sammlung umbenennen"), tr("Neuer Name"), text=name)
         if ok and new.strip() and new.strip() != name:
             try:
                 self.workspace.rename_collection(name, new)
                 self.refresh_collections()
-                self.collection.setCurrentText(new.strip())
+                self.select_collection(new.strip())
                 self.refresh()
             except ValueError as exc:
-                QMessageBox.warning(self, "Sammlung", str(exc))
+                QMessageBox.warning(self, tr("Sammlung"), str(exc))
 
     def delete_collection(self, name):
         box = QMessageBox(self)
-        box.setWindowTitle("Sammlung löschen")
-        box.setText(f"Sammlung „{name}“ löschen?")
-        box.setInformativeText("Die Aufnahmen können in „Alle Aufnahmen“ bleiben oder ebenfalls entfernt werden (wiederherstellbar).")
-        keep = box.addButton("Aufnahmen behalten", QMessageBox.ButtonRole.AcceptRole)
-        drop = box.addButton("Auch Aufnahmen entfernen", QMessageBox.ButtonRole.DestructiveRole)
+        box.setWindowTitle(tr("Sammlung löschen"))
+        box.setText(tr("Sammlung „{name}“ löschen?", name=name))
+        box.setInformativeText(tr("Die Aufnahmen können in „Alle Aufnahmen“ bleiben oder ebenfalls entfernt werden (wiederherstellbar)."))
+        keep = box.addButton(tr("Aufnahmen behalten"), QMessageBox.ButtonRole.AcceptRole)
+        drop = box.addButton(tr("Auch Aufnahmen entfernen"), QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(QMessageBox.StandardButton.Cancel)
         box.exec()
         if box.clickedButton() not in (keep, drop):
@@ -694,34 +698,35 @@ class MainWindow(QMainWindow):
         try:
             self.workspace.delete_collection(name, delete_files=box.clickedButton() is drop)
         except ValueError as exc:
-            QMessageBox.warning(self, "Sammlung", str(exc))
+            QMessageBox.warning(self, tr("Sammlung"), str(exc))
             return
-        self.collection.setCurrentText(self.workspace.DEFAULT_COLLECTION)
+        self.select_collection(self.workspace.DEFAULT_COLLECTION)
         self.refresh_collections()
         self.refresh()
 
     def shift_collection(self, name, step):
-        if name.startswith("Papierkorb ("):
+        if not name:
             return
         try:
             if self.workspace.move_collection(name, step):
                 self.refresh_collections()
-                self.collection.setCurrentText(name)
+                self.select_collection(name)
                 self.sync_collection_list(name)
         except ValueError:
             pass
 
     def choose_collection_icon(self, name):
-        if name.startswith("Papierkorb ("):
+        if not name:
             return
-        label, ok = QInputDialog.getItem(self, "Symbol wählen", "Symbol für die Sammlung", list(COLLECTION_ICONS.values()), editable=False)
+        labels = [tr(text) for text in COLLECTION_ICONS.values()]
+        label, ok = QInputDialog.getItem(self, tr("Symbol wählen"), tr("Symbol für die Sammlung"), labels, editable=False)
         if ok:
-            glyph = next(key for key, text in COLLECTION_ICONS.items() if text == label)
+            glyph = list(COLLECTION_ICONS)[labels.index(label)]
             self.workspace.set_collection_icon(name, glyph)
             self.refresh_collections()
 
     def move_media_to_collection(self, ids, name):
-        if name.startswith("Papierkorb ("):
+        if not name:
             return
         try:
             self.workspace.move_to_collection(ids, name)
@@ -729,25 +734,51 @@ class MainWindow(QMainWindow):
             self.fail(str(exc))
             return
         self.refresh()
-        self.statusBar().showMessage(f"{len(ids)} Aufnahme(n) nach „{name}“ verschoben")
+        self.statusBar().showMessage(tr("{count} Aufnahme(n) nach „{name}“ verschoben", count=len(ids), name=name))
 
-    def collection_chosen(self, text):
+    def collection_chosen(self, item, _previous=None):
         """Sidebar click drives the hidden collection combo that all queries use."""
-        if not text or text == self.collection.currentText():
+        if item is None:
             return
-        if text.startswith("+"):
-            self.sync_collection_list(self.collection.currentText())
+        kind = item.data(COLLECTION_KIND)
+        if kind == "new":
+            self.sync_collection_list()
             self.new_collection()
+        elif kind == "trash":
+            self.collection.setCurrentIndex(self.collection.findData("trash"))
         else:
-            self.collection.setCurrentText(text)
+            self.select_collection(item.data(Qt.ItemDataRole.UserRole))
 
-    def sync_collection_list(self, text=None):
-        text = text or self.collection.currentText()
+    def sync_collection_list(self, key=None):
+        index = self.collection.currentIndex() if key is None else self.find_collection(key)
         self.collection_list.blockSignals(True)
-        for index in range(self.collection_list.count()):
-            if self.collection_list.item(index).text() == text:
-                self.collection_list.setCurrentRow(index)
+        if 0 <= index < self.collection_list.count() - 1:
+            self.collection_list.setCurrentRow(index)
         self.collection_list.blockSignals(False)
+
+    # Die Auswahlliste zeigt übersetzte Namen („Alle Aufnahmen“ = „All captures“); gespeichert und abgefragt
+    # wird immer der Schlüssel (der echte Sammlungsname) aus COLLECTION_KEY.
+    def add_collection_item(self, name):
+        self.collection.addItem(tr("Alle Aufnahmen") if name == self.workspace.DEFAULT_COLLECTION else name)
+        self.collection.setItemData(self.collection.count() - 1, name, COLLECTION_KEY)
+
+    def find_collection(self, name):
+        for index in range(self.collection.count()):
+            if self.collection.itemData(index, COLLECTION_KEY) == name:
+                return index
+        return -1
+
+    def select_collection(self, name):
+        index = self.find_collection(name)
+        if index >= 0:
+            self.collection.setCurrentIndex(index)
+
+    def current_collection(self):
+        """Name der gewählten Sammlung; im Papierkorb ''."""
+        if self.in_trash():
+            return ""
+        name = self.collection.itemData(self.collection.currentIndex(), COLLECTION_KEY)
+        return name if name is not None else self.collection.currentText()
 
     def add_button(self, layout, label, callback, primary=False):
         button = QPushButton(label)
@@ -787,8 +818,8 @@ class MainWindow(QMainWindow):
     def blocked(self, feature):
         """True (with a message) if policy.json disables this feature."""
         if feature in self.policy["disabled"]:
-            self.statusBar().showMessage("Per Richtlinie deaktiviert: " + feature)
-            QMessageBox.information(self, "Richtlinie", "Diese Funktion ist per Richtlinie deaktiviert.")
+            self.statusBar().showMessage(tr("Per Richtlinie deaktiviert: {feature}", feature=feature))
+            QMessageBox.information(self, tr("Richtlinie"), tr("Diese Funktion ist per Richtlinie deaktiviert."))
             return True
         return False
 
@@ -799,7 +830,7 @@ class MainWindow(QMainWindow):
         self.capture_pending = False
         self.capture_button.setEnabled(True)
         self.restore()
-        self.statusBar().showMessage("Vorgang fehlgeschlagen")
+        self.statusBar().showMessage(tr("Vorgang fehlgeschlagen"))
         QMessageBox.warning(self, "screenkaffee", message)
 
     def restore(self):
@@ -900,18 +931,18 @@ class MainWindow(QMainWindow):
                 import re
                 match = re.search(r"#[0-9A-Fa-f]{6}", result.stdout.decode())
                 if not match:
-                    raise RuntimeError("Die Farbpipette lieferte keinen gültigen Farbwert.")
+                    raise RuntimeError(tr("Die Farbpipette lieferte keinen gültigen Farbwert."))
                 return match.group().upper()
-            self.task(pick, lambda value: self.color_picked(None, value) if value else self.finish_capture(None, {}), "Farbpipette …")
+            self.task(pick, lambda value: self.color_picked(None, value) if value else self.finish_capture(None, {}), tr("Farbpipette …"))
             return
         if kind == "previous":
             bounds = self.settings.get("last_region")
             if not bounds or self.settings.get("last_region_platform") != sys.platform:
-                self.fail("Auf diesem System wurde noch kein Bereich aufgenommen.")
+                self.fail(tr("Auf diesem System wurde noch kein Bereich aufgenommen."))
                 return
             from .capture import capture_region
             self.task(lambda: capture_region(bounds, self.settings["tone_mapping"], self.settings["capture_cursor"]),
-                lambda result: self.finish_capture(*result), "Vorherigen Bereich aufnehmen …")
+                lambda result: self.finish_capture(*result), tr("Vorherigen Bereich aufnehmen …"))
             return
         if sys.platform == "win32":
             from PySide6.QtGui import QCursor
@@ -925,13 +956,13 @@ class MainWindow(QMainWindow):
                     target = (geo.x(), geo.y())
             hw_cursor = bool(self.settings["capture_cursor"]) if kind in ("all", "screen") else False
             self.task(lambda: capture_monitors(self.settings["tone_mapping"], cursor=hw_cursor, target=target),
-                      lambda result: self.windows_result(result, kind), "GPU-Aufnahme …")
+                      lambda result: self.windows_result(result, kind), tr("GPU-Aufnahme …"))
         elif os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") and tool("grim"):
             name = self.screen_combo.currentData()
             grim_kind = "screen" if kind == "measure" else kind
             self.task(lambda: omarchy_capture(grim_kind, self.settings["capture_cursor"], return_region=True, monitor_name=name),
                 lambda result: self.omarchy_result(result, kind),
-                "Omarchy-Aufnahme …")
+                tr("Omarchy-Aufnahme …"))
         else:
             from .linux_capture import is_wayland, portal_screenshot
             if is_wayland():
@@ -959,7 +990,7 @@ class MainWindow(QMainWindow):
             left, top = min(m.bounds[0] for m in monitors), min(m.bounds[1] for m in monitors)
             right, bottom = max(m.bounds[2] for m in monitors), max(m.bounds[3] for m in monitors)
             if (right - left) * (bottom - top) > 150_000_000:
-                self.fail("Der Gesamtdesktop überschreitet 150 Megapixel.")
+                self.fail(tr("Der Gesamtdesktop überschreitet 150 Megapixel."))
                 return
             image = Image.new("RGB", (right - left, bottom - top))
             for monitor in monitors:
@@ -1045,7 +1076,8 @@ class MainWindow(QMainWindow):
         """M in the capture mode: remember whether the mouse cursor is part of the following captures."""
         self.settings["capture_cursor"] = bool(enabled)
         self.save_settings()
-        self.statusBar().showMessage("Mauszeiger wird ab der nächsten Aufnahme " + ("mit aufgenommen" if enabled else "nicht aufgenommen"))
+        self.statusBar().showMessage(tr("Mauszeiger wird ab der nächsten Aufnahme mit aufgenommen") if enabled
+                                     else tr("Mauszeiger wird ab der nächsten Aufnahme nicht aufgenommen"))
 
     def overlay_finished(self, overlay, image, metadata):
         if overlay in self.overlays:
@@ -1056,7 +1088,7 @@ class MainWindow(QMainWindow):
             self.capture_pending = False
             self.capture_button.setEnabled(True)
             self.restore()
-            self.statusBar().showMessage("Lineal geschlossen")
+            self.statusBar().showMessage(tr("Lineal geschlossen"))
             return
         if image is not None and metadata.get("capture_kind") == "scroll":
             self.start_scroll_capture()
@@ -1091,7 +1123,7 @@ class MainWindow(QMainWindow):
             self.save_settings()
             QTimer.singleShot(250, lambda: self.begin_video_recording(chosen))      # let the handles disappear first
         adjuster.started.connect(started)
-        adjuster.cancelled.connect(lambda: (self.restore(), self.statusBar().showMessage("Videoaufnahme abgebrochen")))
+        adjuster.cancelled.connect(lambda: (self.restore(), self.statusBar().showMessage(tr("Videoaufnahme abgebrochen"))))
         adjuster.show()
         adjuster.raise_()
         adjuster.activateWindow()
@@ -1105,7 +1137,7 @@ class MainWindow(QMainWindow):
             self.finish_capture(result.image, result.metadata)
         QTimer.singleShot(150, lambda: self.task(
             lambda: capture_window(handle, self.settings["tone_mapping"], self.settings["capture_cursor"]),
-            finished, "Fenster wird direkt aufgenommen …"))
+            finished, tr("Fenster wird direkt aufgenommen …")))
 
     def color_picked(self, overlay, value):
         if overlay in self.overlays:
@@ -1117,7 +1149,7 @@ class MainWindow(QMainWindow):
         from .color_picker import color_formats
         formats = color_formats(value)
         dialog = QDialog(self)
-        dialog.setWindowTitle("Farbpipette · Ausgabeformat")
+        dialog.setWindowTitle(tr("Farbpipette · Ausgabeformat"))
         layout = QVBoxLayout(dialog)
         combo = QComboBox()
         combo.addItems(list(formats))
@@ -1133,7 +1165,7 @@ class MainWindow(QMainWindow):
         swatch.setMinimumHeight(50)
         swatch.setStyleSheet(f"background: {value}; border-radius: 4px")
         layout.addWidget(swatch)
-        layout.addWidget(QLabel("Der ausgewählte Farbwert liegt in der Zwischenablage."))
+        layout.addWidget(QLabel(tr("Der ausgewählte Farbwert liegt in der Zwischenablage.")))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
@@ -1158,7 +1190,7 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             import logging
             logging.warning("Einstellungen konnten nicht gespeichert werden: %s", exc)
-            self.statusBar().showMessage("Einstellungen nicht gespeichert: Datenordner ist nicht beschreibbar")
+            self.statusBar().showMessage(tr("Einstellungen nicht gespeichert: Datenordner ist nicht beschreibbar"))
             return False
 
     def omarchy_result(self, result, kind):
@@ -1190,7 +1222,7 @@ class MainWindow(QMainWindow):
     def start_scroll_capture(self):
         bounds = self.settings.get("last_region")
         if not bounds:
-            self.fail("Kein Scrollbereich ausgewählt.")
+            self.fail(tr("Kein Scrollbereich ausgewählt."))
             return
         self.scroll_cancel.clear()
         options = self.scroll_options()
@@ -1202,24 +1234,24 @@ class MainWindow(QMainWindow):
         from .capture import scroll_capture
         QTimer.singleShot(350, lambda: self.task(
             lambda: scroll_capture(bounds, self.settings["tone_mapping"], cancel=self.scroll_cancel, **options),
-            self.scroll_capture_finished, "Scrollaufnahme läuft · Ende über das Tray-Menü oder Esc"))
+            self.scroll_capture_finished, tr("Scrollaufnahme läuft · Ende über das Tray-Menü oder Esc")))
 
     def scroll_options(self):
         from PySide6.QtWidgets import QFormLayout
         dialog = QDialog(self)
-        dialog.setWindowTitle("Scrollaufnahme")
+        dialog.setWindowTitle(tr("Scrollaufnahme"))
         form = QFormLayout(dialog)
         direction = QComboBox()
-        direction.addItem("Nach unten", "vertical")
-        direction.addItem("Nach rechts", "horizontal")
-        form.addRow("Scrollrichtung", direction)
+        direction.addItem(tr("Nach unten"), "vertical")
+        direction.addItem(tr("Nach rechts"), "horizontal")
+        form.addRow(tr("Scrollrichtung"), direction)
         header, footer = QSpinBox(), QSpinBox()
         for box in (header, footer):
             box.setRange(0, 2000)
             box.setSuffix(" px")
-        form.addRow("Feste Kopf-/linke Leiste", header)
-        form.addRow("Feste Fuß-/rechte Leiste", footer)
-        hint = QLabel("Feste Leisten werden einmal übernommen.\nBei manueller Serie: selbst scrollen, Strg+Alt+F7 für das nächste Bild, Strg+Alt+F8 zum Fertigstellen.")
+        form.addRow(tr("Feste Kopf-/linke Leiste"), header)
+        form.addRow(tr("Feste Fuß-/rechte Leiste"), footer)
+        hint = QLabel(tr("Feste Leisten werden einmal übernommen.\nBei manueller Serie: selbst scrollen, Strg+Alt+F7 für das nächste Bild, Strg+Alt+F8 zum Fertigstellen."))
         hint.setWordWrap(True)
         form.addRow(hint)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -1232,7 +1264,7 @@ class MainWindow(QMainWindow):
 
     def start_manual_scroll(self, image):
         if self.manual_scroll:
-            self.fail("Bitte zuerst die laufende Scrollserie fertigstellen.")
+            self.fail(tr("Bitte zuerst die laufende Scrollserie fertigstellen."))
             return
         options = self.scroll_options()
         if options is None:
@@ -1244,7 +1276,7 @@ class MainWindow(QMainWindow):
         self.capture_pending = False
         self.capture_button.setEnabled(True)
         self.hide()
-        self.tray.setToolTip("screenkaffee · Scrollserie: 1 Bild · Strg+Alt+F7: nächstes · F8: fertig")
+        self.tray.setToolTip(tr("screenkaffee · Scrollserie: 1 Bild · Strg+Alt+F7: nächstes · F8: fertig"))
 
     def manual_scroll_frame(self):
         if self.manual_scroll is None or self.capture_pending:
@@ -1256,8 +1288,8 @@ class MainWindow(QMainWindow):
         def done(result):
             count = session.append(result[0])
             self.capture_pending = False
-            self.tray.setToolTip(f"screenkaffee · Scrollserie: {count} Bilder")
-        QTimer.singleShot(350, lambda: self.task(lambda: capture_region(session.bounds, self.settings["tone_mapping"]), done, "Scrollbild aufnehmen …"))
+            self.tray.setToolTip(tr("screenkaffee · Scrollserie: {count} Bilder", count=count))
+        QTimer.singleShot(350, lambda: self.task(lambda: capture_region(session.bounds, self.settings["tone_mapping"]), done, tr("Scrollbild aufnehmen …")))
 
     def finish_manual_scroll(self):
         if self.manual_scroll is None or self.capture_pending:
@@ -1268,7 +1300,7 @@ class MainWindow(QMainWindow):
             self.manual_scroll = None
             self.tray.setToolTip("screenkaffee")
             self.finish_capture(image, {"backend": "Manuelle Live-Scrollserie", "frames": len(session.paths)})
-        self.task(session.finish, done, "Scrollserie zusammensetzen …")
+        self.task(session.finish, done, tr("Scrollserie zusammensetzen …"))
 
     def scroll_capture_finished(self, result):
         self.finish_capture(result.image, {"backend": "Automatische Scrollaufnahme", "frames": result.frames, "stop_reason": result.stop_reason})
@@ -1282,7 +1314,7 @@ class MainWindow(QMainWindow):
         self.capture_button.setEnabled(True)
         if image is None:
             self.restore()
-            self.statusBar().showMessage("Aufnahme abgebrochen")
+            self.statusBar().showMessage(tr("Aufnahme abgebrochen"))
             return
         try:
             metadata = dict(metadata or {})
@@ -1296,7 +1328,8 @@ class MainWindow(QMainWindow):
             if self.settings.get("clipboard_only"):
                 QApplication.clipboard().setImage(pil_to_qimage(image))
                 self.restore()
-                self.statusBar().showMessage(f"{image.width} × {image.height} px in die Zwischenablage kopiert (nicht gespeichert)")
+                self.statusBar().showMessage(tr("{width} × {height} px in die Zwischenablage kopiert (nicht gespeichert)",
+                                                width=image.width, height=image.height))
                 self.print_if_requested(image)
                 return
             number = len(self.workspace.rows()) + 1
@@ -1310,7 +1343,8 @@ class MainWindow(QMainWindow):
             self.print_if_requested(image)
             if self.settings["auto_edit"]:
                 self.open_editor(ident)
-            self.statusBar().showMessage(f"{image.width} × {image.height} px gespeichert · {metadata.get('backend', 'Import')}")
+            self.statusBar().showMessage(tr("{width} × {height} px gespeichert · {source}", width=image.width, height=image.height,
+                                            source=metadata.get("backend", "Import")))
         except Exception as exc:
             self.fail(str(exc))
 
@@ -1321,30 +1355,35 @@ class MainWindow(QMainWindow):
 
     def refresh_collections(self):
         was_trash = self.in_trash()
-        selected = self.collection.currentText()
+        selected = self.current_collection()
         self.collection.blockSignals(True)
         self.collection.clear()
-        self.collection.addItem("Alle Aufnahmen")
+        self.add_collection_item(self.workspace.DEFAULT_COLLECTION)
         for value in self.workspace.collections():
-            if value != "Alle Aufnahmen":
-                self.collection.addItem(value)
-        trash_label = f"Papierkorb ({len(self.workspace.trash_entries())})"
+            if value != self.workspace.DEFAULT_COLLECTION:
+                self.add_collection_item(value)
+        trash_label = tr("Papierkorb ({count})", count=len(self.workspace.trash_entries()))
         from .icons import round_icon
         self.collection.addItem(round_icon("trash", "#dca354", 30), trash_label, "trash")
-        self.collection.setCurrentText(trash_label if was_trash else selected)
+        index = self.collection.findData("trash") if was_trash else self.find_collection(selected)
+        self.collection.setCurrentIndex(max(0, index))
         self.collection.blockSignals(False)
-        from .icons import round_icon
         self.collection_list.blockSignals(True)
         self.collection_list.clear()
         for index in range(self.collection.count()):
-            name = self.collection.itemText(index)
-            self.collection_list.addItem(name)
+            self.collection_list.addItem(self.collection.itemText(index))
+            item = self.collection_list.item(index)
             if self.collection.itemData(index) == "trash":
-                self.collection_list.item(index).setIcon(round_icon("trash", "#dca354", 30))
+                item.setData(COLLECTION_KIND, "trash")
+                item.setIcon(round_icon("trash", "#dca354", 30))
                 continue
+            name = self.collection.itemData(index, COLLECTION_KEY)
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setData(COLLECTION_KIND, "collection")
             glyph = self.workspace.collection_icon(name) if index else ""
-            self.collection_list.item(index).setIcon(round_icon(glyph if glyph in COLLECTION_ICONS else ("document" if index else "camera"), "#b0b0b0", 30))
-        self.collection_list.addItem("+ Neu …")
+            item.setIcon(round_icon(glyph if glyph in COLLECTION_ICONS else ("document" if index else "camera"), "#b0b0b0", 30))
+        self.collection_list.addItem(tr("+ Neu …"))
+        self.collection_list.item(self.collection_list.count() - 1).setData(COLLECTION_KIND, "new")
         self.collection_list.item(self.collection_list.count() - 1).setIcon(round_icon("more", "#b0b0b0", 30))
         self.collection_list.blockSignals(False)
         self.sync_collection_list()
@@ -1359,11 +1398,11 @@ class MainWindow(QMainWindow):
         for button in self.media_buttons:
             button.setEnabled(not trash_view)
         for action in self.more_menu.actions():
-            if action.text() in ("Auswahl bearbeiten", "Teilen und ausgeben"):
+            if action in (self.selection_menu_action, self.share_menu_action):
                 action.setEnabled(not trash_view)
         for button in self.trash_buttons:
             button.setVisible(trash_view)
-        rows = self.workspace.trash_entries() if trash_view else self.workspace.rows(self.search.text(), self.collection.currentText(), kind=self.type_filter.currentData(),
+        rows = self.workspace.trash_entries() if trash_view else self.workspace.rows(self.search.text(), self.current_collection(), kind=self.type_filter.currentData(),
             sort=self.sort_order.currentData(), days=self.time_filter.currentData())
         for row in rows:
             fav = bool(row["favorite"])
@@ -1380,7 +1419,7 @@ class MainWindow(QMainWindow):
             self.thumbnail_loader.enqueue(item, thumb, row["kind"], favorite=fav)
             self.list.addItem(item)
             item.setSelected(row["id"] in selected)
-        self.count_label.setText(f"{len(rows)} Aufnahmen")
+        self.count_label.setText(tr("{count} Aufnahmen", count=len(rows)))
 
     def in_trash(self):
         return self.collection.currentData() == "trash"
@@ -1403,7 +1442,7 @@ class MainWindow(QMainWindow):
     def require_one(self):
         ids = self.selected_ids()
         if not ids:
-            self.statusBar().showMessage("Bitte zuerst eine Aufnahme auswählen.")
+            self.statusBar().showMessage(tr("Bitte zuerst eine Aufnahme auswählen."))
             return None
         return ids[0]
 
@@ -1418,8 +1457,10 @@ class MainWindow(QMainWindow):
         scaled.setDevicePixelRatio(dpr)
         self.preview.setPixmap(scaled)
         meta = json.loads(row["metadata"])
-        color = f"HDR → sRGB · SDR-Weiß {meta.get('sdr_white_nits')} cd/m²" if meta.get("hdr") else "sRGB-PNG"
-        self.detail.setText(f"{row['title']}\n\n{row['width']} × {row['height']} Pixel\n{row['created']}\n{color}\n{meta.get('backend', 'Import')}\n\n{row['tags']}")
+        color = tr("HDR → sRGB · SDR-Weiß {nits} cd/m²", nits=meta.get("sdr_white_nits")) if meta.get("hdr") else "sRGB-PNG"
+        self.detail.setText(tr("{title}\n\n{width} × {height} Pixel\n{created}\n{color}\n{source}\n\n{tags}", title=row["title"],
+                               width=row["width"], height=row["height"], created=row["created"], color=color,
+                               source=meta.get("backend", "Import"), tags=row["tags"]))
 
     def open_editor(self, ident):
         try:
@@ -1431,7 +1472,7 @@ class MainWindow(QMainWindow):
                 editor.capture_ident = ident
                 editor.prepare_speech = self.prepare_speech
                 editor.videoSaved.connect(self.import_video_path)
-                editor.frameSaved.connect(lambda image: self.add_edited(image, row["title"] + " · Videobild"))
+                editor.frameSaved.connect(lambda image: self.add_edited(image, row["title"] + tr(" · Videobild")))
                 self.editors.append(editor)
                 editor.destroyed.connect(lambda: self.editors.remove(editor) if editor in self.editors else None)
                 editor.show()
@@ -1454,7 +1495,7 @@ class MainWindow(QMainWindow):
         from .color import import_srgb
         try:
             if not Path(path).is_file():
-                raise ValueError("Datei nicht gefunden: " + str(path))
+                raise ValueError(tr("Datei nicht gefunden: {path}", path=path))
             editor = EditorWindow(import_srgb(path), Path(path).name)
         except Exception as exc:
             self.fail(str(exc))
@@ -1483,7 +1524,7 @@ class MainWindow(QMainWindow):
         should_delete = delete_current or alt_shift
         neighbor = self.neighbor_image_id(ident, step)
         if neighbor is None and not should_delete:
-            editor.statusBar().showMessage("Kein weiteres Bild in dieser Richtung.")
+            editor.statusBar().showMessage(tr("Kein weiteres Bild in dieser Richtung."))
             return
         if should_delete:
             editor.view.dirty = False
@@ -1496,7 +1537,7 @@ class MainWindow(QMainWindow):
                 self.open_editor(neighbor)
 
     def add_edited(self, image, title):
-        ident = self.workspace.add(image, title + " · bearbeitet", {"backend": "Editor"})
+        ident = self.workspace.add(image, title + tr(" · bearbeitet"), {"backend": "Editor"})
         self.apply_retention(exclude={ident})
         self.refresh()
         self.select_id(ident)
@@ -1531,7 +1572,7 @@ class MainWindow(QMainWindow):
         title = self.workspace.get(ident)["title"] or ""
         from .beautify import beautify_dialog
         def save(result):
-            new = self.workspace.add(result, title + " · schick", {"backend": "Schicker Screenshot"})
+            new = self.workspace.add(result, title + tr(" · schick"), {"backend": "Schicker Screenshot"})
             self.refresh()
             self.select_id(new)
         dialog = beautify_dialog(self, image, self.settings, on_save=save, title=title)
@@ -1544,7 +1585,7 @@ class MainWindow(QMainWindow):
         """Zwei Bildaufnahmen nebeneinander: die ältere links (vorher), die neuere rechts (nachher)."""
         ids = self.selected_ids()
         if len(ids) != 2:
-            QMessageBox.information(self, "Vergleichen", "Bitte genau zwei Bildaufnahmen auswählen (Strg+Klick).")
+            QMessageBox.information(self, tr("Vergleichen"), tr("Bitte genau zwei Bildaufnahmen auswählen (Strg+Klick)."))
             return None
         rows = sorted((self.workspace.get(ident) for ident in ids), key=lambda row: row["created"])
         try:
@@ -1552,10 +1593,10 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.fail(str(exc))
             return None
-        titles = [row["title"] or "Aufnahme" for row in rows]
+        titles = [row["title"] or tr("Aufnahme") for row in rows]
         from .compare import compare
         def save(image):
-            ident = self.workspace.add(image, f"Vergleich {titles[0]} ↔ {titles[1]}", {"backend": "Vergleich"})
+            ident = self.workspace.add(image, tr("Vergleich {before} ↔ {after}", before=titles[0], after=titles[1]), {"backend": "Vergleich"})
             self.refresh()
             self.select_id(ident)
         return compare(*images, titles=titles, on_save=save)
@@ -1566,7 +1607,7 @@ class MainWindow(QMainWindow):
             return None
         ids = self.selected_ids()
         if not ids:
-            self.statusBar().showMessage("Bitte zuerst eine Aufnahme auswählen.")
+            self.statusBar().showMessage(tr("Bitte zuerst eine Aufnahme auswählen."))
             return None
         import shutil
         import uuid
@@ -1576,7 +1617,7 @@ class MainWindow(QMainWindow):
         try:
             for ident in ids:
                 row = self.workspace.get(ident)
-                title = row["title"] or "Aufnahme"
+                title = row["title"] or tr("Aufnahme")
                 if row["kind"] == "image":
                     staging.mkdir(parents=True, exist_ok=True)
                     path = staging / f"{len(files) + 1}-{safe_name(title)}.png"
@@ -1596,7 +1637,7 @@ class MainWindow(QMainWindow):
 
     def rendered(self, ident):
         if self.workspace.get(ident)["kind"] != "image":
-            raise ValueError("Für diese Funktion bitte eine Bildaufnahme auswählen.")
+            raise ValueError(tr("Für diese Funktion bitte eine Bildaufnahme auswählen."))
         project = self.workspace.project_path(ident)
         image = self.workspace.image(ident)
         if project.exists():
@@ -1620,7 +1661,7 @@ class MainWindow(QMainWindow):
                     QApplication.clipboard().setMimeData(mime)
                     return
                 QApplication.clipboard().setImage(pil_to_qimage(self.rendered(ident)))
-                self.statusBar().showMessage("Bild einschließlich gespeicherter Markierungen kopiert")
+                self.statusBar().showMessage(tr("Bild einschließlich gespeicherter Markierungen kopiert"))
             except Exception as exc:
                 self.fail(str(exc))
 
@@ -1635,7 +1676,7 @@ class MainWindow(QMainWindow):
             ordered = [filters[default_suffix]] + [text for key, text in filters.items() if key != default_suffix] if default_suffix in filters else list(filters.values())
             from .batch import safe_name
             suggested = safe_name(self.workspace.get(ids[0])["title"])
-            path, selected = QFileDialog.getSaveFileName(self, "Bild exportieren", suggested + default_suffix, ";;".join(ordered))
+            path, selected = QFileDialog.getSaveFileName(self, tr("Bild exportieren"), suggested + default_suffix, ";;".join(ordered))
             if path and not Path(path).suffix:
                 import re
                 path += re.search(r"\*([.a-z]+)", selected).group(1)
@@ -1644,11 +1685,11 @@ class MainWindow(QMainWindow):
             try:
                 from .batch import export_any
                 export_any(self.rendered(ids[0]), self.workspace.get(ids[0])["title"], path)
-                self.statusBar().showMessage(f"Exportiert: {path}")
+                self.statusBar().showMessage(tr("Exportiert: {path}", path=path))
             except Exception as exc:
                 self.fail(str(exc))
             return
-        folder = QFileDialog.getExistingDirectory(self, "Exportordner wählen")
+        folder = QFileDialog.getExistingDirectory(self, tr("Exportordner wählen"))
         if not folder:
             return
         try:
@@ -1656,7 +1697,7 @@ class MainWindow(QMainWindow):
             items = [(self.workspace.get(ident)["title"], self.rendered(ident)) for ident in ids]
             suffix = self.settings.get("export_format", ".png")
             written = export_batch(items, folder, suffix if suffix in (".png", ".jpg", ".jxl", ".webp", ".tiff", ".bmp", ".gif") else ".png")
-            self.statusBar().showMessage(f"{len(written)} Datei(en) exportiert nach {folder}")
+            self.statusBar().showMessage(tr("{count} Datei(en) exportiert nach {folder}", count=len(written), folder=folder))
         except Exception as exc:
             self.fail(str(exc))
 
@@ -1695,11 +1736,11 @@ class MainWindow(QMainWindow):
             self.fail("\n".join(failures))
 
     def import_files(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, "Bilder importieren", "", "Bilder & Projekte (*.png *.jpg *.jpeg *.jxl *.webp *.bmp *.tif *.tiff *.screenkaffee.json)")
+        paths, _ = QFileDialog.getOpenFileNames(self, tr("Bilder importieren"), "", tr("Bilder & Projekte (*.png *.jpg *.jpeg *.jxl *.webp *.bmp *.tif *.tiff *.screenkaffee.json)"))
         self.import_paths(paths)
 
     def import_videos(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, "Videos importieren", "", "Videos (*.mp4 *.mkv *.avi *.mov *.webm *.gif)")
+        paths, _ = QFileDialog.getOpenFileNames(self, tr("Videos importieren"), "", "Videos (*.mp4 *.mkv *.avi *.mov *.webm *.gif)")
         for path in paths:
             self.import_video_path(path)
 
@@ -1709,11 +1750,11 @@ class MainWindow(QMainWindow):
         def read():
             info = probe_media(path)
             return (str(path), vars(info), extract_frame(path))
-        self.task(read, self.video_imported, "Video wird eingelesen …")
+        self.task(read, self.video_imported, tr("Video wird eingelesen …"))
 
     def video_imported(self, result):
         path, metadata, frame = result
-        ident = self.workspace.add_file(path, "video", metadata=dict(metadata, backend="Video"), thumbnail=frame)
+        ident = self.workspace.add_file(path, "video", metadata=dict(metadata, backend="Video"), thumbnail=frame)  # i18n: ignore (Metadaten-Wert)
         self.apply_retention(exclude={ident})
         self.refresh()
         self.select_id(ident)
@@ -1721,18 +1762,18 @@ class MainWindow(QMainWindow):
     def merge_selected_videos(self):
         ids = self.selected_ids()
         if len(ids) < 2 or any(self.workspace.get(ident)["kind"] != "video" for ident in ids):
-            QMessageBox.information(self, "Videos zusammenfügen", "Bitte mindestens zwei Videos auswählen. Reihenfolge: ältestes zuerst.")
+            QMessageBox.information(self, tr("Videos zusammenfügen"), tr("Bitte mindestens zwei Videos auswählen. Reihenfolge: ältestes zuerst."))
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Zusammengeführtes Video speichern", "Kombiniert.mp4", "MP4 (*.mp4)")
+        path, _ = QFileDialog.getSaveFileName(self, tr("Zusammengeführtes Video speichern"), tr("Kombiniert.mp4"), "MP4 (*.mp4)")
         if path:
             from .media import merge_videos
             sources = [self.workspace.path(ident) for ident in reversed(ids)]
-            self.task(lambda: merge_videos(sources, path), lambda result: self.import_video_path(str(result)), "Videos werden zusammengefügt …")
+            self.task(lambda: merge_videos(sources, path), lambda result: self.import_video_path(str(result)), tr("Videos werden zusammengefügt …"))
 
     def paste_image(self):
         image = QApplication.clipboard().image()
         if image.isNull():
-            self.statusBar().showMessage("Kein Bild in der Zwischenablage")
+            self.statusBar().showMessage(tr("Kein Bild in der Zwischenablage"))
             return
         from .editor import qimage_to_pil
         ident = self.workspace.add(qimage_to_pil(image), metadata={"backend": "Zwischenablage"})
@@ -1750,11 +1791,11 @@ class MainWindow(QMainWindow):
     def stitch_selected(self):
         ids = self.selected_ids()
         if len(ids) < 2:
-            QMessageBox.information(self, "Scrollbilder verbinden", "Mindestens zwei überlappende Bilder auswählen.\nDie Bilder werden in Aufnahmereihenfolge verbunden (ältestes zuerst).\nVorher ggf. feste Kopfzeilen im Editor zuschneiden.")
+            QMessageBox.information(self, tr("Scrollbilder verbinden"), tr("Mindestens zwei überlappende Bilder auswählen.\nDie Bilder werden in Aufnahmereihenfolge verbunden (ältestes zuerst).\nVorher ggf. feste Kopfzeilen im Editor zuschneiden."))
             return
         images = [self.rendered(ident) for ident in reversed(ids)]
         from .stitch import stitch_vertical
-        self.task(lambda: stitch_vertical(images), lambda image: self.add_edited(image, "Scrollaufnahme"), "Scrollbilder werden ausgerichtet …")
+        self.task(lambda: stitch_vertical(images), lambda image: self.add_edited(image, tr("Scrollaufnahme")), tr("Scrollbilder werden ausgerichtet …"))
 
     def show_text(self, title, text):
         dialog = QDialog(self)
@@ -1765,16 +1806,16 @@ class MainWindow(QMainWindow):
         editor.setPlainText(text)
         layout.addWidget(editor)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        copy = buttons.addButton("Alles kopieren", QDialogButtonBox.ButtonRole.ActionRole)
+        copy = buttons.addButton(tr("Alles kopieren"), QDialogButtonBox.ButtonRole.ActionRole)
         copy.clicked.connect(lambda: QApplication.clipboard().setText(editor.toPlainText()))
-        save = buttons.addButton("Text speichern …", QDialogButtonBox.ButtonRole.ActionRole)
+        save = buttons.addButton(tr("Text speichern …"), QDialogButtonBox.ButtonRole.ActionRole)
         def save_text():
-            path, _ = QFileDialog.getSaveFileName(dialog, "Text speichern", "Text.txt", "Text (*.txt)")
+            path, _ = QFileDialog.getSaveFileName(dialog, tr("Text speichern"), "Text.txt", tr("Text (*.txt)"))
             if path:
                 Path(path).write_text(editor.toPlainText(), encoding="utf-8")
         save.clicked.connect(save_text)
-        if title == "Erkannter Text":
-            translate = buttons.addButton("In Google Translate öffnen", QDialogButtonBox.ButtonRole.ActionRole)
+        if title == tr("Erkannter Text"):
+            translate = buttons.addButton(tr("In Google Translate öffnen"), QDialogButtonBox.ButtonRole.ActionRole)
             def open_translation():
                 from PySide6.QtCore import QUrlQuery
                 url = QUrl("https://translate.google.com/")
@@ -1795,9 +1836,9 @@ class MainWindow(QMainWindow):
         try:
             import zxingcpp
             results = zxingcpp.read_barcodes(np.asarray(self.rendered(ident)))
-            self.show_text("QR- und Barcodes", "\n\n".join(x.text for x in results) or "Kein Code gefunden.")
+            self.show_text(tr("QR- und Barcodes"), "\n\n".join(x.text for x in results) or tr("Kein Code gefunden."))
         except ImportError:
-            self.fail("QR-Erkennung benötigt das optionale Paket zxing-cpp.")
+            self.fail(tr("QR-Erkennung benötigt das optionale Paket zxing-cpp."))
         except Exception as exc:
             self.fail(str(exc))
 
@@ -1806,14 +1847,14 @@ class MainWindow(QMainWindow):
             return
         from PySide6.QtWidgets import QInputDialog
         from .webpage import capture_webpage
-        url, ok = QInputDialog.getText(self, "Webseite aufnehmen", "Adresse (https://…):")
+        url, ok = QInputDialog.getText(self, tr("Webseite aufnehmen"), tr("Adresse (https://…):"))
         if not ok or not url.strip():
             return
         url = url.strip()
         if "://" not in url:
             url = "https://" + url
         self.task(lambda: capture_webpage(url), lambda image: self.finish_capture(image, {"backend": "Browser", "url": url}),
-                  "Webseite wird aufgenommen …")
+                  tr("Webseite wird aufgenommen …"))
 
     def android_video(self):
         if self.blocked("android"):
@@ -1821,21 +1862,21 @@ class MainWindow(QMainWindow):
         recorder = getattr(self, "android_recorder", None) or AndroidRecorder()
         self.android_recorder = recorder
         if recorder.active:
-            self.android_video_action.setText("Android-Video starten")
+            self.android_video_action.setText(tr("Android-Video starten"))
             self.task(lambda: recorder.stop(self.workspace.root / "videos"),
-                      lambda path: path and self.import_video_path(str(path)), "Android-Video wird geladen …")
+                      lambda path: path and self.import_video_path(str(path)), tr("Android-Video wird geladen …"))
             return
         try:
             recorder.start()
         except Exception as exc:
             return self.fail(str(exc))
-        self.android_video_action.setText("Android-Video stoppen und speichern")
-        self.statusBar().showMessage("Android-Aufnahme läuft (Gerätelimit 3 Minuten)")
+        self.android_video_action.setText(tr("Android-Video stoppen und speichern"))
+        self.statusBar().showMessage(tr("Android-Aufnahme läuft (Gerätelimit 3 Minuten)"))
 
     def android(self):
         if self.blocked("android"):
             return
-        self.task(android_capture, lambda image: self.finish_capture(image, {"backend": "Android adb"}), "Android-Screenshot …")
+        self.task(android_capture, lambda image: self.finish_capture(image, {"backend": "Android adb"}), tr("Android-Screenshot …"))
 
     def document_export(self):
         ids = list(reversed(self.selected_ids()))
@@ -1852,7 +1893,7 @@ class MainWindow(QMainWindow):
         """Save a converted copy of one image next to a location the user picks."""
         from .batch import safe_name
         from .color import save_image
-        path, _ = QFileDialog.getSaveFileName(self, "Kopie speichern", safe_name(title) + extension, f"Bild (*{extension})")
+        path, _ = QFileDialog.getSaveFileName(self, tr("Kopie speichern"), safe_name(title) + extension, tr("Bild (*{extension})", extension=extension))
         if path:
             try:
                 save_image(self.rendered(ident), path, metadata={"Software": "screenkaffee"})
@@ -1862,36 +1903,36 @@ class MainWindow(QMainWindow):
     def batch_export_selected(self):
         ids = [i for i in self.selected_ids() if self.workspace.get(i)["kind"] == "image"]
         if not ids:
-            self.statusBar().showMessage("Bitte mindestens eine Bildaufnahme auswählen.")
+            self.statusBar().showMessage(tr("Bitte mindestens eine Bildaufnahme auswählen."))
             return
         from PySide6.QtWidgets import QFormLayout, QDoubleSpinBox
         from .batch import EXPORT_FORMATS, export_batch
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Stapelexport: {len(ids)} Bild(er)")
+        dialog.setWindowTitle(tr("Stapelexport: {count} Bild(er)", count=len(ids)))
         form = QFormLayout(dialog)
         fmt = QComboBox()
         for suffix in EXPORT_FORMATS:
             fmt.addItem(suffix[1:].upper(), suffix)
-        form.addRow("Format", fmt)
+        form.addRow(tr("Format"), fmt)
         scale = QSpinBox()
         scale.setRange(5, 400)
         scale.setValue(100)
         scale.setSuffix(" %")
-        form.addRow("Größe", scale)
+        form.addRow(tr("Größe"), scale)
         quality = QSpinBox()
         quality.setRange(1, 100)
         quality.setValue(90)
-        form.addRow("Qualität (JPEG/WebP)", quality)
+        form.addRow(tr("Qualität (JPEG/WebP)"), quality)
         border = QSpinBox()
         border.setRange(0, 100)
-        form.addRow("Rahmenbreite", border)
+        form.addRow(tr("Rahmenbreite"), border)
         radius = QSpinBox()
         radius.setRange(0, 500)
-        form.addRow("Eckenradius", radius)
+        form.addRow(tr("Eckenradius"), radius)
         shadow = QSpinBox()
         shadow.setRange(0, 200)
-        form.addRow("Schattenweichheit", shadow)
-        gray = QCheckBox("Graustufen")
+        form.addRow(tr("Schattenweichheit"), shadow)
+        gray = QCheckBox(tr("Graustufen"))
         form.addRow(gray)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(dialog.accept)
@@ -1899,7 +1940,7 @@ class MainWindow(QMainWindow):
         form.addRow(buttons)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        folder = QFileDialog.getExistingDirectory(self, "Exportordner wählen")
+        folder = QFileDialog.getExistingDirectory(self, tr("Exportordner wählen"))
         if not folder:
             return
         effects = {"scale_percent": scale.value(), "border_width": border.value(), "corner_radius": radius.value(),
@@ -1907,26 +1948,26 @@ class MainWindow(QMainWindow):
         suffix, q = fmt.currentData(), quality.value()
         items = [(self.workspace.get(i)["title"], self.rendered(i)) for i in ids]
         self.task(lambda: export_batch(items, folder, suffix, effects, q),
-                  lambda paths: self.statusBar().showMessage(f"{len(paths)} Bild(er) exportiert nach {folder}"),
-                  "Stapelexport läuft …")
+                  lambda paths: self.statusBar().showMessage(tr("{count} Bild(er) exportiert nach {folder}", count=len(paths), folder=folder)),
+                  tr("Stapelexport läuft …"))
 
     def recompress_selected(self):
         ids = [i for i in self.selected_ids() if self.workspace.get(i)["kind"] == "image"]
         if not ids:
-            self.statusBar().showMessage("Bitte mindestens eine Bildaufnahme auswählen.")
+            self.statusBar().showMessage(tr("Bitte mindestens eine Bildaufnahme auswählen."))
             return
         from .batch import recompress_png
         paths = [self.workspace.path(i) for i in ids]
         self.task(lambda: sum(recompress_png(p) for p in paths),
-                  lambda saved: self.statusBar().showMessage(f"Neu komprimiert: {saved / 1024:.1f} KB eingespart (verlustfrei)"),
-                  "Bilder werden neu komprimiert …")
+                  lambda saved: self.statusBar().showMessage(tr("Neu komprimiert: {size} KB eingespart (verlustfrei)", size=f"{saved / 1024:.1f}")),
+                  tr("Bilder werden neu komprimiert …"))
 
     def renumber_selected(self):
         ids = self.selected_ids()
         if len(ids) < 1:
-            self.statusBar().showMessage("Bitte mindestens eine Aufnahme auswählen.")
+            self.statusBar().showMessage(tr("Bitte mindestens eine Aufnahme auswählen."))
             return
-        prefix, ok = QInputDialog.getText(self, "Auto-Umbenennen", "Präfix für die Titel", text="screenshot")
+        prefix, ok = QInputDialog.getText(self, tr("Auto-Umbenennen"), tr("Präfix für die Titel"), text="screenshot")
         if not ok:
             return
         from .batch import renumber_titles
@@ -1956,11 +1997,12 @@ class MainWindow(QMainWindow):
     def edit_details(self):
         ids = self.selected_ids()
         if not ids:
-            self.statusBar().showMessage("Bitte zuerst eine Aufnahme auswählen.")
+            self.statusBar().showMessage(tr("Bitte zuerst eine Aufnahme auswählen."))
             return None
         from .workspace import details_dialog
         def ask_copy(ident, title, extension):
-            if QMessageBox.question(self, "Endung erkannt", f"Zusätzlich eine Kopie als {extension[1:].upper()} speichern?") == QMessageBox.StandardButton.Yes:
+            if QMessageBox.question(self, tr("Endung erkannt"), tr("Zusätzlich eine Kopie als {format} speichern?",
+                                    format=extension[1:].upper())) == QMessageBox.StandardButton.Yes:
                 self.export_copy(ident, title, extension)
         dialog = details_dialog(self, self.workspace, ids, on_export_copy=ask_copy)
         dialog.accepted.disconnect(dialog.apply)        # hier anwenden, damit Fehler verständlich gemeldet werden
@@ -1981,29 +2023,29 @@ class MainWindow(QMainWindow):
             row = dict(self.workspace.get(ident))
             path = self.workspace.path(ident)
             self.task(lambda: media_properties(path, row["kind"], json.loads(row["metadata"])),
-                      lambda values: self.show_text("Medieneigenschaften", json.dumps(values, ensure_ascii=False, indent=2)),
-                      "Medieneigenschaften lesen …")
+                      lambda values: self.show_text(tr("Medieneigenschaften"), json.dumps(values, ensure_ascii=False, indent=2)),
+                      tr("Medieneigenschaften lesen …"))
 
     def new_collection(self):
-        name, ok = QInputDialog.getText(self, "Neue Sammlung", "Name")
+        name, ok = QInputDialog.getText(self, tr("Neue Sammlung"), tr("Name"))
         if ok:
             try:
                 self.workspace.create_collection(name)
                 self.refresh_collections()
-                self.collection.setCurrentText(name)
+                self.select_collection(name.strip())
             except Exception as exc:
                 self.fail(str(exc))
 
     def switch_workspace(self):
         if self.tasks or self.editors or self.recorder.active or self.capture_pending:
-            QMessageBox.information(self, "Arbeitsbereich wechseln", "Bitte zuerst offene Editoren schließen und laufende Vorgänge beenden.")
+            QMessageBox.information(self, tr("Arbeitsbereich wechseln"), tr("Bitte zuerst offene Editoren schließen und laufende Vorgänge beenden."))
             return
         known = self.settings.get("workspaces", [])
-        labels = [str(path) for path in known] + ["Ordner auswählen …"]
-        selected, ok = QInputDialog.getItem(self, "Arbeitsbereich wechseln", "Arbeitsbereich", labels, editable=False)
+        labels = [str(path) for path in known] + [tr("Ordner auswählen …")]
+        selected, ok = QInputDialog.getItem(self, tr("Arbeitsbereich wechseln"), tr("Arbeitsbereich"), labels, editable=False)
         if not ok:
             return
-        path = QFileDialog.getExistingDirectory(self, "Arbeitsbereich-Ordner") if selected == labels[-1] else selected
+        path = QFileDialog.getExistingDirectory(self, tr("Arbeitsbereich-Ordner")) if selected == labels[-1] else selected
         if not path:
             return
         try:
@@ -2015,15 +2057,15 @@ class MainWindow(QMainWindow):
             self.search.clear()
             self.refresh_collections()
             self.refresh()
-            self.statusBar().showMessage("Arbeitsbereich: " + str(self.workspace.root))
+            self.statusBar().showMessage(tr("Arbeitsbereich: {path}", path=self.workspace.root))
         except Exception as exc:
             self.fail(str(exc))
 
     def sync_local_folder(self):
         if self.tasks or self.editors or self.recorder.active or self.capture_pending:
-            QMessageBox.information(self, "Arbeitsbereich abgleichen", "Bitte zuerst Editoren schließen und laufende Vorgänge beenden.")
+            QMessageBox.information(self, tr("Arbeitsbereich abgleichen"), tr("Bitte zuerst Editoren schließen und laufende Vorgänge beenden."))
             return
-        folder = QFileDialog.getExistingDirectory(self, "Lokalen Austauschordner auswählen")
+        folder = QFileDialog.getExistingDirectory(self, tr("Lokalen Austauschordner auswählen"))
         if not folder:
             return
         root = self.workspace.root
@@ -2038,9 +2080,11 @@ class MainWindow(QMainWindow):
         def finished(result):
             self.refresh_collections()
             self.refresh()
-            deleted_info = f", {result['deleted']} gelöscht" if result.get("deleted") else ""
-            self.statusBar().showMessage(f"Abgleich: {result['imported']} übernommen, {result['exported']} bereitgestellt, {result['conflicts']} Konfliktkopien{deleted_info}")
-        self.task(operation, finished, "Arbeitsbereich wird mit lokalem Ordner abgeglichen …")
+            deleted_info = tr(", {count} gelöscht", count=result["deleted"]) if result.get("deleted") else ""
+            self.statusBar().showMessage(tr("Abgleich: {imported} übernommen, {exported} bereitgestellt, {conflicts} Konfliktkopien{deleted}",
+                                            imported=result["imported"], exported=result["exported"], conflicts=result["conflicts"],
+                                            deleted=deleted_info))
+        self.task(operation, finished, tr("Arbeitsbereich wird mit lokalem Ordner abgeglichen …"))
 
     def print_selected(self):
         if self.blocked("print"):
@@ -2058,7 +2102,7 @@ class MainWindow(QMainWindow):
         ids = self.selected_ids()
         if not ids:
             return
-        destination, _ = QFileDialog.getSaveFileName(self, "E-Mail-Entwurf speichern", "screenkaffee.eml", "E-Mail-Entwurf (*.eml)")
+        destination, _ = QFileDialog.getSaveFileName(self, tr("E-Mail-Entwurf speichern"), "screenkaffee.eml", tr("E-Mail-Entwurf (*.eml)"))
         if not destination:
             return
         try:
@@ -2075,7 +2119,7 @@ class MainWindow(QMainWindow):
                     path = self.workspace.path(ident)
                     attachments.append((path.name, path.read_bytes()))
             save_mail_draft(destination, attachments)
-            self.statusBar().showMessage("E-Mail-Entwurf lokal gespeichert; zum Versenden im Mailprogramm öffnen")
+            self.statusBar().showMessage(tr("E-Mail-Entwurf lokal gespeichert; zum Versenden im Mailprogramm öffnen"))
         except Exception as exc:
             self.fail(str(exc))
 
@@ -2085,9 +2129,10 @@ class MainWindow(QMainWindow):
             self.settings.get("retention_days", 0), protected)
         if confirm:
             if not candidates:
-                QMessageBox.information(self, "Aufbewahrung", "Keine Aufnahmen entsprechen den aktuellen Aufräumregeln.")
+                QMessageBox.information(self, tr("Aufbewahrung"), tr("Keine Aufnahmen entsprechen den aktuellen Aufräumregeln."))
                 return
-            if QMessageBox.question(self, "Aufräumen", f"{len(candidates)} Aufnahmen in den wiederherstellbaren Papierkorb verschieben?") != QMessageBox.StandardButton.Yes:
+            if QMessageBox.question(self, tr("Aufräumen"), tr("{count} Aufnahmen in den wiederherstellbaren Papierkorb verschieben?",
+                                                              count=len(candidates))) != QMessageBox.StandardButton.Yes:
                 return
         for ident in candidates:
             self.workspace.remove(ident)
@@ -2105,7 +2150,8 @@ class MainWindow(QMainWindow):
 
     def delete_trash_selected(self):
         ids = self.selected_ids(include_trash=True)
-        if ids and QMessageBox.question(self, "Endgültig löschen", f"{len(ids)} Aufnahme(n) endgültig löschen?") == QMessageBox.StandardButton.Yes:
+        if ids and QMessageBox.question(self, tr("Endgültig löschen"), tr("{count} Aufnahme(n) endgültig löschen?",
+                                                                          count=len(ids))) == QMessageBox.StandardButton.Yes:
             try:
                 self.workspace.delete_trashed(ids)
             except Exception as exc:
@@ -2116,7 +2162,8 @@ class MainWindow(QMainWindow):
     def empty_trash_view(self):
         trash = self.workspace.root / "trash"
         size = sum(p.stat().st_size for p in trash.glob("*") if p.is_file() and not self.workspace.get(p.name.split(".")[0]))
-        if QMessageBox.question(self, "Papierkorb leeren", f"Alle gelöschten Aufnahmen endgültig löschen?\n{size / (1024 * 1024):.2f} MB werden freigegeben.") == QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, tr("Papierkorb leeren"), tr("Alle gelöschten Aufnahmen endgültig löschen?\n{size} MB werden freigegeben.",
+                                                                  size=f"{size / (1024 * 1024):.2f}")) == QMessageBox.StandardButton.Yes:
             try:
                 self.workspace.empty_trash()
             except Exception as exc:
@@ -2127,10 +2174,10 @@ class MainWindow(QMainWindow):
     def restore_deleted(self):
         entries = self.workspace.trash_entries()
         if not entries:
-            QMessageBox.information(self, "Wiederherstellen", "Der Papierkorb enthält keine gelöschten Aufnahmen.")
+            QMessageBox.information(self, tr("Wiederherstellen"), tr("Der Papierkorb enthält keine gelöschten Aufnahmen."))
             return
         labels = [f"{row['title']} · {row['created']} · {row['id'][:6]}" for row in entries]
-        label, ok = QInputDialog.getItem(self, "Aufnahme wiederherstellen", "Gelöschte Aufnahme", labels, editable=False)
+        label, ok = QInputDialog.getItem(self, tr("Aufnahme wiederherstellen"), tr("Gelöschte Aufnahme"), labels, editable=False)
         if ok:
             try:
                 ident = self.workspace.restore(entries[labels.index(label)]["id"])
@@ -2143,7 +2190,7 @@ class MainWindow(QMainWindow):
     def export_settings(self):
         if self.blocked("settings_export"):
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Einstellungen exportieren", "screenkaffee-Einstellungen.json", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, tr("Einstellungen exportieren"), "screenkaffee-Einstellungen.json", "JSON (*.json)")  # i18n: ignore (Dateiname)
         if path:
             try:
                 Path(path).write_text(json.dumps({"format": "screenkaffee-settings", "version": 1, "settings": self.settings},
@@ -2154,23 +2201,23 @@ class MainWindow(QMainWindow):
     def import_settings(self):
         if self.blocked("settings_import"):
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Einstellungen importieren", "", "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("Einstellungen importieren"), "", "JSON (*.json)")
         if path:
             try:
                 data = json.loads(Path(path).read_text(encoding="utf-8"))
                 if data.get("format") != "screenkaffee-settings" or data.get("version") != 1:
-                    raise ValueError("Unbekanntes Einstellungsformat.")
+                    raise ValueError(tr("Unbekanntes Einstellungsformat."))
                 proposed = data["settings"]
                 for key, value in proposed.items():
                     if key in self.settings and type(value) is not type(self.settings[key]):
-                        raise ValueError("Ungültiger Wert: " + key)
+                        raise ValueError(tr("Ungültiger Wert: {key}", key=key))
                 if proposed.get("tone_mapping", "neutral") not in ("neutral", "highlights"):
-                    raise ValueError("Ungültige HDR-Umrechnung.")
+                    raise ValueError(tr("Ungültige HDR-Umrechnung."))
                 if proposed.get("retention_count", 0) < 0 or proposed.get("retention_days", 0) < 0:
-                    raise ValueError("Ungültige Aufbewahrungsregeln.")
+                    raise ValueError(tr("Ungültige Aufbewahrungsregeln."))
                 self.settings.update({key: value for key, value in proposed.items() if key in self.settings})
                 self.save_settings()
-                self.statusBar().showMessage("Einstellungen importiert")
+                self.statusBar().showMessage(tr("Einstellungen importiert"))
             except Exception as exc:
                 self.fail(str(exc))
 
@@ -2186,7 +2233,7 @@ class MainWindow(QMainWindow):
         if not ids:
             return
         if self.settings.get("confirm_delete", True):
-            answer = QMessageBox.question(self, "Aufnahmen entfernen", f"{len(ids)} Aufnahme(n) aus dem Workspace entfernen?\nDateien werden in data/trash verschoben.")
+            answer = QMessageBox.question(self, tr("Aufnahmen entfernen"), tr("{count} Aufnahme(n) aus dem Workspace entfernen?\nDateien werden in data/trash verschoben.", count=len(ids)))
             if answer != QMessageBox.StandardButton.Yes:
                 return
         try:
@@ -2202,7 +2249,7 @@ class MainWindow(QMainWindow):
     def preferences(self):
         from PySide6.QtWidgets import QScrollArea
         dialog = QDialog(self)
-        dialog.setWindowTitle("Einstellungen")
+        dialog.setWindowTitle(tr("Einstellungen"))
         dialog.resize(600, 560)
         outer = QVBoxLayout(dialog)
         scroll = QScrollArea()
@@ -2211,9 +2258,9 @@ class MainWindow(QMainWindow):
         scroll.setWidget(body)
         outer.addWidget(scroll)
         layout = QVBoxLayout(body)
-        from .i18n import LANGUAGES, tr
+        from .i18n import LANGUAGES
         language_row = QHBoxLayout()
-        language_row.addWidget(QLabel("Sprache / Language"))
+        language_row.addWidget(QLabel("Sprache / Language"))  # i18n: ignore (bewusst zweisprachig)
         language_box = QComboBox()
         for code, label in LANGUAGES:
             language_box.addItem(tr(label), code)
@@ -2223,16 +2270,16 @@ class MainWindow(QMainWindow):
         language_hint = QLabel(tr("Wirkt nach dem Neustart."))
         language_hint.setObjectName("muted")
         layout.addWidget(language_hint)
-        layout.addWidget(QLabel("HDR → normale PNGs (Windows)"))
+        layout.addWidget(QLabel(tr("HDR → normale PNGs (Windows)")))
         tone = QComboBox()
-        tone.addItem("SDR-Farben erhalten · HDR-Spitzen abschneiden", "neutral")
-        tone.addItem("Helle Details komprimieren · SDR-Weiß leicht dunkler", "highlights")
+        tone.addItem(tr("SDR-Farben erhalten · HDR-Spitzen abschneiden"), "neutral")
+        tone.addItem(tr("Helle Details komprimieren · SDR-Weiß leicht dunkler"), "highlights")
         tone.setCurrentIndex(max(0, tone.findData(self.settings["tone_mapping"])))
         layout.addWidget(tone)
         boxes = {}
-        for key, label in [("auto_copy", "Neue Aufnahmen automatisch kopieren"),
-            ("auto_edit", "Nach Aufnahme den Editor öffnen"), ("capture_cursor", "Mauszeiger mit aufnehmen"),
-            ("minimize_to_tray", "X und Minimieren: im Infobereich neben der Uhr weiterlaufen")]:
+        for key, label in [("auto_copy", tr("Neue Aufnahmen automatisch kopieren")),
+            ("auto_edit", tr("Nach Aufnahme den Editor öffnen")), ("capture_cursor", tr("Mauszeiger mit aufnehmen")),
+            ("minimize_to_tray", tr("X und Minimieren: im Infobereich neben der Uhr weiterlaufen"))]:
             box = QCheckBox(label)
             box.setChecked(self.settings[key])
             boxes[key] = box
@@ -2242,30 +2289,31 @@ class MainWindow(QMainWindow):
             autostart_now = autostart.is_enabled()
         except OSError:
             autostart_now = False
-        autostart_box = QCheckBox("Beim Anmelden automatisch starten (im Infobereich, ohne Fenster)")
+        autostart_box = QCheckBox(tr("Beim Anmelden automatisch starten (im Infobereich, ohne Fenster)"))
         autostart_box.setChecked(autostart_now)
         layout.addWidget(autostart_box)
         hotkey_edits = {}
         if sys.platform == "win32":
-            layout.addWidget(QLabel("Globale Tastenkürzel: aus der Liste wählen oder eintippen (z. B. Druck, Strg+Umschalt+S, leer = keines)"))
-            presets = ["", "Druck", "Strg+Druck", "Umschalt+Druck", "Alt+Druck", "Strg+Umschalt+Druck",
-                       "Strg+Umschalt+S", "Strg+Alt+S", "F9", "F10", "F11"]
-            for kind, label in ACTIONS:
+            layout.addWidget(QLabel(tr("Globale Tastenkürzel: aus der Liste wählen oder eintippen (z. B. Druck, Strg+Umschalt+S, leer = keines)")))
+            presets = ["", "Print", "Ctrl+Print", "Shift+Print", "Alt+Print", "Ctrl+Shift+Print",
+                       "Ctrl+Shift+S", "Ctrl+Alt+S", "F9", "F10", "F11"]
+            for kind, _label in ACTIONS:
                 row = QHBoxLayout()
-                row.addWidget(QLabel(label))
+                row.addWidget(QLabel(action_label(kind)))
                 edit = QComboBox()
                 edit.setEditable(True)
-                edit.addItems(presets)
-                edit.setCurrentText(self.settings["hotkeys"].get(kind, DEFAULT_HOTKEYS.get(kind, "")))
-                hotkey_edits[kind] = edit
+                edit.addItems([display_hotkey(preset) for preset in presets])
+                stored = self.settings["hotkeys"].get(kind, DEFAULT_HOTKEYS.get(kind, ""))
+                edit.setCurrentText(display_hotkey(stored) if stored else "")
+                hotkey_edits[kind] = (edit, stored)
                 row.addWidget(edit, 1)
                 layout.addLayout(row)
-            hint = QLabel("Tipp für die Druck-Taste: Falls Windows sie schon nutzt, unter Windows-Einstellungen → "
-                          "Barrierefreiheit → Tastatur „Bildschirmabbild-Taste: Bildschirmaufnahme öffnen“ ausschalten.")
+            hint = QLabel(tr("Tipp für die Druck-Taste: Falls Windows sie schon nutzt, unter Windows-Einstellungen → "
+                          "Barrierefreiheit → Tastatur „Bildschirmabbild-Taste: Bildschirmaufnahme öffnen“ ausschalten."))
             hint.setObjectName("muted")
             hint.setWordWrap(True)
             layout.addWidget(hint)
-        layout.addWidget(QLabel("Titel neuer Aufnahmen (Datum/Zeit wie strftime, {n} = Nummer, {window}/{app}/{url} = Kontext)"))
+        layout.addWidget(QLabel(tr("Titel neuer Aufnahmen (Datum/Zeit wie strftime, {n} = Nummer, {window}/{app}/{url} = Kontext)")))
         title_pattern = QLineEdit(self.settings["title_pattern"])
         layout.addWidget(title_pattern)
         from PySide6.QtWidgets import QFormLayout
@@ -2274,15 +2322,15 @@ class MainWindow(QMainWindow):
         for suffix in CAPTURE_FORMATS:
             export_format.addItem(suffix[1:].upper(), suffix)
         export_format.setCurrentIndex(max(0, export_format.findData(self.settings["export_format"])))
-        option_form.addRow("Standardformat beim Exportieren", export_format)
+        option_form.addRow(tr("Standardformat beim Exportieren"), export_format)
         number_fields = {}
-        for key, label, low, high, suffix in [("auto_scale_percent", "Neue Aufnahmen verkleinern/vergrößern", 5, 400, " %"),
-                ("auto_border", "Rahmen um neue Aufnahmen", 0, 100, " px"), ("auto_shadow", "Schatten um neue Aufnahmen", 0, 200, " px"),
-                ("audio_noise_gate_db", "Rauschfilter für das Mikrofon (0 = aus)", -90, 0, " dB"),
-                ("audio_timeshift_ms", "Audio-Zeitversatz zum Bild", -2000, 2000, " ms"),
-                ("audio_loopback_balance", "Systemton relativ zum Mikrofon", 10, 100, " %"),
-                ("print_margin_mm", "Druckrand", 0, 50, " mm"), ("animation_fps", "Animierte Ausgabe: Bilder pro Sekunde", 1, 60, ""),
-                ("animation_loops", "Animierte Ausgabe: Wiederholungen (0 = endlos)", 0, 1000, "")]:
+        for key, label, low, high, suffix in [("auto_scale_percent", tr("Neue Aufnahmen verkleinern/vergrößern"), 5, 400, " %"),
+                ("auto_border", tr("Rahmen um neue Aufnahmen"), 0, 100, " px"), ("auto_shadow", tr("Schatten um neue Aufnahmen"), 0, 200, " px"),
+                ("audio_noise_gate_db", tr("Rauschfilter für das Mikrofon (0 = aus)"), -90, 0, " dB"),
+                ("audio_timeshift_ms", tr("Audio-Zeitversatz zum Bild"), -2000, 2000, " ms"),
+                ("audio_loopback_balance", tr("Systemton relativ zum Mikrofon"), 10, 100, " %"),
+                ("print_margin_mm", tr("Druckrand"), 0, 50, " mm"), ("animation_fps", tr("Animierte Ausgabe: Bilder pro Sekunde"), 1, 60, ""),
+                ("animation_loops", tr("Animierte Ausgabe: Wiederholungen (0 = endlos)"), 0, 1000, "")]:
             field = QSpinBox()
             field.setRange(low, high)
             field.setSuffix(suffix)
@@ -2290,33 +2338,33 @@ class MainWindow(QMainWindow):
             number_fields[key] = field
             option_form.addRow(label, field)
         auto_watermark = QLineEdit(self.settings["auto_watermark"])
-        option_form.addRow("Wasserzeichen-Text für neue Aufnahmen", auto_watermark)
+        option_form.addRow(tr("Wasserzeichen-Text für neue Aufnahmen"), auto_watermark)
         layout.addLayout(option_form)
         option_boxes = {}
-        for key, label in [("clipboard_only", "Aufnahmen nur in die Zwischenablage legen (nicht speichern)"),
-                           ("auto_print", "Neue Aufnahmen automatisch drucken"), ("confirm_delete", "Vor dem Entfernen nachfragen"),
-                           ("auto_trim", "Einfarbige Ränder neuer Aufnahmen automatisch abschneiden"),
-                           ("follow_mouse_screen", "Nur den Bildschirm unter dem Mauszeiger aufnehmen"),
-                           ("capture_context", "Aufnahmekontext (aktives Fenster, Programm und URL) in Metadaten speichern")]:
+        for key, label in [("clipboard_only", tr("Aufnahmen nur in die Zwischenablage legen (nicht speichern)")),
+                           ("auto_print", tr("Neue Aufnahmen automatisch drucken")), ("confirm_delete", tr("Vor dem Entfernen nachfragen")),
+                           ("auto_trim", tr("Einfarbige Ränder neuer Aufnahmen automatisch abschneiden")),
+                           ("follow_mouse_screen", tr("Nur den Bildschirm unter dem Mauszeiger aufnehmen")),
+                           ("capture_context", tr("Aufnahmekontext (aktives Fenster, Programm und URL) in Metadaten speichern"))]:
             box = QCheckBox(label)
             box.setChecked(bool(self.settings.get(key, True if key == "capture_context" else False)))
             option_boxes[key] = box
             layout.addWidget(box)
-        layout.addWidget(QLabel("Video-Audioquelle (optional; Windows: exakter DirectShow-Gerätename, Linux: PulseAudio-Quelle)"))
+        layout.addWidget(QLabel(tr("Video-Audioquelle (optional; Windows: exakter DirectShow-Gerätename, Linux: PulseAudio-Quelle)")))
         microphone = QLineEdit(self.settings["microphone"])
-        microphone.setPlaceholderText("Leer = ohne Ton")
+        microphone.setPlaceholderText(tr("Leer = ohne Ton"))
         layout.addWidget(microphone)
         from . import updater
-        layout.addWidget(QLabel("Updates aus GitHub (Windows x64, Windows ARM64 und Linux)"))
+        layout.addWidget(QLabel(tr("Updates aus GitHub (Windows x64, Windows ARM64 und Linux)")))
         update_mode = QComboBox()
         for value, label in updater.MODES:
-            update_mode.addItem(label, value)
+            update_mode.addItem(tr(label), value)
         update_mode.setCurrentIndex(max(0, update_mode.findData(self.settings.get("update_mode", "off"))))
         layout.addWidget(update_mode)
-        keep_previous = QCheckBox("Vorige Version nach einem Update aufbewahren (zum Wiederherstellen, braucht ca. 0,7 GB)")
+        keep_previous = QCheckBox(tr("Vorige Version nach einem Update aufbewahren (zum Wiederherstellen, braucht ca. 0,7 GB)"))
         keep_previous.setChecked(self.settings.get("update_keep_previous", True))
         layout.addWidget(keep_previous)
-        check_now = QPushButton("Jetzt nach Updates suchen")
+        check_now = QPushButton(tr("Jetzt nach Updates suchen"))
         check_now.clicked.connect(lambda: self.check_updates(manual=True))
         layout.addWidget(check_now, 0, Qt.AlignmentFlag.AlignLeft)
         speech_row = QHBoxLayout()
@@ -2326,11 +2374,12 @@ class MainWindow(QMainWindow):
         speech_row.addWidget(speech_label, 1)
         from . import addons
         if addons.speech_status(None, self.workspace.root) in ("installed", "cached"):
-            remove_speech = QPushButton("Entfernen …")
+            remove_speech = QPushButton(tr("Entfernen …"))
             remove_speech.clicked.connect(lambda: self.remove_speech_addon(speech_label))
             speech_row.addWidget(remove_speech)
         layout.addLayout(speech_row)
-        note = QLabel(f"Datenordner: {self.workspace.root}\n\nLinux-HDR wird vom Compositor verarbeitet und ist auf Omarchy noch zu prüfen. Video ist derzeit SDR.")
+        note = QLabel(tr("Datenordner: {folder}\n\nLinux-HDR wird vom Compositor verarbeitet und ist auf Omarchy noch zu prüfen. Video ist derzeit SDR.",
+                         folder=self.workspace.root))
         note.setWordWrap(True)
         note.setObjectName("muted")
         layout.addWidget(note)
@@ -2344,23 +2393,29 @@ class MainWindow(QMainWindow):
                               **{key: box.isChecked() for key, box in option_boxes.items()}}
             problems = validate_capture_options(capture_values)
             if problems:
-                QMessageBox.warning(self, "Einstellungen", "\n".join(problems.values()))
+                QMessageBox.warning(self, tr("Einstellungen"), "\n".join(problems.values()))
                 return
             self.settings.update(capture_values)
             self.settings.update({key: box.isChecked() for key, box in boxes.items()})
+            old_language = self.settings.get("language", "auto")
             self.settings.update(tone_mapping=tone.currentData(), microphone=microphone.text(), update_mode=update_mode.currentData(),
                                  update_keep_previous=keep_previous.isChecked(), language=language_box.currentData())
             if autostart_box.isChecked() != autostart_now:
                 try:
                     autostart.set_enabled(autostart_box.isChecked())
                 except OSError as exc:
-                    QMessageBox.warning(self, "Autostart", f"Der Autostart konnte nicht geändert werden:\n{exc}")
+                    QMessageBox.warning(self, tr("Autostart"), tr("Der Autostart konnte nicht geändert werden:\n{error}", error=exc))
             if hotkey_edits:
-                self.settings["hotkeys"] = {kind: edit.currentText().strip() for kind, edit in hotkey_edits.items()}
+                self.settings["hotkeys"] = {kind: hotkey_for_settings(edit.currentText(), stored)
+                                            for kind, (edit, stored) in hotkey_edits.items()}
                 problems = self.apply_hotkeys()
                 if problems:
-                    QMessageBox.warning(self, "Tastenkürzel", "\n".join(problems.values()))
+                    QMessageBox.warning(self, tr("Tastenkürzel"), "\n".join(problems.values()))
             self.save_settings()
+            if language_box.currentData() != old_language:
+                self.settings["language_asked"] = True
+                self.save_settings()
+                self.offer_language_restart(language_box.currentData())
 
     def toggle_video(self):
         if self.recording_busy:
@@ -2369,7 +2424,7 @@ class MainWindow(QMainWindow):
             self.record_timer.stop()
             self.recording_busy = True
             self.video_button.setEnabled(False)
-            self.task(self.recorder.stop, self.recording_finished, "Video wird gespeichert; Segmente bleiben bei einem Fehler erhalten …")
+            self.task(self.recorder.stop, self.recording_finished, tr("Video wird gespeichert; Segmente bleiben bei einem Fehler erhalten …"))
             return
         self.configure_video()
 
@@ -2379,49 +2434,49 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QFormLayout, QDoubleSpinBox
         from PySide6.QtMultimedia import QMediaDevices
         dialog = QDialog(self)
-        dialog.setWindowTitle("Videoaufnahme")
+        dialog.setWindowTitle(tr("Videoaufnahme"))
         form = QFormLayout(dialog)
         target = QComboBox()
-        for label, value in [("Gewählter Monitor", "monitor"), ("Bereich auswählen", "region")]:
+        for label, value in [(tr("Gewählter Monitor"), "monitor"), (tr("Bereich auswählen"), "region")]:
             target.addItem(label, value)
-        target.addItem("Gesamter Desktop" if sys.platform == "win32" else "Auswahl über Desktop-Portal", "all" if sys.platform == "win32" else "portal")
+        target.addItem(tr("Gesamter Desktop") if sys.platform == "win32" else tr("Auswahl über Desktop-Portal"), "all" if sys.platform == "win32" else "portal")
         from .videoextras import RECORD_SIZES
         for label, size in RECORD_SIZES:
-            target.addItem(f"Fester Bereich {label} (zentriert)", size)
-        form.addRow("Aufnahmebereich", target)
-        click_effect = QCheckBox("Mausklicks als Ring sichtbar machen")
+            target.addItem(tr("Fester Bereich {size} (zentriert)", size=label), size)
+        form.addRow(tr("Aufnahmebereich"), target)
+        click_effect = QCheckBox(tr("Mausklicks als Ring sichtbar machen"))
         form.addRow(click_effect)
         from .videoextras import KEYSTROKE_MODES
         keystrokes = QComboBox()
-        keystrokes.addItem("Nicht einblenden", "")
+        keystrokes.addItem(tr("Nicht einblenden"), "")
         for value, label in KEYSTROKE_MODES:
-            keystrokes.addItem(label, value)
+            keystrokes.addItem(tr(label), value)
         keystrokes.setCurrentIndex(max(0, keystrokes.findData(self.settings.get("video_keystrokes", ""))))
         if sys.platform != "win32":
             keystrokes.setCurrentIndex(0)
             keystrokes.setEnabled(False)
-            keystrokes.setToolTip("Unter Linux/Wayland können Programme fremde Tastendrücke nicht mitlesen.")
+            keystrokes.setToolTip(tr("Unter Linux/Wayland können Programme fremde Tastendrücke nicht mitlesen."))
         else:
-            keystrokes.setToolTip("„Alle Tasten“ zeigt auch Getipptes – dann wären z. B. Passwörter im Video zu sehen.")
-        form.addRow("Tastendrücke einblenden", keystrokes)
+            keystrokes.setToolTip(tr("„Alle Tasten“ zeigt auch Getipptes – dann wären z. B. Passwörter im Video zu sehen."))
+        form.addRow(tr("Tastendrücke einblenden"), keystrokes)
         max_minutes = QSpinBox()
         max_minutes.setRange(0, 600)
         max_minutes.setSuffix(" min")
-        max_minutes.setSpecialValueText("unbegrenzt")
-        form.addRow("Höchstdauer", max_minutes)
+        max_minutes.setSpecialValueText(tr("unbegrenzt"))
+        form.addRow(tr("Höchstdauer"), max_minutes)
         quality = QComboBox()
-        for label, value in [("Standard", "standard"), ("Hoch", "high"), ("Ultra", "ultra")]:
+        for label, value in [(tr("Standard"), "standard"), (tr("Hoch"), "high"), (tr("Ultra"), "ultra")]:
             quality.addItem(label, value)
         quality.setCurrentIndex(1)
-        form.addRow("Qualität", quality)
+        form.addRow(tr("Qualität"), quality)
         fps = QSpinBox()
         fps.setRange(5, 60)
         fps.setValue(30)
-        form.addRow("Bilder pro Sekunde", fps)
+        form.addRow(tr("Bilder pro Sekunde"), fps)
         microphone = QComboBox()
         microphone.setEditable(True)
-        microphone.addItem("Ohne Mikrofon", "")
-        microphone.addItem("Standard-Mikrofon", "default_input")
+        microphone.addItem(tr("Ohne Mikrofon"), "")
+        microphone.addItem(tr("Standard-Mikrofon"), "default_input")
         native_audio = []
         if sys.platform == "win32":
             try:
@@ -2435,45 +2490,45 @@ class MainWindow(QMainWindow):
         else:
             for device in QMediaDevices.audioInputs():
                 microphone.addItem(device.description(), bytes(device.id()).decode(errors="replace"))
-        form.addRow("Mikrofon", microphone)
+        form.addRow(tr("Mikrofon"), microphone)
         system = QComboBox()
         system.setEditable(True)
-        system.addItem("Ohne Systemton", "")
-        system.addItem("Standard-Systemausgabe", "default_output")
+        system.addItem(tr("Ohne Systemton"), "")
+        system.addItem(tr("Standard-Systemausgabe"), "default_output")
         for device in native_audio:
             if device["loopback"]:
                 system.addItem(device["name"], device["selector"])
-        form.addRow("Systemton-Quelle", system)
+        form.addRow(tr("Systemton-Quelle"), system)
         mic_volume, system_volume = QDoubleSpinBox(), QDoubleSpinBox()
         for widget in (mic_volume, system_volume):
             widget.setRange(0, 4)
             widget.setSingleStep(.1)
             widget.setValue(1)
-        form.addRow("Mikrofonlautstärke", mic_volume)
-        form.addRow("Systemtonlautstärke", system_volume)
+        form.addRow(tr("Mikrofonlautstärke"), mic_volume)
+        form.addRow(tr("Systemtonlautstärke"), system_volume)
         camera = QComboBox()
-        camera.addItem("Ohne Webcam", None)
+        camera.addItem(tr("Ohne Webcam"), None)
         for device in QMediaDevices.videoInputs():
             camera.addItem(device.description(), bytes(device.id()).hex())
-        form.addRow("Webcam", camera)
-        circle = QCheckBox("Webcam als Kreis anzeigen (verschiebbar)")
+        form.addRow(tr("Webcam"), camera)
+        circle = QCheckBox(tr("Webcam als Kreis anzeigen (verschiebbar)"))
         circle.setChecked(True)
         form.addRow(circle)
-        mirror = QCheckBox("Webcam horizontal spiegeln")
+        mirror = QCheckBox(tr("Webcam horizontal spiegeln"))
         form.addRow(mirror)
         camera_size = QSpinBox()
         camera_size.setRange(120, 600)
         camera_size.setValue(240)
-        form.addRow("Webcam-Größe", camera_size)
+        form.addRow(tr("Webcam-Größe"), camera_size)
         camera_position = QComboBox()
-        for label, value in [("Unten rechts", "bottom-right"), ("Unten links", "bottom-left"), ("Oben rechts", "top-right"), ("Oben links", "top-left")]:
+        for label, value in [(tr("Unten rechts"), "bottom-right"), (tr("Unten links"), "bottom-left"), (tr("Oben rechts"), "top-right"), (tr("Oben links"), "top-left")]:
             camera_position.addItem(label, value)
-        form.addRow("Webcam-Position", camera_position)
-        note = QLabel("Video ist derzeit SDR. Bildschirm, Ton und Webcam werden lokal aufgezeichnet.\nPause/Fortsetzen steht im Menü Mehr bereit.\nZoom an der Mausposition: Strg+Alt+↑ / ↓, zurücksetzen: Strg+Alt+Pos1.\nZoomwechsel werden während der Aufnahme erfasst und beim Speichern eingerechnet.")
+        form.addRow(tr("Webcam-Position"), camera_position)
+        note = QLabel(tr("Video ist derzeit SDR. Bildschirm, Ton und Webcam werden lokal aufgezeichnet.\nPause/Fortsetzen steht im Menü Mehr bereit.\nZoom an der Mausposition: Strg+Alt+↑ / ↓, zurücksetzen: Strg+Alt+Pos1.\nZoomwechsel werden während der Aufnahme erfasst und beim Speichern eingerechnet."))
         note.setWordWrap(True)
         form.addRow(note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Aufnahme starten")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("Aufnahme starten"))
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
@@ -2525,7 +2580,7 @@ class MainWindow(QMainWindow):
                 from .webcam import WebcamOverlay
                 device = next((d for d in QMediaDevices.videoInputs() if bytes(d.id()).hex() == camera_id), None)
                 if device is None:
-                    raise RuntimeError("Die gewählte Kamera ist nicht mehr verfügbar.")
+                    raise RuntimeError(tr("Die gewählte Kamera ist nicht mehr verfügbar."))
                 self.camera_overlay = WebcamOverlay(device, circle=circle, mirror=mirror, size=camera_size, position=camera_position)
                 self.camera_overlay.start()
             self.recorder.start(self.workspace.root / "videos", **options)
@@ -2541,9 +2596,9 @@ class MainWindow(QMainWindow):
                 self.stop_timer.timeout.connect(self.stop_recording_by_limit)
                 self.stop_timer.start(int(max_minutes) * 60_000)
             self.video_zoom_factor = 1
-            self.video_button.setText("■ Aufnahme stoppen")
+            self.video_button.setText(tr("■ Aufnahme stoppen"))
             self.record_timer.start(500)
-            self.statusBar().showMessage("Videoaufnahme läuft")
+            self.statusBar().showMessage(tr("Videoaufnahme läuft"))
             self.restore()
         except Exception as exc:
             if self.camera_overlay:
@@ -2598,14 +2653,14 @@ class MainWindow(QMainWindow):
 
     def stop_recording_by_limit(self):
         if self.recorder.active and not self.recording_busy:
-            self.statusBar().showMessage("Höchstdauer erreicht – Aufnahme wird gespeichert")
+            self.statusBar().showMessage(tr("Höchstdauer erreicht – Aufnahme wird gespeichert"))
             self.toggle_video()
 
     def recording_finished(self, path):
         self.end_recording_extras()
         self.recording_busy = False
         self.video_button.setEnabled(True)
-        self.video_button.setText("● Video")
+        self.video_button.setText(tr("● Video"))
         if self.camera_overlay:
             self.camera_overlay.close()
             self.camera_overlay = None
@@ -2627,50 +2682,51 @@ class MainWindow(QMainWindow):
             return None
         from . import steps
         if not steps.supported():
-            QMessageBox.information(self, "Schritt-Anleitung",
-                                    "Die Schritt-Anleitung braucht Mausklicks aus anderen Programmen. Das erlaubt nur Windows; "
-                                    "unter Linux/Wayland ist das technisch nicht möglich.")
+            QMessageBox.information(self, tr("Schritt-Anleitung"),
+                                    tr("Die Schritt-Anleitung braucht Mausklicks aus anderen Programmen. Das erlaubt nur Windows; "
+                                    "unter Linux/Wayland ist das technisch nicht möglich."))
             return None
         if self.timelapse is not None or self.recorder.active:
-            self.fail("Bitte zuerst Video oder Zeitraffer beenden.")
+            self.fail(tr("Bitte zuerst Video oder Zeitraffer beenden."))
             return None
         self.step_session = steps.StepSession(self.step_guide_finished, self.step_guide_cancelled)
         self.step_session.start()
-        self.step_guide_action.setText("Schritt-Anleitung beenden")
+        self.step_guide_action.setText(tr("Schritt-Anleitung beenden"))
         if self.tray.isVisible():
             self.hide()
-            self.tray.showMessage("screenkaffee", "Schritt-Anleitung läuft: Klicken Sie sich durch den Ablauf. "
-                                  "Jeder Klick wird ein Schritt. Beenden mit „Fertig“ oben am Bildschirm.")
+            self.tray.showMessage("screenkaffee", tr("Schritt-Anleitung läuft: Klicken Sie sich durch den Ablauf. "
+                                  "Jeder Klick wird ein Schritt. Beenden mit „Fertig“ oben am Bildschirm."))
         else:
             self.showMinimized()
         return self.step_session
 
     def step_guide_cancelled(self):
         self.step_session = None
-        self.step_guide_action.setText("Schritt-Anleitung aufnehmen …")
+        self.step_guide_action.setText(tr("Schritt-Anleitung aufnehmen …"))
         self.restore()
-        self.statusBar().showMessage("Schritt-Anleitung abgebrochen")
+        self.statusBar().showMessage(tr("Schritt-Anleitung abgebrochen"))
 
     def step_guide_finished(self, recorded, open_designer=True):
         """Schritte als Aufnahmen in einer eigenen Sammlung ablegen und den Dokument-Designer damit öffnen."""
         from .steps import collection_name, describe
         self.step_session = None
-        self.step_guide_action.setText("Schritt-Anleitung aufnehmen …")
+        self.step_guide_action.setText(tr("Schritt-Anleitung aufnehmen …"))
         self.restore()
         if not recorded:
-            self.statusBar().showMessage("Schritt-Anleitung beendet – es wurde kein Klick festgehalten")
+            self.statusBar().showMessage(tr("Schritt-Anleitung beendet – es wurde kein Klick festgehalten"))
             return []
         collection = collection_name()
         self.workspace.create_collection(collection)
         entries, ids = [], []
         for number, step in enumerate(recorded, 1):
-            title = f"Schritt {number}"
+            title = tr("Schritt {number}", number=number)
             ids.append(self.workspace.add(step.image, title=title, collection=collection,
                                           metadata={"step_guide": True, "click": list(step.position), "window": step.window}))
             entries.append((title, step.image, describe(step, number)))
         self.refresh_collections()
         self.refresh()
-        self.statusBar().showMessage(f"Schritt-Anleitung: {len(recorded)} Schritte in der Sammlung „{collection}“")
+        self.statusBar().showMessage(tr("Schritt-Anleitung: {count} Schritte in der Sammlung „{collection}“",
+                                        count=len(recorded), collection=collection))
         if open_designer:
             try:
                 from .document_designer import DocumentDesigner
@@ -2687,7 +2743,7 @@ class MainWindow(QMainWindow):
         from .livedraw import LiveDrawSession
         self.live_draw = LiveDrawSession(hold=float(self.settings.get("live_draw_hold", 3)), on_end=self.live_draw_ended)
         self.live_draw.start()
-        self.live_draw_action.setText("Live-Zeichnen beenden")
+        self.live_draw_action.setText(tr("Live-Zeichnen beenden"))
         return self.live_draw
 
     def live_draw_ended(self):
@@ -2695,7 +2751,7 @@ class MainWindow(QMainWindow):
             self.settings["live_draw_hold"] = self.live_draw.state.hold
             self.save_settings()
         self.live_draw = None
-        self.live_draw_action.setText("Live-Zeichnen auf dem Bildschirm")
+        self.live_draw_action.setText(tr("Live-Zeichnen auf dem Bildschirm"))
 
     # --- Befehlssuche ------------------------------------------------------------------------
     def command_entries(self):
@@ -2703,10 +2759,10 @@ class MainWindow(QMainWindow):
         extras = getattr(self, "_palette_extras", None)
         if extras is None:
             extras = []
-            for label, callback in (("Bereich aufnehmen", lambda: self.capture("region")), ("Bildschirm aufnehmen", lambda: self.capture("screen")),
-                                    ("Fenster aufnehmen", lambda: self.capture("window")), ("Bearbeiten (Editor öffnen)", self.edit_selected),
-                                    ("Exportieren …", self.export_selected), ("Dokument erstellen …", self.document_export),
-                                    ("Einstellungen …", self.preferences)):
+            for label, callback in ((tr("Bereich aufnehmen"), lambda: self.capture("region")), (tr("Bildschirm aufnehmen"), lambda: self.capture("screen")),
+                                    (tr("Fenster aufnehmen"), lambda: self.capture("window")), (tr("Bearbeiten (Editor öffnen)"), self.edit_selected),
+                                    (tr("Exportieren …"), self.export_selected), (tr("Dokument erstellen …"), self.document_export),
+                                    (tr("Einstellungen …"), self.preferences)):
                 action = QAction(label, self)
                 action.triggered.connect(lambda _=False, c=callback: c())
                 extras.append(action)
@@ -2729,7 +2785,7 @@ class MainWindow(QMainWindow):
 
         def show(report):
             cleanup_dialog(self, self.workspace, report, on_change=lambda: (self.refresh_collections(), self.refresh())).exec()
-        self.task(lambda: scan(self.workspace), show, "Aufnahmen werden geprüft …")
+        self.task(lambda: scan(self.workspace), show, tr("Aufnahmen werden geprüft …"))
 
     def toggle_timelapse(self):
         if self.timelapse is not None:
@@ -2743,30 +2799,30 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QFormLayout
         from .timelapse import describe
         dialog = QDialog(self)
-        dialog.setWindowTitle("Zeitraffer")
+        dialog.setWindowTitle(tr("Zeitraffer"))
         form = QFormLayout(dialog)
         dialog.target = QComboBox()
-        dialog.target.addItem("Gewählter Monitor", "monitor")
-        dialog.target.addItem("Bereich auswählen", "region")
+        dialog.target.addItem(tr("Gewählter Monitor"), "monitor")
+        dialog.target.addItem(tr("Bereich auswählen"), "region")
         if self.settings.get("last_region") and self.settings.get("last_region_platform") == sys.platform:
-            dialog.target.addItem("Zuletzt aufgenommener Bereich", "previous")
-        form.addRow("Aufnahmebereich", dialog.target)
+            dialog.target.addItem(tr("Zuletzt aufgenommener Bereich"), "previous")
+        form.addRow(tr("Aufnahmebereich"), dialog.target)
         dialog.interval = QSpinBox()
         dialog.interval.setRange(1, 600)
         dialog.interval.setSuffix(" s")
         dialog.interval.setValue(int(self.settings.get("timelapse_interval", 5)))
-        form.addRow("Ein Bild alle", dialog.interval)
+        form.addRow(tr("Ein Bild alle"), dialog.interval)
         dialog.fps = QSpinBox()
         dialog.fps.setRange(5, 60)
         dialog.fps.setValue(int(self.settings.get("timelapse_fps", 30)))
-        form.addRow("Bilder pro Sekunde im Video", dialog.fps)
+        form.addRow(tr("Bilder pro Sekunde im Video"), dialog.fps)
         dialog.max_minutes = QSpinBox()
         dialog.max_minutes.setRange(0, 24 * 60)
         dialog.max_minutes.setSuffix(" min")
-        dialog.max_minutes.setSpecialValueText("unbegrenzt")
+        dialog.max_minutes.setSpecialValueText(tr("unbegrenzt"))
         dialog.max_minutes.setValue(int(self.settings.get("timelapse_max_minutes", 0)))
-        form.addRow("Höchstdauer", dialog.max_minutes)
-        dialog.cursor = QCheckBox("Mauszeiger mit aufnehmen")
+        form.addRow(tr("Höchstdauer"), dialog.max_minutes)
+        dialog.cursor = QCheckBox(tr("Mauszeiger mit aufnehmen"))
         dialog.cursor.setChecked(bool(self.settings.get("capture_cursor")))
         form.addRow(dialog.cursor)
         dialog.preview = QLabel()
@@ -2776,13 +2832,13 @@ class MainWindow(QMainWindow):
         dialog.fps.valueChanged.connect(update)
         update()
         form.addRow(dialog.preview)
-        note = QLabel("Stoppen über das Tray-Symbol, „Mehr → Zeitraffer stoppen“ oder das Tastenkürzel. "
-                      "Das Video erscheint danach im Arbeitsbereich.")
+        note = QLabel(tr("Stoppen über das Tray-Symbol, „Mehr → Zeitraffer stoppen“ oder das Tastenkürzel. "
+                      "Das Video erscheint danach im Arbeitsbereich."))
         note.setWordWrap(True)
         form.addRow(note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Zeitraffer starten")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Abbrechen")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("Zeitraffer starten"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("Abbrechen"))
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
@@ -2811,7 +2867,7 @@ class MainWindow(QMainWindow):
     def begin_timelapse(self, region, grab=None):
         options = dict(getattr(self, "pending_timelapse", None) or {})
         if not region:
-            self.fail("Kein Bereich für den Zeitraffer ausgewählt.")
+            self.fail(tr("Kein Bereich für den Zeitraffer ausgewählt."))
             return None
         from .timelapse import Timelapse
         if grab is None:
@@ -2826,12 +2882,12 @@ class MainWindow(QMainWindow):
             self.timelapse = None
             self.fail(str(exc))
             return None
-        self.timelapse_action.setText("Zeitraffer stoppen")
+        self.timelapse_action.setText(tr("Zeitraffer stoppen"))
         self.timelapse_timer.start(1000)
-        self.statusBar().showMessage("Zeitraffer läuft")
+        self.statusBar().showMessage(tr("Zeitraffer läuft"))
         if self.tray.isVisible():
             self.hide()
-            self.tray.showMessage("screenkaffee", "Zeitraffer läuft. Stoppen über das Tray-Symbol oder „Mehr → Zeitraffer stoppen“.")
+            self.tray.showMessage("screenkaffee", tr("Zeitraffer läuft. Stoppen über das Tray-Symbol oder „Mehr → Zeitraffer stoppen“."))
         else:
             self.showMinimized()
         return self.timelapse
@@ -2845,14 +2901,14 @@ class MainWindow(QMainWindow):
             self.stop_timelapse()
             return
         minutes, seconds = divmod(int(lapse.elapsed()), 60)
-        text = f"Zeitraffer läuft · {lapse.frames} Bilder · {minutes}:{seconds:02d}"
+        text = tr("Zeitraffer läuft · {frames} Bilder · {time}", frames=lapse.frames, time=f"{minutes}:{seconds:02d}")
         self.statusBar().showMessage(text)
         self.tray.setToolTip("screenkaffee · " + text)
 
     def stop_timelapse(self):
         lapse, self.timelapse = self.timelapse, None
         self.timelapse_timer.stop()
-        self.timelapse_action.setText("Zeitraffer starten …")
+        self.timelapse_action.setText(tr("Zeitraffer starten …"))
         self.tray.setToolTip("screenkaffee")
         if lapse is None:
             return
@@ -2861,12 +2917,12 @@ class MainWindow(QMainWindow):
         def done(path):
             self.import_video_path(str(path))
             note = f" ({reason})" if reason else ""
-            self.statusBar().showMessage(f"Zeitraffer gespeichert: {lapse.frames} Bilder{note}")
+            self.statusBar().showMessage(tr("Zeitraffer gespeichert: {frames} Bilder{note}", frames=lapse.frames, note=note))
             if self.exit_requested:
                 QTimer.singleShot(250, self.finish_exit_when_idle)
         if not self.exit_requested:
             self.restore()
-        self.task(lapse.render, done, "Zeitraffer wird erstellt …")
+        self.task(lapse.render, done, tr("Zeitraffer wird erstellt …"))
 
     def pause_video(self):
         if self.recording_busy or not self.recorder.active:
@@ -2875,16 +2931,16 @@ class MainWindow(QMainWindow):
         self.recording_busy = True
         self.video_button.setEnabled(False)
         operation = self.recorder.resume if self.recorder.paused else self.recorder.pause
-        self.task(operation, self.pause_finished, "Videoaufnahme wird pausiert / fortgesetzt …")
+        self.task(operation, self.pause_finished, tr("Videoaufnahme wird pausiert / fortgesetzt …"))
 
     def pause_finished(self, result):
         self.recording_busy = False
         self.video_button.setEnabled(True)
         if self.recorder.paused:
-            self.video_button.setText("■ Pausierte Aufnahme speichern")
-            self.statusBar().showMessage("Video pausiert · Mehr → Video pausieren / fortsetzen")
+            self.video_button.setText(tr("■ Pausierte Aufnahme speichern"))
+            self.statusBar().showMessage(tr("Video pausiert · Mehr → Video pausieren / fortsetzen"))
         else:
-            self.video_button.setText("■ Aufnahme stoppen")
+            self.video_button.setText(tr("■ Aufnahme stoppen"))
             self.record_timer.start(500)
 
     def check_recording(self):
@@ -2892,7 +2948,7 @@ class MainWindow(QMainWindow):
         if error:
             self.record_timer.stop()
             self.end_recording_extras()
-            self.video_button.setText("● Video")
+            self.video_button.setText(tr("● Video"))
             if self.camera_overlay:
                 self.camera_overlay.close()
                 self.camera_overlay = None
@@ -2909,12 +2965,22 @@ class MainWindow(QMainWindow):
             finished = updater.finish_previous(keep_previous=self.settings.get("update_keep_previous", True))
         except OSError:
             finished = None
-        if finished is not None:
-            self.show_update_result(finished)
-        elif not self.settings.get("setup_done") and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
-            self.first_run_setup()
-        if not self.settings.get("tour_done") and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
-            self.schedule_tour()
+        if finished is None and self.settings.get("pending_update_notes"):
+            finished = self.settings.pop("pending_update_notes")      # vor einem Sprach-Neustart gemerkt
+            self.save_settings()
+        interactive = os.environ.get("QT_QPA_PLATFORM") != "offscreen"
+
+        def welcome():
+            if finished is not None:
+                self.show_update_result(finished)
+            elif not self.settings.get("setup_done") and interactive:
+                self.first_run_setup()
+            if not self.settings.get("tour_done") and interactive:
+                self.schedule_tour()
+        if interactive and not self.settings.get("language_asked"):
+            self.ask_language(then=welcome, notes=finished)
+        else:
+            welcome()
         mode = self.settings.get("update_mode", "off")
         if mode in ("ask", "auto") and "update" not in self.policy["disabled"]:
             from shiboken6 import isValid
@@ -2950,19 +3016,19 @@ class MainWindow(QMainWindow):
 
     def show_update_result(self, info):
         if info.get("error"):
-            QMessageBox.warning(self, "Update", "Das Update konnte nicht installiert werden; die bisherige Version läuft "
-                                "unverändert weiter.\n\n" + info["error"])
+            QMessageBox.warning(self, tr("Update"), tr("Das Update konnte nicht installiert werden; die bisherige Version läuft "
+                                "unverändert weiter.") + "\n\n" + info["error"])
             return None
         from . import __version__
         from PySide6.QtWidgets import QTextBrowser
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Neu in screenkaffee {__version__}")
+        dialog.setWindowTitle(tr("Neu in screenkaffee {version}", version=__version__))
         dialog.resize(620, 480)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel(f"screenkaffee wurde auf Version {__version__} aktualisiert. Das ist neu:"))
+        layout.addWidget(QLabel(tr("screenkaffee wurde auf Version {version} aktualisiert. Das ist neu:", version=__version__)))
         browser = QTextBrowser()
         browser.setOpenExternalLinks(True)
-        browser.setMarkdown(info.get("notes") or "Für diese Version gibt es keine Release-Notizen.")
+        browser.setMarkdown(info.get("notes") or tr("Für diese Version gibt es keine Release-Notizen."))
         layout.addWidget(browser)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(dialog.accept)
@@ -2975,7 +3041,7 @@ class MainWindow(QMainWindow):
         if manual and self.blocked("update"):
             return
         if self.update_busy or self.pending_update:
-            self.statusBar().showMessage("Ein Update wird bereits geladen oder wartet auf den Neustart.", 8000)
+            self.statusBar().showMessage(tr("Ein Update wird bereits geladen oder wartet auf den Neustart."), 8000)
             return
         from . import updater
         repo = self.settings.get("update_repo") or updater.REPOSITORY
@@ -2985,39 +3051,39 @@ class MainWindow(QMainWindow):
             except updater.UpdateError as exc:
                 return exc
         self.update_busy = True
-        self.task(operation, lambda result: self.update_checked(result, auto, quiet), "Suche nach Updates …")
+        self.task(operation, lambda result: self.update_checked(result, auto, quiet), tr("Suche nach Updates …"))
 
     def update_checked(self, result, auto=False, quiet=False):
         from . import __version__, updater
         self.update_busy = False
         if isinstance(result, Exception):
             if quiet:
-                self.statusBar().showMessage("Update-Prüfung: " + str(result), 15000)
+                self.statusBar().showMessage(tr("Update-Prüfung: {error}", error=result), 15000)
             else:
-                QMessageBox.warning(self, "Updates", str(result))
+                QMessageBox.warning(self, tr("Updates"), str(result))
             return
         if result.version <= updater.current_version():
             self.show_version()
-            self.statusBar().showMessage(f"screenkaffee {__version__} ist aktuell.", 8000)
+            self.statusBar().showMessage(tr("screenkaffee {version} ist aktuell.", version=__version__), 8000)
             if not quiet:
-                QMessageBox.information(self, "Updates", f"screenkaffee {__version__} ist die neueste Version.")
+                QMessageBox.information(self, tr("Updates"), tr("screenkaffee {version} ist die neueste Version.", version=__version__))
             return
         self.show_version(result.tag)
         variant = updater.installed_variant()
         if variant is None:
-            text = f"screenkaffee {result.tag} ist verfügbar. Diese Quellcode-Version wird mit „git pull“ aktualisiert."
+            text = tr("screenkaffee {tag} ist verfügbar. Diese Quellcode-Version wird mit „git pull“ aktualisiert.", tag=result.tag)
             self.statusBar().showMessage(text, 15000)
             if not quiet:
-                QMessageBox.information(self, "Updates", f"{text}\n\n{result.url}")
+                QMessageBox.information(self, tr("Updates"), f"{text}\n\n{result.url}")
             return
         if not auto:
             size = result.assets.get(updater.ASSETS[variant], {}).get("size", 0)
-            box = QMessageBox(QMessageBox.Icon.Question, "Update verfügbar",
-                              f"screenkaffee {result.tag} ist verfügbar (installiert: {__version__}, Download "
-                              f"{size / 1e6:.0f} MB).\n\nJetzt herunterladen und installieren? screenkaffee startet "
-                              "dafür einmal neu; Aufnahmen und Einstellungen bleiben erhalten.",
+            box = QMessageBox(QMessageBox.Icon.Question, tr("Update verfügbar"),
+                              tr("screenkaffee {tag} ist verfügbar (installiert: {version}, Download {size} MB).\n\n"
+                                 "Jetzt herunterladen und installieren? screenkaffee startet dafür einmal neu; Aufnahmen und "
+                                 "Einstellungen bleiben erhalten.", tag=result.tag, version=__version__, size=f"{size / 1e6:.0f}"),
                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
-            box.setDetailedText(result.notes or "Keine Release-Notizen.")
+            box.setDetailedText(result.notes or tr("Keine Release-Notizen."))
             if box.exec() != QMessageBox.StandardButton.Yes:
                 return
         self.download_update(result, variant, auto)
@@ -3029,25 +3095,24 @@ class MainWindow(QMainWindow):
             if addons.ensure_speech(None, self.workspace.root):
                 return True
         except OSError as exc:
-            QMessageBox.warning(parent, "Untertitel", f"Die Untertitel-Erweiterung konnte nicht eingerichtet werden:\n{exc}")
+            QMessageBox.warning(parent, tr("Untertitel"), tr("Die Untertitel-Erweiterung konnte nicht eingerichtet werden:\n{error}", error=exc))
             return False
         if addons.speech_status(None, self.workspace.root) == "unsupported":
-            QMessageBox.information(parent, "Untertitel", "Die lokale Untertitel-Erkennung gibt es für dieses Paket nicht "
-                                    "(Windows ARM64). SRT-Dateien lassen sich weiterhin öffnen, bearbeiten und einbetten.")
+            QMessageBox.information(parent, tr("Untertitel"), tr("Die lokale Untertitel-Erkennung gibt es für dieses Paket nicht "
+                                    "(Windows ARM64). SRT-Dateien lassen sich weiterhin öffnen, bearbeiten und einbetten."))
             return False
         if getattr(self, "speech_download", None) is not None:
-            QMessageBox.information(parent, "Untertitel", "Die Untertitel-Erweiterung wird gerade geladen.")
+            QMessageBox.information(parent, tr("Untertitel"), tr("Die Untertitel-Erweiterung wird gerade geladen."))
             return False
-        answer = QMessageBox.question(parent, "Untertitel-Erweiterung laden?",
-            "Die lokale Untertitel-Erkennung (Whisper) ist eine optionale Erweiterung "
-            f"({addons.SPEECH_SIZE_HINT}). Sie wird einmal aus dem GitHub-Release dieser Version geladen, "
-            "per SHA256 geprüft und im Datenordner abgelegt. Die Erkennung selbst läuft danach komplett lokal.\n\n"
-            "Jetzt herunterladen?")
+        answer = QMessageBox.question(parent, tr("Untertitel-Erweiterung laden?"),
+            tr("Die lokale Untertitel-Erkennung (Whisper) ist eine optionale Erweiterung ({size}). Sie wird einmal aus "
+               "dem GitHub-Release dieser Version geladen, per SHA256 geprüft und im Datenordner abgelegt. Die Erkennung "
+               "selbst läuft danach komplett lokal.\n\nJetzt herunterladen?", size=tr(addons.SPEECH_SIZE_HINT)))
         if answer != QMessageBox.StandardButton.Yes:
             return False
         from .progress import Cancelled
         repo = self.settings.get("update_repo") or updater.REPOSITORY
-        progress, window = self.download_window("Untertitel-Erweiterung", "Untertitel-Erweiterung wird geladen", parent)
+        progress, window = self.download_window(tr("Untertitel-Erweiterung"), tr("Untertitel-Erweiterung wird geladen"), parent)
         self.speech_download = progress.state
         self.speech_window = window
         def operation():
@@ -3061,58 +3126,59 @@ class MainWindow(QMainWindow):
             target = parent if isValid(parent) else self
             if isinstance(result, Cancelled):
                 if isValid(window):
-                    window.finish("Abgebrochen. Die Erweiterung lässt sich später erneut laden.", success=False)
-                self.statusBar().showMessage("Untertitel-Erweiterung abgebrochen", 8000)
+                    window.finish(tr("Abgebrochen. Die Erweiterung lässt sich später erneut laden."), success=False)
+                self.statusBar().showMessage(tr("Untertitel-Erweiterung abgebrochen"), 8000)
                 return
             if isinstance(result, Exception):
                 if isValid(window):
-                    window.finish("Die Untertitel-Erweiterung konnte nicht geladen werden.", success=False)
-                self.statusBar().showMessage("Untertitel-Erweiterung nicht geladen")
-                QMessageBox.warning(target, "Untertitel", f"Die Untertitel-Erweiterung konnte nicht geladen werden:\n{result}")
+                    window.finish(tr("Die Untertitel-Erweiterung konnte nicht geladen werden."), success=False)
+                self.statusBar().showMessage(tr("Untertitel-Erweiterung nicht geladen"))
+                QMessageBox.warning(target, tr("Untertitel"), tr("Die Untertitel-Erweiterung konnte nicht geladen werden:\n{error}", error=result))
                 return
             if isValid(window):
-                window.finish("Fertig – die Untertitel-Erweiterung ist eingerichtet.")
-            self.statusBar().showMessage("Untertitel-Erweiterung installiert", 10000)
+                window.finish(tr("Fertig – die Untertitel-Erweiterung ist eingerichtet."))
+            self.statusBar().showMessage(tr("Untertitel-Erweiterung installiert"), 10000)
             if isValid(parent):
                 then()
-        self.task(operation, finished, "Untertitel-Erweiterung wird geladen und geprüft …")
+        self.task(operation, finished, tr("Untertitel-Erweiterung wird geladen und geprüft …"))
         return False
 
     def remove_speech_addon(self, label=None):
         from . import addons
-        if QMessageBox.question(self, "Untertitel-Erweiterung", "Die Untertitel-Erweiterung entfernen? "
-                                "Sie lässt sich jederzeit wieder laden.") != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, tr("Untertitel-Erweiterung"), tr("Die Untertitel-Erweiterung entfernen? "
+                                "Sie lässt sich jederzeit wieder laden.")) != QMessageBox.StandardButton.Yes:
             return 0
         freed = addons.remove_speech(self.workspace.root)
         if label is not None:
             label.setText(self.speech_status_text())
-        self.statusBar().showMessage(f"Untertitel-Erweiterung entfernt ({freed / 1e6:.0f} MB frei)")
+        self.statusBar().showMessage(tr("Untertitel-Erweiterung entfernt ({size} MB frei)", size=f"{freed / 1e6:.0f}"))
         return freed
 
     def speech_status_text(self):
         from . import addons
         status = addons.speech_status(None, self.workspace.root)
-        return {"builtin": "Untertitel-Erkennung: in dieser Quellcode-Version direkt verfügbar.",
-                "installed": "Untertitel-Erweiterung: installiert.",
-                "cached": "Untertitel-Erweiterung: im Datenordner vorhanden, wird beim nächsten Gebrauch eingerichtet.",
-                "missing": f"Untertitel-Erweiterung: nicht installiert ({addons.SPEECH_SIZE_HINT}) – wird im Video-Editor "
-                           "bei „Untertitel lokal erzeugen“ angeboten.",
-                "unsupported": "Untertitel-Erkennung: für dieses Paket nicht verfügbar."}[status]
+        return {"builtin": tr("Untertitel-Erkennung: in dieser Quellcode-Version direkt verfügbar."),
+                "installed": tr("Untertitel-Erweiterung: installiert."),
+                "cached": tr("Untertitel-Erweiterung: im Datenordner vorhanden, wird beim nächsten Gebrauch eingerichtet."),
+                "missing": tr("Untertitel-Erweiterung: nicht installiert ({size}) – wird im Video-Editor "
+                              "bei „Untertitel lokal erzeugen“ angeboten.", size=tr(addons.SPEECH_SIZE_HINT)),
+                "unsupported": tr("Untertitel-Erkennung: für dieses Paket nicht verfügbar.")}[status]
 
     def show_version(self, available=None):
         """Version unten rechts; mit `available` zusätzlich der Hinweis auf ein neueres Release."""
         from . import __version__
         if available:
-            self.version_button.setText(f"Version {__version__} · Update {available.lstrip('v')} verfügbar")
-            self.version_button.setToolTip("Klicken, um das Update zu laden")
+            self.version_button.setText(tr("Version {version} · Update {available} verfügbar", version=__version__,
+                                           available=available.lstrip("v")))
+            self.version_button.setToolTip(tr("Klicken, um das Update zu laden"))
         else:
-            self.version_button.setText(f"Version {__version__}")
-            self.version_button.setToolTip("Installierte Version – klicken, um nach Updates zu suchen")
+            self.version_button.setText(tr("Version {version}", version=__version__))
+            self.version_button.setToolTip(tr("Installierte Version – klicken, um nach Updates zu suchen"))
 
     def download_window(self, title, heading, parent=None):
         """Fortschrittsfenster + Zustand für einen Download in zwei Schritten (laden/prüfen, entpacken)."""
         from .progress import Progress, ProgressWindow
-        progress = Progress([("download", 0.85, "Herunterladen und prüfen"), ("extract", 0.15, "Entpacken")])
+        progress = Progress([("download", 0.85, N_("Herunterladen und prüfen")), ("extract", 0.15, N_("Entpacken"))])
         window = ProgressWindow(title, heading, progress, parent or self)
         timer = QTimer(window)
         timer.timeout.connect(lambda: self.statusBar().showMessage(window.status_line())
@@ -3124,7 +3190,7 @@ class MainWindow(QMainWindow):
     def download_update(self, release, variant, auto=False):
         from . import updater
         from .progress import Cancelled
-        progress, window = self.download_window("Update", f"screenkaffee {release.tag.lstrip('v')} wird geladen")
+        progress, window = self.download_window(tr("Update"), tr("screenkaffee {version} wird geladen", version=release.tag.lstrip("v")))
         self.update_window = window
         def operation():
             try:
@@ -3133,7 +3199,7 @@ class MainWindow(QMainWindow):
                 return exc
         self.update_busy = True
         self.task(operation, lambda result: self.update_downloaded(result, release, variant, auto),
-                  f"Update {release.tag} wird geladen und geprüft …")
+                  tr("Update {tag} wird geladen und geprüft …", tag=release.tag))
 
     def update_downloaded(self, result, release, variant, auto=False):
         from .progress import Cancelled
@@ -3141,20 +3207,20 @@ class MainWindow(QMainWindow):
         window = getattr(self, "update_window", None)
         if isinstance(result, Cancelled):
             if window is not None:
-                window.finish("Update abgebrochen. Es wurde nichts verändert.", success=False)
-            self.statusBar().showMessage("Update abgebrochen", 8000)
+                window.finish(tr("Update abgebrochen. Es wurde nichts verändert."), success=False)
+            self.statusBar().showMessage(tr("Update abgebrochen"), 8000)
             return
         if isinstance(result, Exception):
             if window is not None:
-                window.finish("Das Update konnte nicht geladen werden.", success=False)
+                window.finish(tr("Das Update konnte nicht geladen werden."), success=False)
             if auto:
-                self.statusBar().showMessage("Update fehlgeschlagen: " + str(result), 15000)
+                self.statusBar().showMessage(tr("Update fehlgeschlagen: {error}", error=result), 15000)
             else:
-                QMessageBox.warning(self, "Updates", f"Das Update konnte nicht vorbereitet werden:\n{result}")
+                QMessageBox.warning(self, tr("Updates"), tr("Das Update konnte nicht vorbereitet werden:\n{error}", error=result))
             return
         self.pending_update = (result, variant, release.tag)
         if window is not None:
-            window.finish("Fertig geladen und geprüft. screenkaffee startet gleich neu und installiert das Update …")
+            window.finish(tr("Fertig geladen und geprüft. screenkaffee startet gleich neu und installiert das Update …"))
             window.show()
         QTimer.singleShot(500, self.restart_for_update)
 
@@ -3169,15 +3235,15 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(500, lambda: self.restart_for_update(attempts - 1))     # z. B. der Download-Thread endet gerade
             return
         if self.tasks or busy:
-            text = f"Update {tag} ist bereit und wird beim Beenden von screenkaffee installiert."
+            text = tr("Update {tag} ist bereit und wird beim Beenden von screenkaffee installiert.", tag=tag)
             window = getattr(self, "update_window", None)
             if window is not None and window.finished_text is not None:
-                window.finish(text + " Gerade ist noch ein Editor, eine Aufnahme oder ein Video offen.")
+                window.finish(text + tr(" Gerade ist noch ein Editor, eine Aufnahme oder ein Video offen."))
             self.statusBar().showMessage(text, 30000)
             if self.tray.isVisible():
                 self.tray.showMessage("screenkaffee", text)
             return
-        self.statusBar().showMessage(f"Update {tag} wird installiert, screenkaffee startet gleich neu …")
+        self.statusBar().showMessage(tr("Update {tag} wird installiert, screenkaffee startet gleich neu …", tag=tag))
         self.quit_app()
 
     def restore_previous_version(self):
@@ -3186,18 +3252,19 @@ class MainWindow(QMainWindow):
         from . import __version__, updater
         info = updater.previous_version()
         if info is None:
-            QMessageBox.information(self, "Vorige Version", "Es ist keine vorige Version vorhanden. screenkaffee "
-                                    "bewahrt sie beim nächsten Update auf.")
+            QMessageBox.information(self, tr("Vorige Version"), tr("Es ist keine vorige Version vorhanden. screenkaffee "
+                                    "bewahrt sie beim nächsten Update auf."))
             return
-        answer = QMessageBox.question(self, "Vorige Version wiederherstellen",
-            f"screenkaffee {info['version']} wiederherstellen (installiert: {__version__})?\n\nscreenkaffee startet "
-            "dafür neu. Aufnahmen und Einstellungen bleiben erhalten; automatische Updates werden ausgeschaltet.")
+        answer = QMessageBox.question(self, tr("Vorige Version wiederherstellen"),
+            tr("screenkaffee {previous} wiederherstellen (installiert: {version})?\n\nscreenkaffee startet dafür neu. "
+               "Aufnahmen und Einstellungen bleiben erhalten; automatische Updates werden ausgeschaltet.",
+               previous=info["version"], version=__version__))
         if answer != QMessageBox.StandardButton.Yes:
             return
         try:
             package = updater.prepare_restore()
         except (updater.UpdateError, OSError) as exc:
-            QMessageBox.warning(self, "Vorige Version", str(exc))
+            QMessageBox.warning(self, tr("Vorige Version"), str(exc))
             return
         self.settings["update_mode"] = "off"
         self.save_settings()
@@ -3216,10 +3283,10 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QFormLayout
         from . import autostart, updater
         dialog = QDialog(self)
-        dialog.setWindowTitle("Willkommen bei screenkaffee")
+        dialog.setWindowTitle(tr("Willkommen bei screenkaffee"))
         dialog.resize(560, 0)
         layout = QVBoxLayout(dialog)
-        intro = QLabel("Drei kurze Fragen, dann kann es losgehen. Alles lässt sich später unter Einstellungen ändern.")
+        intro = QLabel(tr("Drei kurze Fragen, dann kann es losgehen. Alles lässt sich später unter Einstellungen ändern."))
         intro.setWordWrap(True)
         layout.addWidget(intro)
         form = QFormLayout()
@@ -3227,11 +3294,10 @@ class MainWindow(QMainWindow):
         if sys.platform == "win32":
             dialog.hotkey = QComboBox()
             dialog.hotkey.setEditable(True)
-            dialog.hotkey.addItems(["Druck", "Strg+Druck", "Umschalt+Druck", "Strg+Umschalt+S", "F9", ""])
-            from .hotkeys import display_hotkey
+            dialog.hotkey.addItems([display_hotkey(key) for key in ("Print", "Ctrl+Print", "Shift+Print", "Ctrl+Shift+S", "F9")] + [""])
             current = self.settings["hotkeys"].get("region", "")
             dialog.hotkey.setCurrentText(display_hotkey(current) if current else "")
-            form.addRow("Taste für Bereichsaufnahme", dialog.hotkey)
+            form.addRow(tr("Taste für Bereichsaufnahme"), dialog.hotkey)
         else:
             binding = QLineEdit("bind = , Print, exec, " + self.capture_command())
             binding.setReadOnly(True)
@@ -3240,7 +3306,7 @@ class MainWindow(QMainWindow):
             row = QHBoxLayout()
             row.addWidget(binding, 1)
             row.addWidget(copy)
-            hint = QLabel("Unter Omarchy/Hyprland legst du die Aufnahmetaste in ~/.config/hypr/hyprland.conf fest:")
+            hint = QLabel(tr("Unter Omarchy/Hyprland legst du die Aufnahmetaste in ~/.config/hypr/hyprland.conf fest:"))
             hint.setWordWrap(True)
             form.addRow(hint)
             form.addRow(row)
@@ -3249,25 +3315,25 @@ class MainWindow(QMainWindow):
             autostart_now = autostart.is_enabled()
         except OSError:
             autostart_now = False
-        dialog.autostart = QCheckBox("Beim Anmelden automatisch starten (im Infobereich, ohne Fenster)")
+        dialog.autostart = QCheckBox(tr("Beim Anmelden automatisch starten (im Infobereich, ohne Fenster)"))
         dialog.autostart.setChecked(autostart_now)
         form.addRow(dialog.autostart)
         dialog.update_mode = QComboBox()
         for value, label in updater.MODES:
-            dialog.update_mode.addItem(label, value)
+            dialog.update_mode.addItem(tr(label), value)
         dialog.update_mode.setCurrentIndex(max(0, dialog.update_mode.findData(self.settings.get("update_mode", "off"))))
-        form.addRow("Updates", dialog.update_mode)
+        form.addRow(tr("Updates"), dialog.update_mode)
         layout.addLayout(form)
         buttons = QDialogButtonBox()
-        buttons.addButton("Fertig", QDialogButtonBox.ButtonRole.AcceptRole)
-        buttons.addButton("Später", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.addButton(tr("Fertig"), QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton(tr("Später"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
 
         def accepted():
             if dialog.hotkey is not None:
-                self.settings["hotkeys"]["region"] = dialog.hotkey.currentText().strip()
+                self.settings["hotkeys"]["region"] = hotkey_for_settings(dialog.hotkey.currentText(), current)
                 problems = self.apply_hotkeys()
                 if problems:
                     self.report_hotkey_problems(problems)
@@ -3275,7 +3341,7 @@ class MainWindow(QMainWindow):
                 try:
                     autostart.set_enabled(dialog.autostart.isChecked())
                 except OSError as exc:
-                    QMessageBox.warning(self, "Autostart", f"Der Autostart konnte nicht geändert werden:\n{exc}")
+                    QMessageBox.warning(self, tr("Autostart"), tr("Der Autostart konnte nicht geändert werden:\n{error}", error=exc))
             self.settings["update_mode"] = dialog.update_mode.currentData()
 
         def finished(_result):
@@ -3289,7 +3355,7 @@ class MainWindow(QMainWindow):
 
     def launch_pending_update(self):
         if not self.pending_update:
-            return
+            return False
         from . import updater
         package, variant, _ = self.pending_update
         self.pending_update = None
@@ -3300,26 +3366,142 @@ class MainWindow(QMainWindow):
             updater.launch_helper(updater.helper_command(package, variant, root, os.getpid(), custom))
         except OSError:
             logging.warning("Update-Helfer konnte nicht gestartet werden", exc_info=True)
+            return False
+        return True
+
+    # --- Sprache und Neustart --------------------------------------------------------------------------
+    def ask_language(self, then=None, notes=None):
+        """Einmalige, zweisprachige Frage nach der Sprache (erster Start bzw. erstes Update auf 1.2).
+
+        Die Wahl landet in settings["language"]; weicht sie von der laufenden Sprache ab, startet screenkaffee neu
+        und setzt danach mit Einrichtung/Tour fort. `notes` (Release-Notizen nach einem Update) überleben den Neustart."""
+        from PySide6.QtWidgets import QRadioButton
+        from . import i18n
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Sprache wählen / Choose language")  # i18n: ignore (bewusst zweisprachig)
+        dialog.setMinimumWidth(420)
+        layout = QVBoxLayout(dialog)
+        question = QLabel("In welcher Sprache soll screenkaffee erscheinen?\n"  # i18n: ignore
+                          "Which language would you like to use for screenkaffee?")
+        question.setWordWrap(True)
+        layout.addWidget(question)
+        dialog.german = QRadioButton("Deutsch")
+        dialog.english = QRadioButton("English")
+        preferred = self.settings.get("language")
+        preferred = preferred if preferred in ("de", "en") else i18n.system_language()
+        (dialog.english if preferred == "en" else dialog.german).setChecked(True)
+        layout.addWidget(dialog.german)
+        layout.addWidget(dialog.english)
+        hint = QLabel("Später änderbar unter Einstellungen · Can be changed later in Settings")  # i18n: ignore
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.choice = None
+
+        def accepted():
+            dialog.choice = "en" if dialog.english.isChecked() else "de"
+
+        def finished(_result):
+            if dialog.choice is None:                  # Fenster geschlossen: Sprache bleibt, nicht erneut fragen
+                self.settings["language_asked"] = True
+                self.save_settings()
+                if then is not None:
+                    then()
+                return
+            self.choose_language(dialog.choice, then, notes)
+        dialog.accepted.connect(accepted)
+        dialog.finished.connect(finished)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.language_dialog = dialog
+        dialog.open()
+        return dialog
+
+    def choose_language(self, code, then=None, notes=None):
+        """Sprache speichern; True, wenn dafür neu gestartet wird (sonst geht es mit `then` weiter)."""
+        from . import i18n
+        self.settings["language"] = code
+        self.settings["language_asked"] = True
+        if code != i18n.language() and notes is not None:
+            self.settings["pending_update_notes"] = notes
+        self.save_settings()
+        if code != i18n.language() and self.restart_app():
+            return True
+        self.settings.pop("pending_update_notes", None)
+        if then is not None:
+            then()
+        return False
+
+    def offer_language_restart(self, code):
+        """Nach einem Sprachwechsel in den Einstellungen den Neustart anbieten."""
+        from . import i18n
+        if i18n.resolve(code) == i18n.language():
+            return False
+        answer = QMessageBox.question(self, tr("Sprache"), tr("Die neue Sprache gilt nach einem Neustart. "
+                                                              "screenkaffee jetzt neu starten?"))
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        return self.restart_app()
+
+    def restart_app(self):
+        """screenkaffee sauber beenden und neu starten (Paket oder Quellcode, gleicher Datenordner)."""
+        self.restart_requested = True
+        if self.quit_app() or self.exit_requested:     # bei laufendem Video/Zeitraffer folgt der Neustart danach
+            return True
+        self.restart_requested = False
+        return False
+
+    def restart_command(self):
+        """(Befehl, Arbeitsordner, Umgebung) für den Neustart. Einmalige Aktionen (--capture, Dateien,
+        --minimized, --newinstance) werden nicht wiederholt; Datenordner und --multiinstances bleiben."""
+        from . import updater
+        args = ["--multiinstances"] if "--multiinstances" in sys.argv[1:] else []
+        data = os.environ.get("SCREENKAFFEE_DATA")
+        if data:
+            args += ["--data-dir", data]
+        variant = updater.installed_variant()
+        if variant is not None:
+            root = updater.application_root()
+            return [str(root / updater.LAUNCHERS[variant]), *args], str(root), updater.clean_environment()
+        source = Path(__file__).resolve().parent.parent
+        return [sys.executable, "-m", "screenkaffee", *args], str(source), dict(os.environ)
+
+    def launch_restart(self):
+        import subprocess
+        from . import updater
+        server = getattr(self, "control_server", None)
+        if server is not None:
+            server.close()              # sonst meldet sich die neue Instanz nur hier und beendet sich wieder
+        command, folder, env = self.restart_command()
+        try:
+            subprocess.Popen(command, cwd=folder, env=env, close_fds=True, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **updater._detached())
+        except OSError:
+            logging.warning("Neustart fehlgeschlagen: %s", command, exc_info=True)
+            return False
+        return True
 
     def about(self):
         from .parity import report
-        self.show_text("screenkaffee · Funktionsübersicht", report())
+        self.show_text(tr("screenkaffee · Funktionsübersicht"), report())
 
     def quit_app(self):
         if self.tasks or self.capture_pending:
-            QMessageBox.information(self, "Vorgang läuft", "Bitte die laufende Aufnahme oder Verarbeitung zuerst abschließen.")
-            return
+            QMessageBox.information(self, tr("Vorgang läuft"), tr("Bitte die laufende Aufnahme oder Verarbeitung zuerst abschließen."))
+            return False
         for editor in list(self.editors):
             if not editor.close():
-                return
+                return False
         if self.recorder.active:
             self.exit_requested = True
             self.toggle_video()
-            return
+            return False
         if self.timelapse is not None:
             self.exit_requested = True
             self.stop_timelapse()
-            return
+            return False
         if self.step_session is not None:
             self.step_session.cancel()
         if self.live_draw is not None:
@@ -3328,8 +3510,11 @@ class MainWindow(QMainWindow):
             self.hotkeys.close()
         self.tray.hide()
         self.workspace.close()
-        self.launch_pending_update()
+        updating = self.launch_pending_update()
+        if getattr(self, "restart_requested", False) and not updating:
+            self.launch_restart()
         QApplication.instance().quit()
+        return True
 
     def closeEvent(self, event):
         event.ignore()

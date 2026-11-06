@@ -1,41 +1,92 @@
 import sys
 from PySide6.QtCore import QAbstractNativeEventFilter, QTimer
 
+from .i18n import N_, language, tr
+
+# Gespeichert werden Tastenkürzel wie bisher als Text ("Print", "Ctrl+Alt+F8", aber auch "Strg+Umschalt+S").
+# MOD und NAMED sind die Namen, die auch ältere Versionen verstehen (wichtig für „Vorige Version wiederherstellen“).
 MOD = {"ctrl": 2, "strg": 2, "alt": 1, "shift": 4, "umschalt": 4, "meta": 8, "win": 8}
 NAMED = {"print": 0x2C, "druck": 0x2C, "pause": 0x13, "insert": 0x2D, "ins": 0x2D, "del": 0x2E, "delete": 0x2E,
          "home": 0x24, "end": 0x23, "pgup": 0x21, "pgdown": 0x22, "space": 0x20, "tab": 0x09, "return": 0x0D,
          "scrolllock": 0x91, "left": 0x25, "up": 0x26, "right": 0x27, "down": 0x28}
-ACTIONS = [("region", "Bereich aufnehmen"), ("screen", "Bildschirm aufnehmen"), ("window", "Fenster aufnehmen"),
-           ("previous", "Vorheriger Bereich"), ("all", "Alle Bildschirme"), ("scroll", "Scrollaufnahme"), ("color", "Farbpipette"),
-           ("manual-scroll", "Manuelle Scrollserie starten"), ("scroll-frame", "Scrollserie: nächstes Bild"), ("scroll-finish", "Scrollserie: fertigstellen"),
-           ("video", "Video starten / stoppen"), ("video-pause", "Video pausieren / fortsetzen"), ("timelapse", "Zeitraffer starten / stoppen"),
-           ("steps", "Schritt-Anleitung starten / beenden"), ("draw", "Live-Zeichnen ein / aus"), ("measure", "Bildschirm ausmessen (Lineal)"),
-           ("zoom-in", "Video: hineinzoomen"), ("zoom-out", "Video: herauszoomen"), ("zoom-reset", "Video: Zoom zurücksetzen")]
+# Weitere Schreibweisen (die angezeigten Namen beider Sprachen) -> Name aus NAMED.
+ALIASES = {"druck": "print", "delete": "del", "ins": "insert",
+           "print screen": "print", "printscreen": "print", "prtsc": "print", "prtscn": "print",
+           "page up": "pgup", "pageup": "pgup", "page down": "pgdown", "pagedown": "pgdown", "pgdn": "pgdown",
+           "enter": "return", "scroll lock": "scrolllock", "control": "ctrl",
+           "entf": "del", "einfg": "insert", "pos1": "home", "ende": "end", "bild auf": "pgup", "bildauf": "pgup",
+           "bild ab": "pgdown", "bildab": "pgdown", "leertaste": "space", "eingabe": "return", "rollen": "scrolllock",
+           "pfeil oben": "up", "pfeil unten": "down", "pfeil links": "left", "pfeil rechts": "right"}
+# Speicherform für Tasten, die nur über ALIASES erkannt werden (z. B. "Bild auf" -> "PgUp").
+CANONICAL = {"print": "Print", "pause": "Pause", "insert": "Insert", "del": "Del", "home": "Home", "end": "End",
+             "pgup": "PgUp", "pgdown": "PgDown", "space": "Space", "tab": "Tab", "return": "Return",
+             "scrolllock": "ScrollLock", "left": "Left", "up": "Up", "right": "Right", "down": "Down", "ctrl": "Ctrl"}
+ACTIONS = [("region", N_("Bereich aufnehmen")), ("screen", N_("Bildschirm aufnehmen")), ("window", N_("Fenster aufnehmen")),
+           ("previous", N_("Vorheriger Bereich")), ("all", N_("Alle Bildschirme")), ("scroll", N_("Scrollaufnahme")),
+           ("color", N_("Farbpipette")), ("manual-scroll", N_("Manuelle Scrollserie starten")),
+           ("scroll-frame", N_("Scrollserie: nächstes Bild")), ("scroll-finish", N_("Scrollserie: fertigstellen")),
+           ("video", N_("Video starten / stoppen")), ("video-pause", N_("Video pausieren / fortsetzen")),
+           ("timelapse", N_("Zeitraffer starten / stoppen")), ("steps", N_("Schritt-Anleitung starten / beenden")),
+           ("draw", N_("Live-Zeichnen ein / aus")), ("measure", N_("Bildschirm ausmessen (Lineal)")),
+           ("zoom-in", N_("Video: hineinzoomen")), ("zoom-out", N_("Video: herauszoomen")), ("zoom-reset", N_("Video: Zoom zurücksetzen"))]
 DEFAULT_HOTKEYS = {**{action: "" for action, _ in ACTIONS}, "region": "Print",
                    "zoom-in": "Ctrl+Alt+Up", "zoom-out": "Ctrl+Alt+Down", "zoom-reset": "Ctrl+Alt+Home"}
 DEFAULT_HOTKEYS.update({"scroll-frame": "Ctrl+Alt+F7", "scroll-finish": "Ctrl+Alt+F8", "draw": "Ctrl+Alt+D"})
 
 
+# Anzeigenamen je Sprache (Schlüssel: Name aus MOD/NAMED nach ALIASES).
 GERMAN = {"ctrl": "Strg", "strg": "Strg", "alt": "Alt", "shift": "Umschalt", "umschalt": "Umschalt", "meta": "Win", "win": "Win",
           "print": "Druck", "druck": "Druck", "up": "Pfeil oben", "down": "Pfeil unten", "left": "Pfeil links", "right": "Pfeil rechts",
           "home": "Pos1", "end": "Ende", "del": "Entf", "delete": "Entf", "insert": "Einfg", "ins": "Einfg",
-          "pgup": "Bild auf", "pgdown": "Bild ab", "space": "Leertaste", "return": "Eingabe", "scrolllock": "Rollen"}
+          "pgup": "Bild auf", "pgdown": "Bild ab", "space": "Leertaste", "return": "Eingabe", "scrolllock": "Rollen"}  # i18n: ignore (Anzeigenamen)
+ENGLISH = {"ctrl": "Ctrl", "strg": "Ctrl", "alt": "Alt", "shift": "Shift", "umschalt": "Shift", "meta": "Win", "win": "Win",
+           "print": "Print Screen", "pause": "Pause", "up": "Up", "down": "Down", "left": "Left", "right": "Right",
+           "home": "Home", "end": "End", "del": "Del", "insert": "Insert", "pgup": "Page Up", "pgdown": "Page Down",
+           "space": "Space", "tab": "Tab", "return": "Enter", "scrolllock": "Scroll Lock"}
 
 
-def display_hotkey(text):
-    """'Ctrl+Alt+F8' -> 'Strg+Alt+F8' (German key names as on the keyboard)."""
-    return "+".join(GERMAN.get(part.strip().lower(), part.strip().upper() if len(part.strip()) <= 3 else part.strip())
+def _key_name(part):
+    low = part.strip().lower()
+    return ALIASES.get(low, low)
+
+
+def display_hotkey(text, lang=None):
+    """'Ctrl+Alt+F8' -> 'Strg+Alt+F8' (deutsch) bzw. 'Ctrl+Alt+F8' (englisch): Tastennamen wie auf der Tastatur."""
+    names = ENGLISH if (lang or language()) == "en" else GERMAN
+    return "+".join(names.get(_key_name(part), part.strip().upper() if len(part.strip()) <= 3 else part.strip())
                     for part in text.split("+"))
 
 
+def storage_hotkey(text):
+    """Eingabe in Speicherform: bekannte Namen bleiben wie getippt, nur neue Schreibweisen ('Bild auf',
+    'Print Screen') werden zu Namen, die alle Versionen verstehen ('PgUp', 'Print')."""
+    parts = []
+    for part in (p.strip() for p in text.strip().split("+")):
+        low = part.lower()
+        if low in MOD or low in NAMED or low not in ALIASES:
+            parts.append(part)
+        else:
+            parts.append(CANONICAL.get(ALIASES[low], part))
+    return "+".join(parts)
+
+
+def hotkey_for_settings(entered, stored=""):
+    """Wert für settings['hotkeys'] aus einem Eingabefeld, das display_hotkey(stored) zeigte: unverändert bleibt
+    der gespeicherte Text erhalten, sonst wird die Eingabe (deutsch oder englisch) übernommen."""
+    entered = entered.strip()
+    if stored and entered == display_hotkey(stored):
+        return stored
+    return storage_hotkey(entered) if entered else ""
+
+
 def action_label(action):
-    return dict(ACTIONS).get(action, action)
+    return tr(dict(ACTIONS).get(action, action))
 
 
 def parse_hotkey(text):
-    """'Ctrl+Shift+Print' -> (modifier flags, virtual-key code); ValueError if unusable."""
+    """'Ctrl+Shift+Print' oder 'Strg+Umschalt+Druck' -> (modifier flags, virtual-key code); ValueError if unusable."""
     modifiers, key = 0, None
-    for part in (p.strip().lower() for p in text.split("+")):
+    for part in (_key_name(p) for p in text.split("+")):
         if part in MOD:
             modifiers |= MOD[part]
         elif key is None and part:
@@ -46,11 +97,11 @@ def parse_hotkey(text):
             elif len(part) == 1 and part.isalnum() and part.isascii():
                 key = ord(part.upper())
             else:
-                raise ValueError("Unbekannte Taste: " + part)
+                raise ValueError(tr("Unbekannte Taste: {key}", key=part))
         else:
-            raise ValueError("Ungültiges Tastenkürzel: " + text)
+            raise ValueError(tr("Ungültiges Tastenkürzel: {hotkey}", hotkey=text))
     if key is None:
-        raise ValueError("Es fehlt eine Taste.")
+        raise ValueError(tr("Es fehlt eine Taste."))
     return modifiers, key
 
 
@@ -132,7 +183,8 @@ class WindowsHotkeys(QAbstractNativeEventFilter):
                 continue
             ident = self.BASE_ID + index
             if (modifiers, key) in used:
-                self.failed[action] = f"{action_label(action)}: {display_hotkey(text)} ist in screenkaffee bereits einer anderen Aktion zugewiesen."
+                self.failed[action] = tr("{action}: {key} ist in screenkaffee bereits einer anderen Aktion zugewiesen.",
+                                         action=action_label(action), key=display_hotkey(text))
                 continue
             used.add((modifiers, key))
             if key == 0x2C and modifiers == 0 and self.install_print_hook(action):
@@ -140,7 +192,8 @@ class WindowsHotkeys(QAbstractNativeEventFilter):
             if self.ctypes.windll.user32.RegisterHotKey(None, ident, 0x4000 | modifiers, key):
                 self.ids[ident] = action
             else:
-                self.failed[action] = f"{action_label(action)}: {display_hotkey(text)} ist bereits von Windows oder einem anderen Programm belegt."
+                self.failed[action] = tr("{action}: {key} ist bereits von Windows oder einem anderen Programm belegt.",
+                                         action=action_label(action), key=display_hotkey(text))
         self.registered = bool(self.ids or self.hook)
         return self.failed
 
