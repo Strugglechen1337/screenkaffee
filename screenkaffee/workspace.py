@@ -21,9 +21,12 @@ def portable_root():
 
 class ThumbnailCache:
     """Kleine persistente Vorschauen mit begrenzter Dateianzahl."""
-    def __init__(self, root, limit=256):
+    PRUNE_EVERY = 64
+
+    def __init__(self, root, limit=5000):
         self.root = Path(root) / "thumbnails"
         self.limit = max(1, limit)
+        self.created = 0
 
     def get(self, source):
         import hashlib
@@ -39,6 +42,10 @@ class ThumbnailCache:
         with Image.open(source) as image:
             image.thumbnail((344, 236), Image.Resampling.LANCZOS)
             image.convert("RGBA").save(target)
+        # Aufräumen nur gelegentlich, damit das erste Befüllen nicht quadratisch teuer wird.
+        self.created += 1
+        if self.limit >= self.PRUNE_EVERY and self.created % self.PRUNE_EVERY:
+            return target
         files = sorted(self.root.glob("*.png"), key=lambda path: path.stat().st_mtime_ns, reverse=True)
         for path in files[self.limit:]:
             path.unlink(missing_ok=True)
