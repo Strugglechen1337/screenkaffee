@@ -1,5 +1,6 @@
 """Zeichenobjekte (Annotation) und Geometrie-Helfer des Editors."""
 import logging
+from .i18n import tr
 import json
 import math
 import base64
@@ -516,7 +517,7 @@ class Annotation(QGraphicsItem):
         sample_box = list(self.data.get("sample_box", [
             center.x() - rect.width() / zoom / 2, center.y() - rect.height() / zoom / 2,
             center.x() + rect.width() / zoom / 2, center.y() + rect.height() / zoom / 2]))
-        self.view.undo.beginMacro("Lupenglas verschieben")
+        self.view.undo.beginMacro(tr("Lupenglas verschieben"))
         self.view.undo.push(MoveCommand(self, start, end))
         before = self.serialize()
         self.view.undo.push(DataCommand(self, before, dict(before, sample_box=sample_box)))
@@ -525,7 +526,7 @@ class Annotation(QGraphicsItem):
     def move_text_only(self, start, end):
         """Alt-drag on a speech bubble: the text box moves, the pointer tip stays where it was (one undo step)."""
         tail = self.tail_tip() - (end - start)
-        self.view.undo.beginMacro("Text verschieben")
+        self.view.undo.beginMacro(tr("Text verschieben"))
         self.view.undo.push(MoveCommand(self, start, end))
         before = self.serialize()
         self.view.undo.push(DataCommand(self, before, dict(before, tail=[tail.x(), tail.y()])))
@@ -540,7 +541,7 @@ class Annotation(QGraphicsItem):
                 after = {key: value for key, value in dict(before, text=text, spans=spans).items() if key != "spans" or spans}
                 self.view.undo.push(DataCommand(self, before, after))
         elif self.data["kind"] == "step":
-            text, ok = QInputDialog.getMultiLineText(self.view, "Text ändern", "Beschriftung", self.data["text"])
+            text, ok = QInputDialog.getMultiLineText(self.view, tr("Text ändern"), tr("Beschriftung"), self.data["text"])
             if ok:
                 before = dict(self.data)
                 after = dict(before, text=text)
@@ -554,7 +555,7 @@ class Annotation(QGraphicsItem):
 
 class MoveCommand(QUndoCommand):
     def __init__(self, item, before, after):
-        super().__init__("Markierung verschieben")
+        super().__init__(tr("Markierung verschieben"))
         self.item, self.before, self.after = item, before, after
 
     def redo(self):
@@ -568,7 +569,7 @@ class GroupMoveCommand(QUndoCommand):
     """Mehrere gemeinsam gezogene Markierungen in einem Undo-Schritt; `moves` = [(Markierung, vorher, nachher)]."""
 
     def __init__(self, moves):
-        super().__init__("Markierungen verschieben")
+        super().__init__(tr("Markierungen verschieben"))
         self.moves = [(item, QPointF(before), QPointF(after)) for item, before, after in moves]
 
     def redo(self):
@@ -587,7 +588,7 @@ class NudgeCommand(MoveCommand):
 
     def __init__(self, items, delta):
         super().__init__(items[0], items[0].pos(), items[0].pos() + delta)
-        self.setText("Markierung mit Pfeiltasten verschieben")
+        self.setText(tr("Markierung mit Pfeiltasten verschieben"))
         self.items = list(items)
         self.befores = [item.pos() for item in self.items]
         self.delta = QPointF(delta)
@@ -612,7 +613,7 @@ class NudgeCommand(MoveCommand):
 
 class DataCommand(QUndoCommand):
     def __init__(self, item, before, after):
-        super().__init__("Text ändern")
+        super().__init__(tr("Text ändern"))
         self.item, self.before, self.after = item, before, after
 
     def apply(self, value):

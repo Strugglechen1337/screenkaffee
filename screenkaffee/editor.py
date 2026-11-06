@@ -1,5 +1,6 @@
 """Re-editable annotations over an immutable source image."""
 import logging
+from .i18n import N_, tr
 import json
 import math
 import base64
@@ -210,8 +211,8 @@ class EditorView(QGraphicsView):
             font.setPixelSize(max(1, round(11.0 / scale)))
             font.setBold(True)
             painter.setFont(font)
-            label = "Waagerecht" if axis == "y" else "Senkrecht"
-            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, f"{label} entfernen: {round(span)} px")
+            label = tr("Waagerecht") if axis == "y" else tr("Senkrecht")
+            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, tr('{axis} entfernen: {size} px', axis=label, size=round(span)))
             painter.restore()
 
         if self.tool == "measure" and self.measure_line:
@@ -361,7 +362,7 @@ class EditorView(QGraphicsView):
 
     def scale_selection(self, factor):
         if not math.isfinite(factor) or not .05 <= factor <= 20:
-            raise ValueError("Skalierung muss zwischen 5 und 2000 Prozent liegen.")
+            raise ValueError(tr("Skalierung muss zwischen 5 und 2000 Prozent liegen."))
         items = [x for x in self.annotations() if x.isSelected()]
         if not items:
             return
@@ -369,7 +370,7 @@ class EditorView(QGraphicsView):
         for item in items[1:]:
             bounds = bounds.united(item.sceneBoundingRect())
         anchor = bounds.topLeft()
-        self.undo.beginMacro("Auswahl skalieren")
+        self.undo.beginMacro(tr("Auswahl skalieren"))
         for item in items:
             before = item.serialize()
             old = item.body_rect()
@@ -387,7 +388,7 @@ class EditorView(QGraphicsView):
         items = [x for x in self.annotations() if x.isSelected() and x.data["kind"] == "magnifier"]
         if not items:
             return
-        self.undo.beginMacro("Lupenquelle sperren / lösen")
+        self.undo.beginMacro(tr("Lupenquelle sperren / lösen"))
         for item in items:
             before = item.serialize()
             after = dict(before)
@@ -405,8 +406,8 @@ class EditorView(QGraphicsView):
         """Ausgewählte Markierungen von unten nach oben; mit movable=True ohne gesperrte."""
         return [x for x in self.annotations() if x.isSelected() and not (movable and x.locked())]
 
-    ORDER_ACTIONS = (("Ganz nach vorne", "front"), ("Nach vorne", "forward"),
-                     ("Nach hinten", "backward"), ("Ganz nach hinten", "back"))
+    ORDER_ACTIONS = ((N_("Ganz nach vorne"), "front"), (N_("Nach vorne"), "forward"),
+                     (N_("Nach hinten"), "backward"), (N_("Ganz nach hinten"), "back"))
     ORDER_KEYS = {"front": "Ctrl+Shift+PgUp", "forward": "Ctrl+PgUp", "backward": "Ctrl+PgDown", "back": "Ctrl+Shift+PgDown"}
 
     def reorder_selected(self, mode):
@@ -428,8 +429,8 @@ class EditorView(QGraphicsView):
                     new[index], new[other] = new[other], new[index]
         if new == order:
             return False
-        texts = {"forward": "Nach vorne", "backward": "Nach hinten", "front": "Ganz nach vorne", "back": "Ganz nach hinten"}
-        self.undo.push(ZOrderCommand(self, new, texts.get(mode, "Ebenenreihenfolge ändern")))
+        texts = {"forward": tr("Nach vorne"), "backward": tr("Nach hinten"), "front": tr("Ganz nach vorne"), "back": tr("Ganz nach hinten")}
+        self.undo.push(ZOrderCommand(self, new, texts.get(mode, tr("Ebenenreihenfolge ändern"))))
         return True
 
     def toggle_lock(self):
@@ -438,7 +439,7 @@ class EditorView(QGraphicsView):
         if not items:
             return False
         lock = not all(x.locked() for x in items)
-        self.undo.beginMacro("Markierung sperren" if lock else "Markierung entsperren")
+        self.undo.beginMacro(tr("Markierung sperren") if lock else tr("Markierung entsperren"))
         for item in items:
             before = item.serialize()
             after = dict(before, locked=True) if lock else {k: v for k, v in before.items() if k != "locked"}
@@ -466,7 +467,7 @@ class EditorView(QGraphicsView):
                   "vcenter": bounds.center().y() - rect.center().y()}.get(mode, 0)
             if dx or dy:
                 moves.append((item, QPointF(dx, dy)))
-        return self._push_moves(moves, "Ausrichten")
+        return self._push_moves(moves, tr("Ausrichten"))
 
     def distribute_selected(self, axis):
         """Gleichmäßig verteilen ("x" = horizontal, "y" = vertikal): gleiche Abstände, äußere bleiben stehen."""
@@ -486,7 +487,7 @@ class EditorView(QGraphicsView):
             if abs(delta) > 1e-6:
                 moves.append((item, QPointF(delta, 0) if horizontal else QPointF(0, delta)))
             cursor += size(rect) + gap
-        return self._push_moves(moves, "Verteilen")
+        return self._push_moves(moves, tr("Verteilen"))
 
     def _push_moves(self, moves, text):
         if not moves:
@@ -521,20 +522,20 @@ class EditorView(QGraphicsView):
 
     def fill_arrange_menu(self, menu):
         """Gemeinsame Einträge für Kontextmenü und „Weitere Bildaktionen“: Ebenen, Ausrichten, Sperren."""
-        order = menu.addMenu("Anordnen (Ebenen)")
+        order = menu.addMenu(tr("Anordnen (Ebenen)"))
         for text, mode in self.ORDER_ACTIONS:
             keys = QKeySequence(self.ORDER_KEYS[mode]).toString(QKeySequence.SequenceFormat.NativeText)
-            order.addAction(f"{text}\t{keys}", lambda mode=mode: self.reorder_selected(mode))
-        align = menu.addMenu("Ausrichten / Verteilen")
-        for text, mode in (("Links ausrichten", "left"), ("Horizontal zentrieren", "hcenter"), ("Rechts ausrichten", "right"),
-                           ("Oben ausrichten", "top"), ("Vertikal zentrieren", "vcenter"), ("Unten ausrichten", "bottom")):
+            order.addAction(f"{tr(text)}\t{keys}", lambda mode=mode: self.reorder_selected(mode))
+        align = menu.addMenu(tr("Ausrichten / Verteilen"))
+        for text, mode in ((tr("Links ausrichten"), "left"), (tr("Horizontal zentrieren"), "hcenter"), (tr("Rechts ausrichten"), "right"),
+                           (tr("Oben ausrichten"), "top"), (tr("Vertikal zentrieren"), "vcenter"), (tr("Unten ausrichten"), "bottom")):
             align.addAction(text, lambda mode=mode: self.align_selected(mode))
         align.addSeparator()
-        align.addAction("Horizontal gleichmäßig verteilen", lambda: self.distribute_selected("x"))
-        align.addAction("Vertikal gleichmäßig verteilen", lambda: self.distribute_selected("y"))
+        align.addAction(tr("Horizontal gleichmäßig verteilen"), lambda: self.distribute_selected("x"))
+        align.addAction(tr("Vertikal gleichmäßig verteilen"), lambda: self.distribute_selected("y"))
         items = self.selected_annotations()
         locked = bool(items) and all(x.locked() for x in items)
-        menu.addAction("Entsperren" if locked else "Sperren (nicht verschiebbar)", self.toggle_lock)
+        menu.addAction(tr("Entsperren") if locked else tr("Sperren (nicht verschiebbar)"), self.toggle_lock)
         return order, align
 
     def copy_annotations(self):
@@ -550,7 +551,7 @@ class EditorView(QGraphicsView):
         from PySide6.QtWidgets import QApplication
         mime = QApplication.clipboard().mimeData()
         if mime.hasFormat("application/x-prism-annotations"):
-            self.undo.beginMacro("Markierungen einfügen")
+            self.undo.beginMacro(tr("Markierungen einfügen"))
             for data in json.loads(bytes(mime.data("application/x-prism-annotations"))):
                 pos = data.get("pos", [0, 0])
                 data["pos"] = [pos[0] + 15, pos[1] + 15]
@@ -574,7 +575,7 @@ class EditorView(QGraphicsView):
         items = [x for x in self.annotations() if x.isSelected() and x.data["kind"] == "stamp"]
         if not items:
             return False
-        self.undo.beginMacro("Originalgröße wiederherstellen")
+        self.undo.beginMacro(tr("Originalgröße wiederherstellen"))
         for item in items:
             before = item.serialize()
             size = before.get("original_size")
@@ -633,7 +634,7 @@ class EditorView(QGraphicsView):
             return
         if self.tool in ("text", "step", "speech"):
             if self.tool in ("text", "speech"):
-                text, ok = QInputDialog.getMultiLineText(self, "Text", "Beschriftung")
+                text, ok = QInputDialog.getMultiLineText(self, tr("Text"), tr("Beschriftung"))
                 if not ok or not text:
                     return
             else:
@@ -786,7 +787,7 @@ class EditorView(QGraphicsView):
         self.viewport().update()
         window = self.window()
         if hasattr(window, "statusBar"):
-            window.statusBar().showMessage("Polygon: Klicken setzt Punkte · Doppelklick, Rechtsklick oder Enter beendet und schließt die Figur · Alt beim Beenden lässt sie offen · Esc bricht ab")
+            window.statusBar().showMessage(tr("Polygon: Klicken setzt Punkte · Doppelklick, Rechtsklick oder Enter beendet und schließt die Figur · Alt beim Beenden lässt sie offen · Esc bricht ab"))
 
     def finish_polygon(self, keep_open=False):
         """A polygon is closed when finished; with Alt held (keep_open=True) it stays an open line of segments."""
@@ -903,31 +904,31 @@ class EditorView(QGraphicsView):
         selected = [x for x in self.scene().selectedItems() if isinstance(x, Annotation)]
         if selected:
             if hasattr(window, "annotation_properties"):
-                menu.addAction("Eigenschaften …", window.annotation_properties)
-            menu.addAction("Markierung kopieren", self.copy_annotations)
-            menu.addAction("Markierung einfügen", self.paste_annotations)
+                menu.addAction(tr("Eigenschaften …"), window.annotation_properties)
+            menu.addAction(tr("Markierung kopieren"), self.copy_annotations)
+            menu.addAction(tr("Markierung einfügen"), self.paste_annotations)
             if any(x.data["kind"] == "stamp" for x in selected):
-                menu.addAction("Originalgröße wiederherstellen", self.restore_stamp_size)
+                menu.addAction(tr("Originalgröße wiederherstellen"), self.restore_stamp_size)
             if any(x.data["kind"] == "magnifier" for x in selected):
-                menu.addAction("Lupenquelle sperren / lösen", self.toggle_magnifier_lock)
+                menu.addAction(tr("Lupenquelle sperren / lösen"), self.toggle_magnifier_lock)
             if hasattr(window, "save_tool_defaults"):
-                menu.addAction("Als Standardstil speichern", window.save_tool_defaults)
+                menu.addAction(tr("Als Standardstil speichern"), window.save_tool_defaults)
             menu.addSeparator()
             self.fill_arrange_menu(menu)
             menu.addSeparator()
-            menu.addAction("Entfernen", self.delete_selected)
+            menu.addAction(tr("Entfernen"), self.delete_selected)
         else:
-            menu.addAction("Markierung einfügen", self.paste_annotations)
+            menu.addAction(tr("Markierung einfügen"), self.paste_annotations)
             if hasattr(window, "auto_trim_borders"):
-                menu.addAction("Ränder automatisch zuschneiden", window.auto_trim_borders)
+                menu.addAction(tr("Ränder automatisch zuschneiden"), window.auto_trim_borders)
             if hasattr(window, "replace_image"):
-                menu.addAction("Hauptbild ersetzen …", window.replace_image)
+                menu.addAction(tr("Hauptbild ersetzen …"), window.replace_image)
             if hasattr(window, "canvas_dialog"):
-                menu.addAction("Leinwandgröße …", window.canvas_dialog)
+                menu.addAction(tr("Leinwandgröße …"), window.canvas_dialog)
             if hasattr(window, "border_dialog"):
-                menu.addAction("Rahmen …", window.border_dialog)
+                menu.addAction(tr("Rahmen …"), window.border_dialog)
             if hasattr(window, "image_effects"):
-                menu.addAction("Größe / Rahmen / Effekte …", window.image_effects)
+                menu.addAction(tr("Größe / Rahmen / Effekte …"), window.image_effects)
         menu.exec(event.globalPos())
 
     def render_image(self):
@@ -973,7 +974,7 @@ class EditorView(QGraphicsView):
 
     def load_project(self, data):
         if data.get("version") != 1:
-            raise ValueError("Unbekannte Projektversion.")
+            raise ValueError(tr("Unbekannte Projektversion."))
         if data.get("replacement_image"):
             with Image.open(io.BytesIO(base64.b64decode(data["replacement_image"]))) as replacement:
                 self.source = replacement.convert("RGBA" if "A" in replacement.getbands() else "RGB")
@@ -996,107 +997,107 @@ class EditorWindow(QMainWindow):
     projectSaved = Signal(object)
     navigate = Signal(int)
 
-    def __init__(self, image, title="Aufnahme", project_path=None, parent=None):
+    def __init__(self, image, title=N_("Aufnahme"), project_path=None, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.title = title
+        self.title = title = tr(title) if title == N_("Aufnahme") else title
         from . import __version__
-        self.setWindowTitle(f"{title} — Editor · screenkaffee {__version__}")
+        self.setWindowTitle(tr('{title} — Editor · screenkaffee {version}', title=title, version=__version__))
         self.resize(1250, 850)
         self.project_path = Path(project_path) if project_path else None
         self.view = EditorView(image)
         self.setCentralWidget(self.view)
-        self.commandbar = QToolBar("Bildaktionen", self)
+        self.commandbar = QToolBar(tr("Bildaktionen"), self)
         self.addToolBar(self.commandbar)
         self.addToolBarBreak()
-        self.tools = QToolBar("Werkzeuge")
+        self.tools = QToolBar(tr("Werkzeuge"))
         self.tools.setMovable(False)
         self.addToolBar(self.tools)
         self.tool_combo = QComboBox()
-        for label, tool in [("Auswählen / Verschieben", "select"), ("Pfeil", "arrow"),
-            ("Linie", "line"), ("Rechteck", "rectangle"), ("Ellipse", "ellipse"),
-            ("Text", "text"), ("Sprechblase", "speech"), ("Schrittnummer", "step"), ("Marker", "highlight"),
-            ("Freihand", "freehand"), ("Polygon (Doppelklick beendet)", "polygon"), ("Klammer", "bracket"),
-            ("Spotlight", "spotlight"), ("Vergrößerung", "magnifier"), ("Unschärfe", "blur"),
-            ("Verpixeln", "pixelate"), ("Schwärzen", "redact"), ("Zuschneiden", "crop"),
-            ("Streifen ausschneiden", "cutout"), ("Farbe ablesen", "picker"), ("Lineal (messen)", "measure")]:
+        for label, tool in [(tr("Auswählen / Verschieben"), "select"), (tr("Pfeil"), "arrow"),
+            (tr("Linie"), "line"), (tr("Rechteck"), "rectangle"), (tr("Ellipse"), "ellipse"),
+            (tr("Text"), "text"), (tr("Sprechblase"), "speech"), (tr("Schrittnummer"), "step"), (tr("Marker"), "highlight"),
+            (tr("Freihand"), "freehand"), (tr("Polygon (Doppelklick beendet)"), "polygon"), (tr("Klammer"), "bracket"),
+            (tr("Spotlight"), "spotlight"), (tr("Vergrößerung"), "magnifier"), (tr("Unschärfe"), "blur"),
+            (tr("Verpixeln"), "pixelate"), (tr("Schwärzen"), "redact"), (tr("Zuschneiden"), "crop"),
+            (tr("Streifen ausschneiden"), "cutout"), (tr("Farbe ablesen"), "picker"), (tr("Lineal (messen)"), "measure")]:
             self.tool_combo.addItem(label, tool)
         self.tool_combo.currentIndexChanged.connect(lambda: self.view.set_tool(self.tool_combo.currentData()))
         self.build_palette()
-        self.color_action = self.tools.addAction("Farbe", self.pick_color)
-        self.color_action.setToolTip("Markierungsfarbe wählen")
+        self.color_action = self.tools.addAction(tr("Farbe"), self.pick_color)
+        self.color_action.setToolTip(tr("Markierungsfarbe wählen"))
         self.update_color_icon()
-        self.fill_action = self.tools.addAction("Füllung", self.pick_quick_fill)
-        self.fill_action.setToolTip("Füllfarbe für ausgewählte Form / aktuelles Werkzeug wählen (Abbrechen = transparent)")
-        self.tools.addWidget(QLabel("  Stärke "))
+        self.fill_action = self.tools.addAction(tr("Füllung"), self.pick_quick_fill)
+        self.fill_action.setToolTip(tr("Füllfarbe für ausgewählte Form / aktuelles Werkzeug wählen (Abbrechen = transparent)"))
+        self.tools.addWidget(QLabel(tr("  Stärke ")))
         width = QSpinBox()
         width.setRange(1, 30)
         width.setValue(4)
         width.valueChanged.connect(lambda value: setattr(self.view, "width", value))
         self.tools.addWidget(width)
-        self.tools.addWidget(QLabel("  Textgröße "))
+        self.tools.addWidget(QLabel(tr("  Textgröße ")))
         font = QSpinBox()
         font.setRange(8, 120)
         font.setValue(22)
         font.valueChanged.connect(lambda value: setattr(self.view, "font_size", value))
         self.tools.addWidget(font)
         self.width_box, self.font_box = width, font
-        self.shadow_check = QCheckBox("Schatten")
-        self.shadow_check.setToolTip("Schlagschatten für ausgewählte Markierung / aktuelles Werkzeug ein-/ausschalten")
+        self.shadow_check = QCheckBox(tr("Schatten"))
+        self.shadow_check.setToolTip(tr("Schlagschatten für ausgewählte Markierung / aktuelles Werkzeug ein-/ausschalten"))
         self.shadow_check.toggled.connect(self.toggle_quick_shadow)
         self.tools.addWidget(self.shadow_check)
         self.line_style_combo = QComboBox()
-        self.line_style_combo.setToolTip("Linienart")
-        for label, value in [("Durchgezogen", "solid"), ("Gestrichelt", "dash"), ("Gepunktet", "dot")]:
+        self.line_style_combo.setToolTip(tr("Linienart"))
+        for label, value in [(tr("Durchgezogen"), "solid"), (tr("Gestrichelt"), "dash"), (tr("Gepunktet"), "dot")]:
             self.line_style_combo.addItem(label, value)
         self.line_style_combo.currentIndexChanged.connect(self.set_quick_line_style)
         self.tools.addWidget(self.line_style_combo)
         self.arrow_style_combo = QComboBox()
-        self.arrow_style_combo.setToolTip("Pfeilspitze")
-        for label, value in [("Pfeil: Gefüllt", "filled"), ("Pfeil: Offen", "open"), ("Pfeil: Beidseitig", "double")]:
+        self.arrow_style_combo.setToolTip(tr("Pfeilspitze"))
+        for label, value in [(tr("Pfeil: Gefüllt"), "filled"), (tr("Pfeil: Offen"), "open"), (tr("Pfeil: Beidseitig"), "double")]:
             self.arrow_style_combo.addItem(label, value)
         self.arrow_style_combo.currentIndexChanged.connect(self.set_quick_arrow_style)
         self.tools.addWidget(self.arrow_style_combo)
         self.view.styleChanged.connect(self.sync_tool_style)
-        self.tools.addAction("Vorlagen …", self.manage_presets)
+        self.tools.addAction(tr("Vorlagen …"), self.manage_presets)
         self.tools.addSeparator()
-        undo = self.tools.addAction("Rückgängig", self.view.undo.undo)
+        undo = self.tools.addAction(tr("Rückgängig"), self.view.undo.undo)
         undo.setShortcut(QKeySequence.StandardKey.Undo)
         undo.setEnabled(False)
         self.view.undo.canUndoChanged.connect(undo.setEnabled)
-        redo = self.tools.addAction("Wiederholen", self.view.undo.redo)
+        redo = self.tools.addAction(tr("Wiederholen"), self.view.undo.redo)
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         redo.setEnabled(False)
         self.view.undo.canRedoChanged.connect(redo.setEnabled)
-        self.tools.addAction("Entfernen", self.view.delete_selected)
-        self.tools.addAction("Eigenschaften", self.annotation_properties)
-        self.tools.addAction("Auswahl skalieren", self.scale_selected)
-        extra = QMenu("Weitere Bildaktionen", self)
-        extra.addAction("Bild / Stempel einfügen …", self.insert_image)
-        extra.addAction("Stempelbibliothek …", self.open_stamps)
-        self.templates_menu = extra.addMenu("Vorlagen (Markierungen)")
+        self.tools.addAction(tr("Entfernen"), self.view.delete_selected)
+        self.tools.addAction(tr("Eigenschaften"), self.annotation_properties)
+        self.tools.addAction(tr("Auswahl skalieren"), self.scale_selected)
+        extra = QMenu(tr("Weitere Bildaktionen"), self)
+        extra.addAction(tr("Bild / Stempel einfügen …"), self.insert_image)
+        extra.addAction(tr("Stempelbibliothek …"), self.open_stamps)
+        self.templates_menu = extra.addMenu(tr("Vorlagen (Markierungen)"))
         self.templates_menu.aboutToShow.connect(self.fill_templates_menu)
         self.fill_templates_menu()
-        extra.addAction("Werkzeugstandards speichern", self.save_tool_defaults)
-        extra.addAction("Hauptbild ersetzen …", self.replace_image)
-        extra.addAction("In externem Editor öffnen …", self.open_external)
-        extra.addAction("Bereich ausschneiden (Pixelwerte / Gezackt) …", self.cut_out_dialog)
-        extra.addAction("Ränder automatisch zuschneiden", self.auto_trim_borders)
-        self.arrange_menu = extra.addMenu("Markierungen anordnen")
+        extra.addAction(tr("Werkzeugstandards speichern"), self.save_tool_defaults)
+        extra.addAction(tr("Hauptbild ersetzen …"), self.replace_image)
+        extra.addAction(tr("In externem Editor öffnen …"), self.open_external)
+        extra.addAction(tr("Bereich ausschneiden (Pixelwerte / Gezackt) …"), self.cut_out_dialog)
+        extra.addAction(tr("Ränder automatisch zuschneiden"), self.auto_trim_borders)
+        self.arrange_menu = extra.addMenu(tr("Markierungen anordnen"))
         self.arrange_menu.aboutToShow.connect(self.fill_arrange_menu)
         self.fill_arrange_menu()
-        extra.addAction("Größe / Rahmen / Effekte …", self.image_effects)
-        extra.addAction("Ausgabe-Vorschau (live)", self.preview_output)
-        extra.addAction("Anheften (immer im Vordergrund)", self.pin_current)
-        extra.addAction("Schicker Screenshot (Hintergrund, Rahmen) …", self.beautify_current)
-        extra.addAction("Anderes Bild öffnen … (Strg+O)", self.open_image_file)
-        extra.addAction("Vollbild (F11)", self.toggle_fullscreen)
-        self.magnet_action = extra.addAction("Magnet-Ausrichtung beim Verschieben")
+        extra.addAction(tr("Größe / Rahmen / Effekte …"), self.image_effects)
+        extra.addAction(tr("Ausgabe-Vorschau (live)"), self.preview_output)
+        extra.addAction(tr("Anheften (immer im Vordergrund)"), self.pin_current)
+        extra.addAction(tr("Schicker Screenshot (Hintergrund, Rahmen) …"), self.beautify_current)
+        extra.addAction(tr("Anderes Bild öffnen … (Strg+O)"), self.open_image_file)
+        extra.addAction(tr("Vollbild (F11)"), self.toggle_fullscreen)
+        self.magnet_action = extra.addAction(tr("Magnet-Ausrichtung beim Verschieben"))
         self.magnet_action.setCheckable(True)
         self.magnet_action.setChecked(True)
         self.magnet_action.toggled.connect(lambda on: setattr(self.view, "magnet", on))
         self.auto_save = False
-        self.auto_save_action = extra.addAction("Automatisch speichern")
+        self.auto_save_action = extra.addAction(tr("Automatisch speichern"))
         self.auto_save_action.setCheckable(True)
         self.auto_save_action.toggled.connect(lambda on: setattr(self, "auto_save", on))
         self.view.undo.indexChanged.connect(self.autosave)
@@ -1105,12 +1106,12 @@ class EditorWindow(QMainWindow):
                               ("Ctrl+-", lambda: self.change_item_size(-1))):
             shortcut = QShortcut(QKeySequence(keys), self)
             shortcut.activated.connect(handler)
-        extra.addAction("Markierung kopieren", self.view.copy_annotations)
-        extra.addAction("Markierung einfügen", self.view.paste_annotations)
-        extra.addAction("Lupenquelle sperren / lösen", self.view.toggle_magnifier_lock)
-        extra.addAction("Originalgröße wiederherstellen (Stempel)", self.view.restore_stamp_size)
+        extra.addAction(tr("Markierung kopieren"), self.view.copy_annotations)
+        extra.addAction(tr("Markierung einfügen"), self.view.paste_annotations)
+        extra.addAction(tr("Lupenquelle sperren / lösen"), self.view.toggle_magnifier_lock)
+        extra.addAction(tr("Originalgröße wiederherstellen (Stempel)"), self.view.restore_stamp_size)
         more = QToolButton()
-        more.setText("Mehr")
+        more.setText(tr("Mehr"))
         more.setMenu(extra)
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.tools.addWidget(more)
@@ -1121,85 +1122,85 @@ class EditorWindow(QMainWindow):
         from PySide6.QtCore import QSize
         from .icons import command_icon
         exportbar.setIconSize(QSize(28, 28))
-        copy_close = exportbar.addAction("Kopieren && Schließen", self.copy_and_close)
+        copy_close = exportbar.addAction(tr("Kopieren && Schließen"), self.copy_and_close)
         copy_close.setIcon(command_icon("copy", "#5b9b47"))
-        copy_close.setToolTip("Bearbeitung sichern, Bild in die Zwischenablage legen und den Editor schließen")
+        copy_close.setToolTip(tr("Bearbeitung sichern, Bild in die Zwischenablage legen und den Editor schließen"))
         btn = exportbar.widgetForAction(copy_close)
         if btn is not None:
             btn.setObjectName("copyAndClose")
-        action = exportbar.addAction("Bild exportieren …", self.export)
+        action = exportbar.addAction(tr("Bild exportieren …"), self.export)
         action.setIcon(command_icon("save", "#669e46"))
         action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        action = exportbar.addAction("Drucken", self.print_image)
+        action = exportbar.addAction(tr("Drucken"), self.print_image)
         action.setIcon(command_icon("print", "#777777"))
         action.setShortcut(QKeySequence.StandardKey.Print)
-        action = exportbar.addAction("Bildinfo", self.image_properties)
+        action = exportbar.addAction(tr("Bildinfo"), self.image_properties)
         action.setIcon(command_icon("properties", "#548daf"))
-        action = exportbar.addAction("Bild kopieren", self.copy)
+        action = exportbar.addAction(tr("Bild kopieren"), self.copy)
         action.setIcon(command_icon("copy", "#548daf"))
-        action = exportbar.addAction("Projekt speichern", self.save_project)
+        action = exportbar.addAction(tr("Projekt speichern"), self.save_project)
         action.setIcon(command_icon("save", "#548daf"))
         action.setShortcut(QKeySequence.StandardKey.Save)
-        action = exportbar.addAction("Als neue Aufnahme", lambda: self.saved.emit(self.view.render_image()))
+        action = exportbar.addAction(tr("Als neue Aufnahme"), lambda: self.saved.emit(self.view.render_image()))
         action.setIcon(command_icon("image", "#548daf"))
         exportbar.addSeparator()
         for action, name in ((undo, "undo"), (redo, "redo")):
             self.tools.removeAction(action)
             action.setIcon(command_icon(name, "#ca8c35"))
             exportbar.addAction(action)
-        self.crop_action = exportbar.addAction("Zuschneiden", lambda: self.select_tool("crop" if self.view.tool != "crop" else "select"))
+        self.crop_action = exportbar.addAction(tr("Zuschneiden"), lambda: self.select_tool("crop" if self.view.tool != "crop" else "select"))
         self.crop_action.setCheckable(True)
         self.crop_action.setIcon(command_icon("crop", "#548daf"))
-        self.crop_action.setToolTip("Bild zuschneiden: Rahmen aufziehen oder blaue Kanten-/Eckpunkte ziehen (Umschalt = 1:1, Esc bricht ab)")
-        self.rotate_menu = QMenu("Drehen", self)
-        action = self.rotate_menu.addAction("Rechts drehen", lambda: self.rotate_image(90))
+        self.crop_action.setToolTip(tr("Bild zuschneiden: Rahmen aufziehen oder blaue Kanten-/Eckpunkte ziehen (Umschalt = 1:1, Esc bricht ab)"))
+        self.rotate_menu = QMenu(tr("Drehen"), self)
+        action = self.rotate_menu.addAction(tr("Rechts drehen"), lambda: self.rotate_image(90))
         action.setIcon(command_icon("rotate_right", "#548daf"))
-        action = self.rotate_menu.addAction("Links drehen", lambda: self.rotate_image(-90))
+        action = self.rotate_menu.addAction(tr("Links drehen"), lambda: self.rotate_image(-90))
         action.setIcon(command_icon("rotate_left", "#548daf"))
-        rotate = exportbar.addAction("Drehen", lambda: self.rotate_image(90))
+        rotate = exportbar.addAction(tr("Drehen"), lambda: self.rotate_image(90))
         rotate.setIcon(command_icon("rotate_right", "#548daf"))
-        rotate.setToolTip("Klick: rechts drehen · Pfeil: links drehen")
+        rotate.setToolTip(tr("Klick: rechts drehen · Pfeil: links drehen"))
         rotate.setMenu(self.rotate_menu)
         button = exportbar.widgetForAction(rotate)
         if button is not None:
             button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        self.cutout_action = exportbar.addAction("Ausschneiden", lambda: self.select_tool("cutout" if self.view.tool != "cutout" else "select"))
+        self.cutout_action = exportbar.addAction(tr("Ausschneiden"), lambda: self.select_tool("cutout" if self.view.tool != "cutout" else "select"))
         self.cutout_action.setCheckable(True)
         self.cutout_action.setIcon(command_icon("cutout", "#548daf"))
-        self.cutout_action.setToolTip("Streifen direkt mit der Maus im Bild markieren und ausschneiden (Umschalt = gezackter Schnitt)")
-        action = exportbar.addAction("Größe / Effekte", self.image_effects)
+        self.cutout_action.setToolTip(tr("Streifen direkt mit der Maus im Bild markieren und ausschneiden (Umschalt = gezackter Schnitt)"))
+        action = exportbar.addAction(tr("Größe / Effekte"), self.image_effects)
         action.setIcon(command_icon("effects", "#548daf"))
-        action = exportbar.addAction("Leinwand", self.canvas_dialog)
+        action = exportbar.addAction(tr("Leinwand"), self.canvas_dialog)
         action.setIcon(command_icon("canvas", "#548daf"))
-        action.setToolTip("Leinwandgröße: Außenabstand und Hintergrund")
-        action = exportbar.addAction("Rahmen", self.border_dialog)
+        action.setToolTip(tr("Leinwandgröße: Außenabstand und Hintergrund"))
+        action = exportbar.addAction(tr("Rahmen"), self.border_dialog)
         action.setIcon(command_icon("border", "#c93b2b"))
-        action.setToolTip("Rahmen um das Bild: Breite, Farbe und Eckenradius")
+        action.setToolTip(tr("Rahmen um das Bild: Breite, Farbe und Eckenradius"))
         # Navigation and zoom live in the status bar next to the zoom slider; the actions stay on the window for their shortcuts
         self.view_actions = []
-        for text, step, key, icon_name in (("Vorheriges Bild", -1, "PgUp", "prev"), ("Nächstes Bild", 1, "PgDown", "next")):
-            action = QAction(command_icon(icon_name, "#9a9a9a"), text, self)
+        for text, step, key, icon_name in ((tr("Vorheriges Bild"), -1, "PgUp", "prev"), (tr("Nächstes Bild"), 1, "PgDown", "next")):
+            action = QAction(command_icon(icon_name, "#9a9a9a"), tr(text), self)
             action.triggered.connect(lambda _=False, step=step: self.navigate.emit(step))
             action.setShortcut(QKeySequence(key))
-            action.setToolTip(f"{text} im Arbeitsbereich ({key}; Alt+Umschalt löscht aktuelles Bild)")
+            action.setToolTip(tr('{action} im Arbeitsbereich ({key}; Alt+Umschalt löscht aktuelles Bild)', action=tr(text), key=key))
             self.view_actions.append(action)
-        for text, handler, icon_name in (("Einpassen", self.fit, "fit"), ("100 %", self.actual_size, "zoom_100")):
-            action = QAction(command_icon(icon_name, "#9a9a9a"), text, self)
+        for text, handler, icon_name in ((tr("Einpassen"), self.fit, "fit"), ("100 %", self.actual_size, "zoom_100")):
+            action = QAction(command_icon(icon_name, "#9a9a9a"), tr(text), self)
             action.triggered.connect(lambda _=False, handler=handler: handler())
             action.setToolTip(text)
             self.view_actions.append(action)
         self.addActions(self.view_actions)
         self.build_status_widgets()
-        self.statusBar().showMessage("Strg + Mausrad: Zoom · Entf: Markierung entfernen · Text: Doppelklick · Schwärzen für vertrauliche Daten")
+        self.statusBar().showMessage(tr("Strg + Mausrad: Zoom · Entf: Markierung entfernen · Text: Doppelklick · Schwärzen für vertrauliche Daten"))
         self.view.colorPicked.connect(self.color_picked)
-        self.view.measured.connect(lambda text: self.statusBar().showMessage("Lineal: " + text))
+        self.view.measured.connect(lambda text: self.statusBar().showMessage(tr("Lineal: {measurement}", measurement=text)))
         self.view.toolFinished.connect(lambda: self.select_tool("select"))
         self.view.toolChanged.connect(self._on_tool_changed)
         if self.project_path and self.project_path.exists():
             try:
                 self.view.load_project(json.loads(self.project_path.read_text(encoding="utf-8")))
             except Exception as exc:
-                QMessageBox.warning(self, "Projekt konnte nicht geladen werden", str(exc))
+                QMessageBox.warning(self, tr('Projekt konnte nicht geladen werden'), str(exc))
 
     def _apply_quick_property(self, updates):
         selected = [item for item in self.view.scene().selectedItems() if isinstance(item, Annotation)]
@@ -1207,7 +1208,7 @@ class EditorWindow(QMainWindow):
             self.view.tool_defaults.setdefault(self.view.tool, {}).update(updates)
         if not selected:
             return
-        self.view.undo.beginMacro("Schnellstil ändern")
+        self.view.undo.beginMacro(tr("Schnellstil ändern"))
         for item in selected:
             before = item.serialize()
             after = dict(before, **updates)
@@ -1218,7 +1219,7 @@ class EditorWindow(QMainWindow):
         self._apply_quick_property({"shadow_radius": 8 if checked else 0, "shadow_offset": 4 if checked else 0})
 
     def pick_quick_fill(self):
-        color = QColorDialog.getColor(QColor(self.view.color), self, "Füllfarbe wählen (Abbrechen = keine Füllung)")
+        color = QColorDialog.getColor(QColor(self.view.color), self, tr("Füllfarbe wählen (Abbrechen = keine Füllung)"))
         self._apply_quick_property({"fill": color.name() if color.isValid() else ""})
 
     def set_quick_line_style(self):
@@ -1255,13 +1256,13 @@ class EditorWindow(QMainWindow):
             self.cutout_action.setChecked(tool == "cutout")
         if hasattr(self, "status_hint"):
             if tool == "crop":
-                self.statusBar().showMessage("Zuschneiden aktiv: Rahmen im Bild aufziehen oder blaue Kanten/Ecken nach innen ziehen (Umschalt = 1:1, Esc zum Abbrechen)")
+                self.statusBar().showMessage(tr("Zuschneiden aktiv: Rahmen im Bild aufziehen oder blaue Kanten/Ecken nach innen ziehen (Umschalt = 1:1, Esc zum Abbrechen)"))
             elif tool == "cutout":
-                self.statusBar().showMessage("Ausschneiden aktiv: Ziehen Sie waagerecht oder senkrecht über den zu entfernenden Bildstreifen (Umschalt = gezackter Schnitt, Esc bricht ab)")
+                self.statusBar().showMessage(tr("Ausschneiden aktiv: Ziehen Sie waagerecht oder senkrecht über den zu entfernenden Bildstreifen (Umschalt = gezackter Schnitt, Esc bricht ab)"))
             elif tool == "measure":
-                self.statusBar().showMessage("Lineal: Linie ziehen, um Abstände zu messen (Umschalt = waagerecht/senkrecht/45°). Wird nicht ins Bild übernommen.")
+                self.statusBar().showMessage(tr("Lineal: Linie ziehen, um Abstände zu messen (Umschalt = waagerecht/senkrecht/45°). Wird nicht ins Bild übernommen."))
             elif tool == "select":
-                self.statusBar().showMessage("Strg + Mausrad: Zoom · Entf: Markierung entfernen · Text: Doppelklick · Schwärzen für vertrauliche Daten")
+                self.statusBar().showMessage(tr("Strg + Mausrad: Zoom · Entf: Markierung entfernen · Text: Doppelklick · Schwärzen für vertrauliche Daten"))
 
     def build_status_widgets(self):
         from PySide6.QtWidgets import QSlider
@@ -1313,40 +1314,40 @@ class EditorWindow(QMainWindow):
         try:
             print_images(self, [self.view.render_image()])
         except Exception as exc:
-            QMessageBox.warning(self, "Drucken", str(exc))
+            QMessageBox.warning(self, tr('Drucken'), str(exc))
 
     def image_properties(self):
         rect = self.view.crop_rect
         source = self.view.source
-        lines = [f"Größe: {round(rect.width())} × {round(rect.height())} Pixel",
-                 f"Originalbild: {source.width} × {source.height} Pixel ({source.mode})",
-                 f"Markierungen: {len(self.view.annotations())}",
-                 f"Projektdatei: {self.project_path or 'noch nicht gespeichert'}"]
-        QMessageBox.information(self, "Bildeigenschaften", "\n".join(lines))
+        lines = [tr('Größe: {width} × {height} Pixel', width=round(rect.width()), height=round(rect.height())),
+                 tr('Originalbild: {width} × {height} Pixel ({mode})', width=source.width, height=source.height, mode=source.mode),
+                 tr('Markierungen: {count}', count=len(self.view.annotations())),
+                 tr('Projektdatei: {path}', path=self.project_path or tr('noch nicht gespeichert'))]
+        QMessageBox.information(self, tr("Bildeigenschaften"), "\n".join(lines))
 
     def cut_out_dialog(self):
         from .effects import cut_out
         dialog = QDialog(self)
-        dialog.setWindowTitle("Bereich ausschneiden")
+        dialog.setWindowTitle(tr("Bereich ausschneiden"))
         form = QFormLayout(dialog)
         axis = QComboBox()
-        axis.addItem("Waagerechten Streifen entfernen (von … bis Zeile)", "y")
-        axis.addItem("Senkrechten Streifen entfernen (von … bis Spalte)", "x")
-        form.addRow("Richtung", axis)
+        axis.addItem(tr("Waagerechten Streifen entfernen (von … bis Zeile)"), "y")
+        axis.addItem(tr("Senkrechten Streifen entfernen (von … bis Spalte)"), "x")
+        form.addRow(tr("Richtung"), axis)
         start, end, gap_box, torn_box = QSpinBox(), QSpinBox(), QSpinBox(), QSpinBox()
         for box in (start, end):
             box.setRange(0, 100000)
         gap_box.setRange(0, 200)
         torn_box.setRange(0, 100)
         end.setValue(min(100, max(2, self.view.source.height // 3)))
-        form.addRow("Von (Pixel)", start)
-        form.addRow("Bis (Pixel)", end)
-        form.addRow("Abstand / Lücke (Pixel)", gap_box)
-        form.addRow("Gezackte Schnittkante (0 = glatt)", torn_box)
+        form.addRow(tr("Von (Pixel)"), start)
+        form.addRow(tr("Bis (Pixel)"), end)
+        form.addRow(tr("Abstand / Lücke (Pixel)"), gap_box)
+        form.addRow(tr("Gezackte Schnittkante (0 = glatt)"), torn_box)
         preview_label = QLabel()
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_label.setMinimumSize(320, 180)
-        form.addRow("Live-Vorschau", preview_label)
+        form.addRow(tr("Live-Vorschau"), preview_label)
         def refresh_cut_preview(*_):
             try:
                 img = cut_out(self.view.source, axis.currentData(), start.value(), end.value(), gap=gap_box.value(), torn=torn_box.value())
@@ -1366,7 +1367,7 @@ class EditorWindow(QMainWindow):
         try:
             image = cut_out(self.view.source, axis.currentData(), start.value(), end.value(), gap=gap_box.value(), torn=torn_box.value())
         except ValueError as exc:
-            QMessageBox.warning(self, "Ausschneiden", str(exc))
+            QMessageBox.warning(self, tr('Ausschneiden'), str(exc))
             return
         self.view.undo.push(CutOutCommand(self.view, image, axis.currentData(), start.value(), end.value()))
         self.fit()
@@ -1383,16 +1384,16 @@ class EditorWindow(QMainWindow):
         self.view.apply_view_transform(1.0 / dpr)
         self.view.zoomChanged.emit(100.0)
 
-    TOOL_TIPS = {"select": "Auswählen / Verschieben", "arrow": "Pfeil", "line": "Linie", "rectangle": "Rechteck",
-                 "ellipse": "Ellipse", "text": "Text", "speech": "Sprechblase", "step": "Schrittnummer",
-                 "highlight": "Marker", "freehand": "Freihand", "polygon": "Polygon (Doppelklick beendet)",
-                 "bracket": "Klammer", "spotlight": "Spotlight", "magnifier": "Vergrößerung", "blur": "Unschärfe",
-                 "pixelate": "Verpixeln", "redact": "Schwärzen", "crop": "Zuschneiden", "picker": "Farbe ablesen",
-                 "measure": "Lineal: Abstände in Pixeln messen (Umschalt = gerade)"}
+    TOOL_TIPS = {"select": N_("Auswählen / Verschieben"), "arrow": N_("Pfeil"), "line": N_("Linie"), "rectangle": N_("Rechteck"),
+                 "ellipse": N_("Ellipse"), "text": N_("Text"), "speech": N_("Sprechblase"), "step": N_("Schrittnummer"),
+                 "highlight": N_("Marker"), "freehand": N_("Freihand"), "polygon": N_("Polygon (Doppelklick beendet)"),
+                 "bracket": N_("Klammer"), "spotlight": N_("Spotlight"), "magnifier": N_("Vergrößerung"), "blur": N_("Unschärfe"),
+                 "pixelate": N_("Verpixeln"), "redact": N_("Schwärzen"), "crop": N_("Zuschneiden"), "picker": N_("Farbe ablesen"),
+                 "measure": N_("Lineal: Abstände in Pixeln messen (Umschalt = gerade)")}
 
     def build_palette(self):
         from PySide6.QtWidgets import QGridLayout, QButtonGroup
-        palette = QToolBar("Werkzeugleiste")
+        palette = QToolBar(tr("Werkzeugleiste"))
         palette.setObjectName("tools")
         palette.setOrientation(Qt.Orientation.Vertical)
         palette.setMovable(False)
@@ -1435,8 +1436,8 @@ class EditorWindow(QMainWindow):
         button.setIconSize(QSize(20, 20))
         button.setFixedSize(28, 28)                 # 28 statt 32: 20 Werkzeuge + Gruppenlinien nicht höher als früher
         button.setCheckable(True)
-        button.setToolTip(self.TOOL_TIPS[name])
-        button.setStatusTip(self.TOOL_TIPS[name])
+        button.setToolTip(tr(self.TOOL_TIPS[name]))
+        button.setStatusTip(tr(self.TOOL_TIPS[name]))
         group.addButton(button)
         button.clicked.connect(lambda _=False, n=name: self.select_tool(n))
         grid.addWidget(button, row, 0)
@@ -1458,17 +1459,17 @@ class EditorWindow(QMainWindow):
         from .presets import load_presets, save_preset, delete_preset
         from PySide6.QtWidgets import QInputDialog
         presets = load_presets()
-        items = ["Aktuelle Werkzeugeinstellung speichern …", "Vorlage löschen …"] + list(presets)
-        choice, ok = QInputDialog.getItem(self, "Werkzeugvorlagen", "Aktion oder Vorlage:", items, 0, False)
+        items = [tr("Aktuelle Werkzeugeinstellung speichern …"), tr("Vorlage löschen …")] + list(presets)
+        choice, ok = QInputDialog.getItem(self, tr("Werkzeugvorlagen"), tr("Aktion oder Vorlage:"), items, 0, False)
         if not ok:
             return
         if choice == items[0]:
-            name, ok = QInputDialog.getText(self, "Vorlage speichern", "Name:")
+            name, ok = QInputDialog.getText(self, tr("Vorlage speichern"), tr("Name:"))
             if ok and name.strip():
                 save_preset(name, {"tool": self.view.tool, "color": self.view.color,
                                    "width": self.view.width, "font_size": self.view.font_size})
         elif choice == items[1] and presets:
-            name, ok = QInputDialog.getItem(self, "Vorlage löschen", "Vorlage:", list(presets), 0, False)
+            name, ok = QInputDialog.getItem(self, tr("Vorlage löschen"), tr("Vorlage:"), list(presets), 0, False)
             if ok:
                 delete_preset(name)
         elif choice in presets:
@@ -1493,12 +1494,12 @@ class EditorWindow(QMainWindow):
         self.view.remember_tool_style()
         try:
             save_defaults(self.view.tool_defaults)
-            self.statusBar().showMessage("Standardstile der Werkzeuge gespeichert")
+            self.statusBar().showMessage(tr("Standardstile der Werkzeuge gespeichert"))
         except OSError as exc:
-            QMessageBox.warning(self, "Werkzeugstandards", str(exc))
+            QMessageBox.warning(self, tr('Werkzeugstandards'), str(exc))
 
     def pick_color(self):
-        color = QColorDialog.getColor(QColor(self.view.color), self, "Markierungsfarbe")
+        color = QColorDialog.getColor(QColor(self.view.color), self, tr("Markierungsfarbe"))
         if color.isValid():
             self.view.color = color.name()
             self.update_color_icon()
@@ -1506,12 +1507,12 @@ class EditorWindow(QMainWindow):
     def color_picked(self, value):
         from PySide6.QtWidgets import QApplication
         QApplication.clipboard().setText(value)
-        self.statusBar().showMessage(f"{value} in Zwischenablage")
+        self.statusBar().showMessage(tr('{value} in Zwischenablage', value=value))
 
     def copy(self):
         from PySide6.QtWidgets import QApplication
         QApplication.clipboard().setImage(pil_to_qimage(self.view.render_image()))
-        self.statusBar().showMessage("Bearbeitetes Bild in Zwischenablage")
+        self.statusBar().showMessage(tr("Bearbeitetes Bild in Zwischenablage"))
 
     def copy_and_close(self, everywhere=None):
         """Copy & Exit: keep the markup, put the edited image on the clipboard, close.
@@ -1531,13 +1532,13 @@ class EditorWindow(QMainWindow):
         """Open any image in a new editor window (Ctrl+O, or "open with" from the file manager)."""
         from .color import import_srgb
         if not path:
-            path, _ = QFileDialog.getOpenFileName(self, "Bild öffnen", "", "Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp *.tif *.tiff *.gif)")
+            path, _ = QFileDialog.getOpenFileName(self, tr("Bild öffnen"), "", tr('Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp *.tif *.tiff *.gif)'))
         if not path:
             return None
         try:
             window = EditorWindow(import_srgb(path), Path(path).name)
         except Exception as exc:
-            QMessageBox.warning(self, "Bild konnte nicht geöffnet werden", str(exc))
+            QMessageBox.warning(self, tr('Bild konnte nicht geöffnet werden'), str(exc))
             return None
         OPEN_EDITORS.append(window)
         window.destroyed.connect(lambda _=None, w=window: OPEN_EDITORS.remove(w) if w in OPEN_EDITORS else None)
@@ -1561,7 +1562,7 @@ class EditorWindow(QMainWindow):
         selected = [item for item in self.view.scene().selectedItems() if isinstance(item, Annotation)]
         changed = False
         if selected:
-            self.view.undo.beginMacro("Größe ändern")
+            self.view.undo.beginMacro(tr("Größe ändern"))
         for item in selected:
             before = item.serialize()
             after = dict(before)
@@ -1579,7 +1580,7 @@ class EditorWindow(QMainWindow):
             self.view.undo.endMacro()
         if not selected:
             self.view.font_size = max(6, min(200, self.view.font_size + 2 * direction))
-            self.statusBar().showMessage(f"Standard-Textgröße: {self.view.font_size} px")
+            self.statusBar().showMessage(tr('Standard-Textgröße: {size} px', size=self.view.font_size))
         return changed
 
     def autosave(self, *_):
@@ -1591,20 +1592,20 @@ class EditorWindow(QMainWindow):
         return safe_name(self.title)
 
     def export(self):
-        path, selected = QFileDialog.getSaveFileName(self, "Bild exportieren", self.suggested_name() + ".png", "PNG (*.png);;JPEG (*.jpg);;WebP (*.webp);;JPEG XL (*.jxl);;TIFF (*.tiff);;BMP (*.bmp);;GIF (*.gif)")
+        path, selected = QFileDialog.getSaveFileName(self, tr("Bild exportieren"), self.suggested_name() + ".png", "PNG (*.png);;JPEG (*.jpg);;WebP (*.webp);;JPEG XL (*.jxl);;TIFF (*.tiff);;BMP (*.bmp);;GIF (*.gif)")
         if path:
             try:
                 if not Path(path).suffix:
                     import re
                     path += re.search(r"\*([.a-z]+)", selected).group(1)
                 save_image(self.view.render_image(), path, metadata={"Software": "screenkaffee"})
-                self.statusBar().showMessage(f"Bild gespeichert: {path}")
+                self.statusBar().showMessage(tr('Bild gespeichert: {path}', path=path))
             except Exception as exc:
-                QMessageBox.critical(self, "Export fehlgeschlagen", str(exc))
+                QMessageBox.critical(self, tr("Export fehlgeschlagen"), str(exc))
 
     def save_project(self):
         if self.project_path is None:
-            path, _ = QFileDialog.getSaveFileName(self, "Projekt speichern", self.suggested_name() + ".screenkaffee.json", "screenkaffee-Projekt (*.screenkaffee.json *.prism.json)")
+            path, _ = QFileDialog.getSaveFileName(self, tr("Projekt speichern"), self.suggested_name() + ".screenkaffee.json", tr('screenkaffee-Projekt (*.screenkaffee.json *.prism.json)'))
             if not path:
                 return False
             self.project_path = Path(path)
@@ -1614,14 +1615,14 @@ class EditorWindow(QMainWindow):
             temp.replace(self.project_path)
             self.view.undo.setClean()
             self.projectSaved.emit(self.view.render_image())
-            self.statusBar().showMessage("Markierungen gespeichert. Original bleibt für erneute Bearbeitung erhalten.")
+            self.statusBar().showMessage(tr("Markierungen gespeichert. Original bleibt für erneute Bearbeitung erhalten."))
             return True
         except Exception as exc:
-            QMessageBox.critical(self, "Speichern fehlgeschlagen", str(exc))
+            QMessageBox.critical(self, tr("Speichern fehlgeschlagen"), str(exc))
             return False
 
     def insert_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Bild / Stempel einfügen", "", "Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("Bild / Stempel einfügen"), "", tr('Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp)'))
         if path:
             from .color import import_srgb
             self.view.insert_stamp(import_srgb(path))
@@ -1640,10 +1641,10 @@ class EditorWindow(QMainWindow):
         for entry in library.entries():
             menu.addAction(entry["name"], lambda e=entry: self.insert_template(e))
         menu.addSeparator()
-        menu.addAction("Auswahl als Vorlage speichern …", self.save_template)
+        menu.addAction(tr("Auswahl als Vorlage speichern …"), self.save_template)
         own = library.own()
         if own:
-            delete = menu.addMenu("Eigene Vorlage löschen")
+            delete = menu.addMenu(tr("Eigene Vorlage löschen"))
             for entry in own:
                 delete.addAction(entry["name"], lambda name=entry["name"]: self.delete_template(name))
 
@@ -1652,39 +1653,39 @@ class EditorWindow(QMainWindow):
         from .templates import placed
         center = self.view.crop_rect.center()
         self.view.scene().clearSelection()
-        self.view.undo.beginMacro("Vorlage einfügen: " + entry["name"])
+        self.view.undo.beginMacro(tr("Vorlage einfügen: {name}", name=entry["name"]))
         items = [self.view.add_annotation(data) for data in placed(entry["items"], (center.x(), center.y()))]
         self.view.undo.endMacro()
         for item in items:
             item.setSelected(True)
-        self.statusBar().showMessage(f"Vorlage „{entry['name']}“ eingefügt – Text per Doppelklick ändern")
+        self.statusBar().showMessage(tr('Vorlage „{name}“ eingefügt – Text per Doppelklick ändern', name=entry['name']))
         return items
 
     def save_template(self, name=None):
         from .templates import TemplateLibrary
         items = [x.serialize() for x in self.view.annotations() if x.isSelected()]
         if not items:
-            QMessageBox.information(self, "Vorlage speichern", "Bitte zuerst eine oder mehrere Markierungen auswählen.")
+            QMessageBox.information(self, tr("Vorlage speichern"), tr("Bitte zuerst eine oder mehrere Markierungen auswählen."))
             return None
         if name is None:
-            name, ok = QInputDialog.getText(self, "Vorlage speichern", f"Name für die Vorlage ({len(items)} Markierungen):")
+            name, ok = QInputDialog.getText(self, tr("Vorlage speichern"), tr('Name für die Vorlage ({count} Markierungen):', count=len(items)))
             if not ok:
                 return None
         try:
             saved = TemplateLibrary().add(name, items)
         except ValueError as exc:
-            QMessageBox.warning(self, "Vorlage speichern", str(exc))
+            QMessageBox.warning(self, tr('Vorlage speichern'), str(exc))
             return None
-        self.statusBar().showMessage(f"Vorlage „{saved}“ gespeichert – zu finden unter Weitere Bildaktionen → Vorlagen")
+        self.statusBar().showMessage(tr('Vorlage „{name}“ gespeichert – zu finden unter Weitere Bildaktionen → Vorlagen', name=saved))
         return saved
 
     def delete_template(self, name):
         from .templates import TemplateLibrary
-        if QMessageBox.question(self, "Vorlage löschen", f"Eigene Vorlage „{name}“ löschen?") == QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, tr("Vorlage löschen"), tr('Eigene Vorlage „{name}“ löschen?', name=name)) == QMessageBox.StandardButton.Yes:
             TemplateLibrary().remove(name)
 
     def replace_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Hauptbild ersetzen; Markierungen bleiben erhalten", "", "Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp)")
+        path, _ = QFileDialog.getOpenFileName(self, "Hauptbild ersetzen; Markierungen bleiben erhalten", "", tr('Bilder (*.png *.jpg *.jpeg *.webp *.jxl *.bmp)'))
         if path:
             from .color import import_srgb
             self.view.undo.push(SourceCommand(self.view, import_srgb(path)))
@@ -1693,18 +1694,18 @@ class EditorWindow(QMainWindow):
     def open_external(self):
         from .policy import load_policy
         if "external_editor" in load_policy()["disabled"]:
-            QMessageBox.information(self, "Richtlinie", "Diese Funktion ist per Richtlinie deaktiviert.")
+            QMessageBox.information(self, tr("Richtlinie"), tr("Diese Funktion ist per Richtlinie deaktiviert."))
             return
         from . import external
         from PySide6.QtCore import QTimer, QSettings
-        program, _ = QFileDialog.getOpenFileName(self, "Programm zum Bearbeiten wählen")
+        program, _ = QFileDialog.getOpenFileName(self, tr("Programm zum Bearbeiten wählen"))
         if not program:
             return
         try:
             path = external.export_temp(self.view.source.convert("RGBA" if "A" in self.view.source.getbands() else "RGB"))
             external.launch(program, path)
         except Exception as exc:
-            QMessageBox.warning(self, "Externer Editor", str(exc))
+            QMessageBox.warning(self, tr('Externer Editor'), str(exc))
             return
         self.external_path = path
         self.external_mtime = path.stat().st_mtime_ns
@@ -1716,7 +1717,7 @@ class EditorWindow(QMainWindow):
             pass
         timer.timeout.connect(self.check_external)
         timer.start(1000)
-        self.statusBar().showMessage("Externer Editor geöffnet · Speichern dort übernimmt das Bild hier automatisch")
+        self.statusBar().showMessage(tr("Externer Editor geöffnet · Speichern dort übernimmt das Bild hier automatisch"))
 
     def check_external(self):
         from . import external
@@ -1728,7 +1729,7 @@ class EditorWindow(QMainWindow):
             self.view.undo.push(SourceCommand(self.view, import_srgb(self.external_path)))
             self.external_mtime = mtime
             self.fit()
-            self.statusBar().showMessage("Bild aus externem Editor übernommen")
+            self.statusBar().showMessage(tr("Bild aus externem Editor übernommen"))
         except Exception:
             pass  # file may be mid-write; mtime stays old so the next tick retries
 
@@ -1755,7 +1756,7 @@ class EditorWindow(QMainWindow):
             existing.activateWindow()
             return existing
         dialog = QDialog(self)
-        dialog.setWindowTitle("Ausgabe mit Bildeffekten (live)")
+        dialog.setWindowTitle(tr("Ausgabe mit Bildeffekten (live)"))
         dialog.setModal(False)
         dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dialog.resize(1000, 750)
@@ -1785,7 +1786,7 @@ class EditorWindow(QMainWindow):
                 return
             label.setPixmap(QPixmap.fromImage(pil_to_qimage(image)).scaled(
                 max(1, label.width()), max(1, label.height()), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-            info.setText(f"Ausgabegröße: {image.width} × {image.height} Pixel (aktualisiert sich bei jeder Änderung)")
+            info.setText(tr('Ausgabegröße: {width} × {height} Pixel (aktualisiert sich bei jeder Änderung)', width=image.width, height=image.height))
 
         timer.timeout.connect(render)
         refresh = lambda *_: timer.start()
@@ -1801,45 +1802,54 @@ class EditorWindow(QMainWindow):
 
     def image_effects(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("Bildgröße, Rahmen und Effekte")
+        dialog.setWindowTitle(tr("Bildgröße, Rahmen und Effekte"))
         form = QFormLayout(dialog)
         controls = {}
-        definitions = [("scale_percent", "Größe in %", 5, 400), ("rotation", "Drehung im Uhrzeigersinn", -180, 180),
-            ("padding", "Außenabstand in Pixeln", 0, 1000), ("corner_radius", "Eckenradius", 0, 500),
-            ("border_width", "Rahmenbreite", 0, 100), ("shadow_radius", "Schattenweichheit", 0, 200),
-            ("shadow_offset", "Schattenversatz", -200, 200), ("shadow_opacity", "Schatten-Deckkraft (0–255)", 0, 255),
-            ("torn_edge", "Risskante", 0, 100), ("reflection_percent", "Spiegelung in %", 0, 100)]
+        definitions = [("scale_percent", tr("Größe in %"), 5, 400), ("rotation", tr("Drehung im Uhrzeigersinn"), -180, 180),
+            ("padding", tr("Außenabstand in Pixeln"), 0, 1000), ("corner_radius", tr("Eckenradius"), 0, 500),
+            ("border_width", tr("Rahmenbreite"), 0, 100), ("shadow_radius", tr("Schattenweichheit"), 0, 200),
+            ("shadow_offset", tr("Schattenversatz"), -200, 200), ("shadow_opacity", tr("Schatten-Deckkraft (0–255)"), 0, 255),
+            ("torn_edge", tr("Risskante"), 0, 100), ("reflection_percent", tr("Spiegelung in %"), 0, 100)]
         for key, label, low, high in definitions:
             widget = QSpinBox()
             widget.setRange(low, high)
             widget.setValue(self.view.effects[key])
             controls[key] = widget
             form.addRow(label, widget)
-        for key, label in [("brightness", "Helligkeit"), ("contrast", "Kontrast")]:
+        for key, label in [("brightness", tr("Helligkeit")), ("contrast", tr("Kontrast"))]:
             widget = QDoubleSpinBox()
             widget.setRange(.1, 3)
             widget.setSingleStep(.1)
             widget.setValue(self.view.effects[key])
             controls[key] = widget
             form.addRow(label, widget)
-        for key, label in [("flip_horizontal", "Horizontal spiegeln"), ("flip_vertical", "Vertikal spiegeln"),
-                           ("grayscale", "Graustufen"), ("transparent_background", "Transparenter Hintergrund"),
-                           ("auto_canvas", "Automatische Leinwandgröße (wächst mit Markierungen)")]:
+        for key, label in [("flip_horizontal", tr("Horizontal spiegeln")), ("flip_vertical", tr("Vertikal spiegeln")),
+                           ("grayscale", tr("Graustufen")), ("transparent_background", tr("Transparenter Hintergrund")),
+                           ("auto_canvas", tr("Automatische Leinwandgröße (wächst mit Markierungen)"))]:
             widget = QCheckBox()
             widget.setChecked(bool(self.view.effects.get(key, False)))
             controls[key] = widget
             form.addRow(label, widget)
-        for key, label in [("background", "Hintergrundfarbe (#RRGGBB)"), ("border_color", "Rahmenfarbe (#RRGGBB)"), ("watermark", "Wasserzeichen (Text)"), ("watermark_image", "Wasserzeichen (Bilddatei, PNG/JPG)")]:
+        for key, label in [("background", tr("Hintergrundfarbe (#RRGGBB)")), ("border_color", tr("Rahmenfarbe (#RRGGBB)")), ("watermark", tr("Wasserzeichen (Text)")), ("watermark_image", tr("Wasserzeichen (Bilddatei, PNG/JPG)"))]:
             widget = QLineEdit(self.view.effects[key])
             controls[key] = widget
             form.addRow(label, widget)
         position = QComboBox()
-        for v, vl in [("top", "Oben"), ("middle", "Mitte"), ("bottom", "Unten")]:
-            for h, hl in [("left", "links"), ("center", "zentriert"), ("right", "rechts")]:
-                position.addItem(f"{vl} {hl}", f"{v}-{h}")
+        for value, label in [
+            ('top-left', tr('Oben links')),
+            ('top-center', tr('Oben zentriert')),
+            ('top-right', tr('Oben rechts')),
+            ('middle-left', tr('Mitte links')),
+            ('middle-center', tr('Mitte zentriert')),
+            ('middle-right', tr('Mitte rechts')),
+            ('bottom-left', tr('Unten links')),
+            ('bottom-center', tr('Unten zentriert')),
+            ('bottom-right', tr('Unten rechts')),
+        ]:
+            position.addItem(label, value)
         position.setCurrentIndex(max(0, position.findData(self.view.effects.get("watermark_position", "bottom-right"))))
-        form.addRow("Wasserzeichen-Position", position)
-        for key, label, low, high in [("watermark_scale", "Bild-Wasserzeichen Breite (%)", 1, 100), ("watermark_opacity", "Wasserzeichen-Deckkraft (0–255)", 0, 255)]:
+        form.addRow(tr('Wasserzeichen-Position'), position)
+        for key, label, low, high in [("watermark_scale", tr("Bild-Wasserzeichen Breite (%)"), 1, 100), ("watermark_opacity", tr("Wasserzeichen-Deckkraft (0–255)"), 0, 255)]:
             widget = QSpinBox()
             widget.setRange(low, high)
             widget.setValue(self.view.effects[key])
@@ -1848,7 +1858,7 @@ class EditorWindow(QMainWindow):
         preview_label = QLabel()
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_label.setMinimumSize(320, 180)
-        form.addRow("Live-Vorschau", preview_label)
+        form.addRow(tr("Live-Vorschau"), preview_label)
         base_img = self.view.source.copy()
         base_img.thumbnail((320, 180))
         def refresh_effects_preview(*_):
@@ -1883,7 +1893,7 @@ class EditorWindow(QMainWindow):
             data[key] = widget.isChecked() if isinstance(widget, QCheckBox) else widget.text() if isinstance(widget, QLineEdit) else widget.value()
         for key in ("background", "border_color"):
             if not QColor(data[key]).isValid():
-                QMessageBox.warning(self, "Ungültige Farbe", data[key])
+                QMessageBox.warning(self, tr('Ungültige Farbe'), data[key])
                 return
         self.view.undo.push(EffectsCommand(self.view, data))
 
@@ -1911,7 +1921,7 @@ class EditorWindow(QMainWindow):
         preview_label = QLabel()
         preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_label.setMinimumSize(300, 160)
-        form.addRow("Live-Vorschau", preview_label)
+        form.addRow(tr("Live-Vorschau"), preview_label)
         base_img = self.view.source.copy()
         base_img.thumbnail((280, 150))
         def refresh_quick_preview(*_):
@@ -1945,42 +1955,42 @@ class EditorWindow(QMainWindow):
         data = dict(self.view.effects, **values)
         for key in ("background", "border_color"):
             if not QColor(data[key]).isValid():
-                QMessageBox.warning(self, "Ungültige Farbe", data[key])
+                QMessageBox.warning(self, tr('Ungültige Farbe'), data[key])
                 return False
         self.view.undo.push(EffectsCommand(self.view, data))
         return True
 
     def canvas_dialog(self):
-        self.quick_effects("Leinwandgröße", [("padding", "Außenabstand in Pixeln", 0, 1000)],
-                           [("background", "Hintergrundfarbe (#RRGGBB)")],
-                           [("transparent_background", "Transparenter Hintergrund"),
-                            ("auto_canvas", "Automatische Leinwandgröße (wächst mit Markierungen)")])
+        self.quick_effects(tr("Leinwandgröße"), [("padding", tr("Außenabstand in Pixeln"), 0, 1000)],
+                           [("background", tr("Hintergrundfarbe (#RRGGBB)"))],
+                           [("transparent_background", tr("Transparenter Hintergrund")),
+                            ("auto_canvas", tr("Automatische Leinwandgröße (wächst mit Markierungen)"))])
 
     def border_dialog(self):
-        self.quick_effects("Rahmen", [("border_width", "Rahmenbreite (0 = kein Rahmen)", 0, 100), ("corner_radius", "Eckenradius", 0, 500)],
-                           [("border_color", "Rahmenfarbe (#RRGGBB)")])
+        self.quick_effects(tr("Rahmen"), [("border_width", tr("Rahmenbreite (0 = kein Rahmen)"), 0, 100), ("corner_radius", tr("Eckenradius"), 0, 500)],
+                           [("border_color", tr("Rahmenfarbe (#RRGGBB)"))])
 
     def annotation_properties(self):
         selected = [item for item in self.view.scene().selectedItems() if isinstance(item, Annotation)]
         if not selected:
-            self.statusBar().showMessage("Mit dem Auswahlwerkzeug zuerst eine Markierung auswählen.")
+            self.statusBar().showMessage(tr("Mit dem Auswahlwerkzeug zuerst eine Markierung auswählen."))
             return
         data = selected[0].serialize()
         dialog = QDialog(self)
-        dialog.setWindowTitle("Markierung bearbeiten")
+        dialog.setWindowTitle(tr("Markierung bearbeiten"))
         form = QFormLayout(dialog)
         controls = {}
-        for key, label, default in [("color", "Linienfarbe", "#ff5a36"), ("fill", "Füllfarbe (leer = transparent)", ""),
-            ("font_family", "Schriftart", "Segoe UI"), ("text_color", "Textfarbe", data["color"]),
-            ("glow_color", "Textglühen: Farbe", "#ffffff"), ("shadow_color", "Textschatten: Farbe", "#000000")]:
+        for key, label, default in [("color", tr("Linienfarbe"), "#ff5a36"), ("fill", tr("Füllfarbe (leer = transparent)"), ""),
+            ("font_family", tr("Schriftart"), "Segoe UI"), ("text_color", tr("Textfarbe"), data["color"]),
+            ("glow_color", tr("Textglühen: Farbe"), "#ffffff"), ("shadow_color", tr("Textschatten: Farbe"), "#000000")]:
             widget = QLineEdit(data.get(key, default))
             controls[key] = widget
             form.addRow(label, widget)
-        for key, label, default, low, high in [("width", "Linienstärke", 4, 1, 100), ("font_size", "Schriftgröße", 22, 6, 200),
-            ("radius", "Eckenradius", 0, 0, 200), ("rotation", "Drehung", 0, -180, 180),
-            ("blur", "Unschärfestärke", 16, 1, 100), ("zoom", "Vergrößerung", 2, 1, 10),
-            ("glow_radius", "Textglühen: Radius", 0, 0, 30), ("shadow_radius", "Textschatten: Weichheit", 0, 0, 30),
-            ("shadow_offset", "Textschatten: Versatz", 0, -50, 50)]:
+        for key, label, default, low, high in [("width", tr("Linienstärke"), 4, 1, 100), ("font_size", tr("Schriftgröße"), 22, 6, 200),
+            ("radius", tr("Eckenradius"), 0, 0, 200), ("rotation", tr("Drehung"), 0, -180, 180),
+            ("blur", tr("Unschärfestärke"), 16, 1, 100), ("zoom", tr("Vergrößerung"), 2, 1, 10),
+            ("glow_radius", tr("Textglühen: Radius"), 0, 0, 30), ("shadow_radius", tr("Textschatten: Weichheit"), 0, 0, 30),
+            ("shadow_offset", tr("Textschatten: Versatz"), 0, -50, 50)]:
             widget = QSpinBox()
             widget.setRange(low, high)
             widget.setValue(round(data.get(key, default)))
@@ -1991,39 +2001,39 @@ class EditorWindow(QMainWindow):
         opacity.setSingleStep(.05)
         opacity.setValue(data.get("opacity", 1))
         controls["opacity"] = opacity
-        form.addRow("Deckkraft", opacity)
-        for key, label, default in [("connect", "Schritt mit vorheriger Nummer verbinden", False), ("bold", "Fett", True), ("italic", "Kursiv", False), ("underline", "Unterstrichen", False)]:
+        form.addRow(tr("Deckkraft"), opacity)
+        for key, label, default in [("connect", tr("Schritt mit vorheriger Nummer verbinden"), False), ("bold", tr("Fett"), True), ("italic", tr("Kursiv"), False), ("underline", tr("Unterstrichen"), False)]:
             widget = QCheckBox()
             widget.setChecked(data.get(key, default))
             controls[key] = widget
             form.addRow(label, widget)
         arrow_style, line_style = QComboBox(), QComboBox()
-        for label, value in [("Gefüllt", "filled"), ("Offen", "open"), ("Beidseitig", "double")]:
+        for label, value in [(tr("Gefüllt"), "filled"), (tr("Offen"), "open"), (tr("Beidseitig"), "double")]:
             arrow_style.addItem(label, value)
-        for label, value in [("Durchgezogen", "solid"), ("Gestrichelt", "dash"), ("Gepunktet", "dot")]:
+        for label, value in [(tr("Durchgezogen"), "solid"), (tr("Gestrichelt"), "dash"), (tr("Gepunktet"), "dot")]:
             line_style.addItem(label, value)
         arrow_style.setCurrentIndex(max(0, arrow_style.findData(data.get("arrow_style", "filled"))))
         line_style.setCurrentIndex(max(0, line_style.findData(data.get("line_style", "solid"))))
         curve = QSpinBox()
         curve.setRange(-200, 200)
         curve.setValue(round(data.get("curve", 0)))
-        form.addRow("Pfeilspitze", arrow_style)
-        form.addRow("Linienart", line_style)
-        form.addRow("Krümmung (Pfeil/Linie)", curve)
+        form.addRow(tr("Pfeilspitze"), arrow_style)
+        form.addRow(tr("Linienart"), line_style)
+        form.addRow(tr("Krümmung (Pfeil/Linie)"), curve)
         align = QComboBox()
-        for label, value in [("Links", "left"), ("Mitte", "center"), ("Rechts", "right")]:
+        for label, value in [(tr("Links"), "left"), (tr("Mitte"), "center"), (tr("Rechts"), "right")]:
             align.addItem(label, value)
         align.setCurrentIndex(max(0, align.findData(data.get("align", "left"))))
-        form.addRow("Textausrichtung", align)
+        form.addRow(tr('Textausrichtung'), align)
         step_format = QComboBox()
         for label, value in [("1, 2, 3", "1"), ("A, B, C", "A"), ("I, II, III", "I")]:
             step_format.addItem(label, value)
         step_format.setCurrentIndex(max(0, step_format.findData(data.get("step_format", "1"))))
         if data["kind"] == "step":
-            form.addRow("Zahlenformat (Schritte)", step_format)
-        lock_sample = QCheckBox("Lupenquelle an aktueller Bildposition sperren")
+            form.addRow(tr("Zahlenformat (Schritte)"), step_format)
+        lock_sample = QCheckBox(tr('Lupenquelle an aktueller Bildposition sperren'))
         lock_sample.setChecked("sample_box" in data)
-        magnifier_lines = QCheckBox("Rahmen um den Quellbereich und Verbindungslinien zum Glas zeichnen")
+        magnifier_lines = QCheckBox(tr("Rahmen um den Quellbereich und Verbindungslinien zum Glas zeichnen"))
         magnifier_lines.setChecked(bool(data.get("magnifier_lines")))
         if data["kind"] == "magnifier":
             form.addRow(lock_sample)
@@ -2038,11 +2048,11 @@ class EditorWindow(QMainWindow):
                   for key, widget in controls.items()}
         for key in ("color", "fill", "text_color", "glow_color", "shadow_color"):
             if values[key] and not QColor(values[key]).isValid():
-                QMessageBox.warning(self, "Ungültige Farbe", values[key])
+                QMessageBox.warning(self, tr('Ungültige Farbe'), values[key])
                 return
         values["align"] = align.currentData()
         values.update(arrow_style=arrow_style.currentData(), line_style=line_style.currentData(), curve=curve.value())
-        self.view.undo.beginMacro("Markierungseigenschaften ändern")
+        self.view.undo.beginMacro(tr("Markierungseigenschaften ändern"))
         for item in selected:
             before = item.serialize()
             after = dict(before, **values)
@@ -2085,12 +2095,12 @@ class EditorWindow(QMainWindow):
     def auto_trim_borders(self):
         if self.view.auto_trim():
             self.update_size_label()
-            self.statusBar().showMessage("Einfarbige Ränder entfernt (Rückgängig stellt sie wieder her).")
+            self.statusBar().showMessage(tr("Einfarbige Ränder entfernt (Rückgängig stellt sie wieder her)."))
         else:
-            self.statusBar().showMessage("Keine einfarbigen oder durchsichtigen Ränder gefunden.")
+            self.statusBar().showMessage(tr("Keine einfarbigen oder durchsichtigen Ränder gefunden."))
 
     def scale_selected(self):
-        value, ok = QInputDialog.getDouble(self, "Auswahl skalieren", "Größe in Prozent", 100, 5, 2000, 1)
+        value, ok = QInputDialog.getDouble(self, tr("Auswahl skalieren"), tr("Größe in Prozent"), 100, 5, 2000, 1)
         if ok:
             self.view.scale_selection(value / 100)
 
@@ -2106,7 +2116,7 @@ class EditorWindow(QMainWindow):
             event.accept()
             return
         if not self.view.undo.isClean():
-            answer = QMessageBox.question(self, "Markierungen speichern?", "Die Bearbeitung wurde noch nicht als Projekt gespeichert.",
+            answer = QMessageBox.question(self, tr("Markierungen speichern?"), tr("Die Bearbeitung wurde noch nicht als Projekt gespeichert."),
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
             if answer == QMessageBox.StandardButton.Cancel:
                 event.ignore()

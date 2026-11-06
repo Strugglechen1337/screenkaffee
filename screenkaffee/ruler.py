@@ -1,5 +1,6 @@
 """Lineal: Abstände in Pixeln messen – im Aufnahme-Overlay (Taste L oder „Bildschirm ausmessen“) und im Editor."""
 import math
+from .i18n import tr
 
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QColor, QFont, QPen
@@ -26,7 +27,7 @@ def snap_axis(x1, y1, x2, y2):
 
 
 def label(values):
-    text = f"{round(values['length'])} px  ·  B {round(values['dx'])}  ·  H {round(values['dy'])}"
+    text = tr('{length} px  ·  B {width}  ·  H {height}', length=round(values['length']), width=round(values['dx']), height=round(values['dy']))
     if values["dx"] and values["dy"]:
         incline = math.degrees(math.atan2(values["dy"], values["dx"]))         # Neigung gegen die Waagerechte, 0–90°
         text += f"  ·  {incline:.1f}°".replace(".", ",")
@@ -34,7 +35,7 @@ def label(values):
 
 
 def clipboard_text(values):
-    return f"{round(values['dx'])} × {round(values['dy'])} px (Länge {round(values['length'])} px)"
+    return tr('{width} × {height} px (Länge {length} px)', width=round(values['dx']), height=round(values['dy']), length=round(values['length']))
 
 
 def paint(painter, start, end, values, pixel_scale=1.0, guides=None):

@@ -1,17 +1,18 @@
 """Schicker Screenshot: Farbverlauf-Hintergrund, abgerundete Ecken, weicher Schatten und optional ein Fensterrahmen."""
 from dataclasses import dataclass, asdict
+from .i18n import N_, tr
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-STYLES = [("coffee", "Kaffee", ("#3b2416", "#c8875a")), ("sunset", "Sonnenuntergang", ("#ff9a8b", "#ff6a88")),
-          ("ocean", "Ozean", ("#2e3192", "#1bc6e8")), ("mint", "Minze", ("#d4fc79", "#96e6a1")),
-          ("lavender", "Lavendel", ("#a18cd1", "#fbc2eb")), ("night", "Nacht", ("#141e30", "#3a4a63")),
-          ("light", "Schlicht hell", ("#f5f5f7", "#dcdce3"))]
-FRAMES = [("none", "Ohne Fensterrahmen"), ("mac", "Fenster hell (drei Punkte)"), ("mac-dark", "Fenster dunkel (drei Punkte)"),
-          ("windows", "Fenster im Windows-Stil")]
-ASPECTS = [("free", "Passend zum Bild", None), ("16:9", "16:9 (Präsentation, YouTube)", 16 / 9),
-           ("4:3", "4:3", 4 / 3), ("1:1", "1:1 (quadratisch)", 1.0), ("9:16", "9:16 (Hochformat, Story)", 9 / 16)]
+STYLES = [("coffee", N_("Kaffee"), ("#3b2416", "#c8875a")), ("sunset", N_("Sonnenuntergang"), ("#ff9a8b", "#ff6a88")),
+          ("ocean", N_("Ozean"), ("#2e3192", "#1bc6e8")), ("mint", N_("Minze"), ("#d4fc79", "#96e6a1")),
+          ("lavender", N_("Lavendel"), ("#a18cd1", "#fbc2eb")), ("night", N_("Nacht"), ("#141e30", "#3a4a63")),
+          ("light", N_("Schlicht hell"), ("#f5f5f7", "#dcdce3"))]
+FRAMES = [("none", N_("Ohne Fensterrahmen")), ("mac", N_("Fenster hell (drei Punkte)")), ("mac-dark", N_("Fenster dunkel (drei Punkte)")),
+          ("windows", N_("Fenster im Windows-Stil"))]
+ASPECTS = [("free", N_("Passend zum Bild"), None), ("16:9", N_("16:9 (Präsentation, YouTube)"), 16 / 9),
+           ("4:3", "4:3", 4 / 3), ("1:1", N_("1:1 (quadratisch)"), 1.0), ("9:16", N_("9:16 (Hochformat, Story)"), 9 / 16)]
 LIGHTS = ("#ff5f57", "#febc2e", "#28c840")
 
 
@@ -159,7 +160,7 @@ def beautify_dialog(parent, image, settings=None, on_save=None, title=""):
     options = Options.from_dict(settings.get("beautify"))
     options.title = title                     # der Titel gehört zur Aufnahme, nicht zu den gemerkten Einstellungen
     dialog = QDialog(parent)
-    dialog.setWindowTitle("Schicker Screenshot")
+    dialog.setWindowTitle(tr("Schicker Screenshot"))
     layout = QHBoxLayout(dialog)
     dialog.preview = QLabel()
     dialog.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -169,45 +170,45 @@ def beautify_dialog(parent, image, settings=None, on_save=None, title=""):
     form = QFormLayout()
     dialog.style = QComboBox()
     for key, label, _ in STYLES:
-        dialog.style.addItem(label, key)
+        dialog.style.addItem(tr(label), key)
     dialog.frame = QComboBox()
     for key, label in FRAMES:
-        dialog.frame.addItem(label, key)
+        dialog.frame.addItem(tr(label), key)
     dialog.title = QLineEdit(options.title)
-    dialog.title.setPlaceholderText("Fenstertitel (optional)")
+    dialog.title.setPlaceholderText(tr("Fenstertitel (optional)"))
     dialog.aspect = QComboBox()
     for key, label, _ in ASPECTS:
-        dialog.aspect.addItem(label, key)
+        dialog.aspect.addItem(tr(label), key)
     dialog.padding = QSpinBox()
     dialog.padding.setRange(-1, 400)
-    dialog.padding.setSpecialValueText("automatisch")
+    dialog.padding.setSpecialValueText(tr("automatisch"))
     dialog.padding.setSuffix(" px")
     dialog.radius = QSpinBox()
     dialog.radius.setRange(0, 80)
     dialog.radius.setSuffix(" px")
-    dialog.shadow = QCheckBox("Weicher Schatten")
+    dialog.shadow = QCheckBox(tr("Weicher Schatten"))
     for combo, value in ((dialog.style, options.style), (dialog.frame, options.frame), (dialog.aspect, options.aspect)):
         combo.setCurrentIndex(max(0, combo.findData(value)))
     dialog.padding.setValue(options.padding)
     dialog.radius.setValue(options.radius)
     dialog.shadow.setChecked(options.shadow)
-    form.addRow("Hintergrund", dialog.style)
-    form.addRow("Rahmen", dialog.frame)
-    form.addRow("Titel", dialog.title)
-    form.addRow("Format", dialog.aspect)
-    form.addRow("Abstand", dialog.padding)
-    form.addRow("Ecken", dialog.radius)
+    form.addRow(tr("Hintergrund"), dialog.style)
+    form.addRow(tr("Rahmen"), dialog.frame)
+    form.addRow(tr("Titel"), dialog.title)
+    form.addRow(tr("Format"), dialog.aspect)
+    form.addRow(tr("Abstand"), dialog.padding)
+    form.addRow(tr("Ecken"), dialog.radius)
     form.addRow(dialog.shadow)
     side.addLayout(form)
     dialog.size_label = QLabel()
     dialog.size_label.setObjectName("muted")
     side.addWidget(dialog.size_label)
     side.addStretch()
-    copy = QPushButton("In Zwischenablage kopieren")
-    save = QPushButton("Als neue Aufnahme speichern")
+    copy = QPushButton(tr("In Zwischenablage kopieren"))
+    save = QPushButton(tr("Als neue Aufnahme speichern"))
     save.setObjectName("primary")
     save.setEnabled(on_save is not None)
-    close = QPushButton("Schließen")
+    close = QPushButton(tr("Schließen"))
     for button in (copy, save, close):
         side.addWidget(button)
     layout.addLayout(side)
@@ -227,7 +228,7 @@ def beautify_dialog(parent, image, settings=None, on_save=None, title=""):
         pix.setDevicePixelRatio(dpr)
         dialog.preview.setPixmap(pix)
         final = beautify_size(image, chosen)
-        dialog.size_label.setText(f"Ergebnis: {final[0]} × {final[1]} px")
+        dialog.size_label.setText(tr('Ergebnis: {width} × {height} px', width=final[0], height=final[1]))
         settings["beautify"] = {key: value for key, value in chosen.to_dict().items() if key != "title"}
 
     def finished_image():
@@ -235,11 +236,11 @@ def beautify_dialog(parent, image, settings=None, on_save=None, title=""):
 
     def do_copy():
         QApplication.clipboard().setImage(pil_to_qimage(finished_image()))
-        copy.setText("Kopiert ✓")
+        copy.setText(tr("Kopiert ✓"))
 
     def do_save():
         on_save(finished_image())
-        save.setText("Gespeichert ✓")
+        save.setText(tr("Gespeichert ✓"))
 
     timer = QTimer(dialog)
     timer.setSingleShot(True)

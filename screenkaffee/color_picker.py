@@ -1,11 +1,12 @@
 """Explicit sRGB color values for the standalone desktop picker."""
 import colorsys
+from .i18n import tr
 import re
 
 
 def color_formats(value):
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
-        raise ValueError("Ungültiger RGB-Farbwert.")
+        raise ValueError(tr("Ungültiger RGB-Farbwert."))
     r, g, b = (int(value[i:i + 2], 16) for i in (1, 3, 5))
     h, l, s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
     hv, sv, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)

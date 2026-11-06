@@ -1,5 +1,6 @@
 """Undo-Befehle des Editors."""
 import logging
+from .i18n import N_, tr
 import json
 import math
 import base64
@@ -23,7 +24,7 @@ from .editor_items import *  # noqa: F401,F403
 
 class AddCommand(QUndoCommand):
     def __init__(self, view, item):
-        super().__init__("Markierung hinzufügen")
+        super().__init__(tr("Markierung hinzufügen"))
         self.view, self.item = view, item
 
     def redo(self):
@@ -36,7 +37,7 @@ class AddCommand(QUndoCommand):
 
 class DeleteCommand(QUndoCommand):
     def __init__(self, view, items):
-        super().__init__("Markierung entfernen")
+        super().__init__(tr("Markierung entfernen"))
         self.view, self.items = view, items
 
     def redo(self):
@@ -50,8 +51,8 @@ class DeleteCommand(QUndoCommand):
 
 class ZOrderCommand(QUndoCommand):
     """Neue Stapelreihenfolge der Markierungen (zValue 1..n, unten nach oben)."""
-    def __init__(self, view, ordered, text="Ebenenreihenfolge ändern"):
-        super().__init__(text)
+    def __init__(self, view, ordered, text=N_("Ebenenreihenfolge ändern")):
+        super().__init__(tr(text))
         self.before = [(item, item.zValue()) for item in view.annotations()]
         self.after = [(item, float(index + 1)) for index, item in enumerate(ordered)]
 
@@ -66,7 +67,7 @@ class ZOrderCommand(QUndoCommand):
 
 class CropCommand(QUndoCommand):
     def __init__(self, view, after):
-        super().__init__("Zuschneiden")
+        super().__init__(tr("Zuschneiden"))
         self.view, self.before, self.after = view, QRectF(view.crop_rect), QRectF(after)
 
     def redo(self):
@@ -78,7 +79,7 @@ class CropCommand(QUndoCommand):
 
 class EffectsCommand(QUndoCommand):
     def __init__(self, view, after):
-        super().__init__("Bildeffekte ändern")
+        super().__init__(tr("Bildeffekte ändern"))
         self.view, self.before, self.after = view, dict(view.effects), dict(after)
         self.geometry_changed = any(self.before.get(k) != self.after.get(k) for k in ("rotation", "flip_horizontal", "flip_vertical"))
 
@@ -93,7 +94,7 @@ class EffectsCommand(QUndoCommand):
 
 class SourceCommand(QUndoCommand):
     def __init__(self, view, image):
-        super().__init__("Hauptbild ersetzen")
+        super().__init__(tr("Hauptbild ersetzen"))
         self.view = view
         self.before = (view.source.copy(), QRectF(view.crop_rect), view.source_changed)
         self.after = (image.convert("RGBA" if "A" in image.getbands() else "RGB"), QRectF(0, 0, image.width, image.height), True)
@@ -117,7 +118,7 @@ class CutOutCommand(SourceCommand):
     """Remove a strip from the main image; annotations behind the strip move up/left."""
     def __init__(self, view, image, axis, start, end):
         super().__init__(view, image)
-        self.setText("Bereich ausschneiden")
+        self.setText(tr("Bereich ausschneiden"))
         shift = (view.source.height - image.height) if axis == "y" else (view.source.width - image.width)
         self.moves = []
         for item in view.annotations():

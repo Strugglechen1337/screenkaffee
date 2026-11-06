@@ -4,6 +4,7 @@ A span is {"start", "end", and any of "bold", "italic", "underline", "color", "s
 attributes that differ from the box's base style are stored, so boxes without spans render exactly as before.
 """
 from PySide6.QtCore import Qt, QRectF
+from .i18n import N_, tr
 from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor, QTextDocument, QTextOption
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout, QPushButton, QSpinBox, QTextEdit,
                                QColorDialog, QVBoxLayout, QLabel)
@@ -112,19 +113,19 @@ def spans_from_document(document, d):
 
 class RichTextDialog(QDialog):
     """Edit the text of a box with bold/italic/underline/colour/size applied to the selection."""
-    def __init__(self, parent, d, title="Text ändern"):
+    def __init__(self, parent, d, title=N_("Text ändern")):
         super().__init__(parent)
-        self.setWindowTitle(title)
+        self.setWindowTitle(tr(title))
         self.data = d
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Text eingeben, Auswahl markieren und formatieren:"))
+        layout.addWidget(QLabel(tr("Text eingeben, Auswahl markieren und formatieren:")))
         tools = QHBoxLayout()
         self.editor = QTextEdit()
         self.editor.setAcceptRichText(False)
         self.editor.setFont(base_font(d))
         self.editor.setTextColor(QColor(d.get("text_color", d["color"])))
-        for label, handler in (("Fett", self.toggle_bold), ("Kursiv", self.toggle_italic),
-                               ("Unterstrichen", self.toggle_underline), ("Farbe …", self.pick_color)):
+        for label, handler in ((tr("Fett"), self.toggle_bold), (tr("Kursiv"), self.toggle_italic),
+                               (tr("Unterstrichen"), self.toggle_underline), (tr("Farbe …"), self.pick_color)):
             button = QPushButton(label)
             button.clicked.connect(handler)
             tools.addWidget(button)
@@ -132,7 +133,7 @@ class RichTextDialog(QDialog):
         self.size.setRange(6, 200)
         self.size.setValue(round(d.get("font_size", 22)))
         self.size.setSuffix(" px")
-        apply_size = QPushButton("Größe setzen")
+        apply_size = QPushButton(tr("Größe setzen"))
         apply_size.clicked.connect(lambda: self.merge(size=self.size.value()))
         tools.addWidget(self.size)
         tools.addWidget(apply_size)

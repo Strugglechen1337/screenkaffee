@@ -1,5 +1,6 @@
 """Angeheftete Aufnahme: rahmenloses Fenster, das immer im Vordergrund bleibt (z. B. zum Abtippen oder Vergleichen)."""
 from PySide6.QtCore import QPoint, QRect, Qt
+from .i18n import tr
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
@@ -14,7 +15,7 @@ class PinnedImage(QWidget):
     def __init__(self, image, title="", on_edit=None, parent=None):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setWindowTitle(("Angeheftet: " + title) if title else "Angeheftet")
+        self.setWindowTitle(tr("Angeheftet: {title}", title=title) if title else tr("Angeheftet"))
         self.image = image
         self.pixmap = QPixmap.fromImage(pil_to_qimage(image))
         self.on_edit = on_edit
@@ -27,7 +28,7 @@ class PinnedImage(QWidget):
             logical_w, logical_h = image.width / self.dpr, image.height / self.dpr
             self.zoom = min(1.0, area.width() * 0.8 / logical_w, area.height() * 0.8 / logical_h)
         self.apply_zoom()
-        self.setToolTip("Ziehen: verschieben · Mausrad: zoomen · Doppelklick/Esc: schließen · Rechtsklick: Menü")
+        self.setToolTip(tr("Ziehen: verschieben · Mausrad: zoomen · Doppelklick/Esc: schließen · Rechtsklick: Menü"))
 
     def logical_size(self):
         """Bei 100 % ein Bildpixel = ein Bildschirmpixel (wie im Editor)."""
@@ -94,17 +95,17 @@ class PinnedImage(QWidget):
 
     def build_menu(self):
         menu = QMenu(self)
-        menu.addAction("In Zwischenablage kopieren (Strg+C)", self.copy)
+        menu.addAction(tr("In Zwischenablage kopieren (Strg+C)"), self.copy)
         if self.on_edit:
-            menu.addAction("Im Editor öffnen", lambda: self.on_edit(self.image))
-        opacity = menu.addMenu("Deckkraft")
+            menu.addAction(tr("Im Editor öffnen"), lambda: self.on_edit(self.image))
+        opacity = menu.addMenu(tr("Deckkraft"))
         for percent in (100, 75, 50, 25):
             action = opacity.addAction(f"{percent} %", lambda value=percent / 100: self.set_opacity(value))
             action.setCheckable(True)
             action.setChecked(abs(self.windowOpacity() - percent / 100) < 0.01)
-        menu.addAction("Originalgröße (0)", lambda: self.apply_zoom(1.0))
+        menu.addAction(tr("Originalgröße (0)"), lambda: self.apply_zoom(1.0))
         menu.addSeparator()
-        menu.addAction("Schließen (Esc)", self.close)
+        menu.addAction(tr("Schließen (Esc)"), self.close)
         return menu
 
     def contextMenuEvent(self, event):

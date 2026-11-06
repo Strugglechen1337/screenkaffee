@@ -1,5 +1,6 @@
 """Local original stamps and a user-owned PNG library; no network access."""
 from pathlib import Path
+from .i18n import N_, tr
 import uuid
 from PIL import Image, ImageDraw, ImageFont
 from .color import import_srgb, save_png
@@ -8,14 +9,14 @@ from .workspace import portable_root
 
 def builtin_stamps():
     result = {}
-    for name, color, glyph in (("Erledigt", "#429b58", "OK"), ("Fehler", "#d84a40", "X"),
-                               ("Hinweis", "#378bc2", "i"), ("Achtung", "#db982e", "!")):
+    for name, color, glyph in ((N_("Erledigt"), "#429b58", "OK"), (N_("Fehler"), "#d84a40", "X"),
+                               (N_("Hinweis"), "#378bc2", "i"), (N_("Achtung"), "#db982e", "!")):
         image = Image.new("RGBA", (128, 128))
         draw = ImageDraw.Draw(image)
         draw.ellipse((6, 6, 122, 122), fill=color, outline="white", width=5)
         font = ImageFont.load_default(size=50)
         draw.text((64, 64), glyph, fill="white", font=font, anchor="mm")
-        result["builtin:" + name] = (name, image)
+        result["builtin:" + name] = (tr(name), image)
     return result
 
 
@@ -34,7 +35,7 @@ class StampLibrary:
         return result
 
     def add(self, image, name):
-        name = "".join(c for c in name.strip() if c.isalnum() or c in " -_")[:60] or "Stempel"
+        name = "".join(c for c in name.strip() if c.isalnum() or c in " -_")[:60] or "Stempel"  # i18n: ignore – stabiler Standarddateiname
         self.folder.mkdir(parents=True, exist_ok=True)
         key = name + "--" + uuid.uuid4().hex + ".png"
         save_png(image, self.folder / key)
@@ -42,7 +43,7 @@ class StampLibrary:
 
     def remove(self, key):
         if key.startswith("builtin:") or Path(key).name != key or not key.endswith(".png"):
-            raise ValueError("Nur eigene Stempel können entfernt werden.")
+            raise ValueError(tr("Nur eigene Stempel können entfernt werden."))
         (self.folder / key).unlink(missing_ok=True)
 
 
@@ -53,7 +54,7 @@ def choose_stamp(parent):
     from .editor import pil_to_qimage
     library = StampLibrary()
     dialog = QDialog(parent)
-    dialog.setWindowTitle("Stempelbibliothek")
+    dialog.setWindowTitle(tr("Stempelbibliothek"))
     dialog.resize(560, 420)
     layout = QVBoxLayout(dialog)
     listing = QListWidget()
@@ -70,7 +71,7 @@ def choose_stamp(parent):
             if key == selected:
                 listing.setCurrentItem(item)
     def add():
-        filename, _ = QFileDialog.getOpenFileName(dialog, "Eigenen Stempel hinzufügen", "", "Bilder (*.png *.jpg *.jpeg *.webp *.bmp)")
+        filename, _ = QFileDialog.getOpenFileName(dialog, tr("Eigenen Stempel hinzufügen"), "", tr('Bilder (*.png *.jpg *.jpeg *.webp *.bmp)'))
         if filename:
             refresh(library.add(import_srgb(filename), Path(filename).stem))
     def remove():
@@ -79,7 +80,7 @@ def choose_stamp(parent):
             library.remove(item.data(Qt.ItemDataRole.UserRole))
             refresh()
     row = QHBoxLayout()
-    for label, action in (("Eigenen hinzufügen", add), ("Eigenen entfernen", remove)):
+    for label, action in ((tr("Eigenen hinzufügen"), add), (tr("Eigenen entfernen"), remove)):
         button = QPushButton(label)
         button.clicked.connect(action)
         row.addWidget(button)

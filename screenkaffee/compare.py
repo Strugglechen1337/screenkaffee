@@ -1,5 +1,6 @@
 """Zwei Aufnahmen vergleichen: Schieberegler, Überblenden und markierte Unterschiede."""
 from dataclasses import dataclass, field
+from .i18n import N_, tr, language
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -9,7 +10,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboB
 
 CELL = 16                    # Unterschiede werden in Zellen dieser Größe zu Bereichen zusammengefasst
 DEFAULT_THRESHOLD = 24       # Farbabweichung je Kanal, die noch als gleich gilt (JPEG-Rauschen, Kantenglättung)
-MODES = [("slider", "Schieberegler"), ("blend", "Überblenden"), ("diff", "Unterschiede markieren")]
+MODES = [("slider", N_("Schieberegler")), ("blend", N_("Überblenden")), ("diff", N_("Unterschiede markieren"))]
 MARK = (230, 40, 40)
 
 
@@ -22,10 +23,14 @@ class Difference:
 
     def summary(self):
         if not self.regions:
-            return "Keine Unterschiede gefunden"
-        percent = f"{self.ratio * 100:.2f}".replace(".", ",")
+            return tr("Keine Unterschiede gefunden")
+        percent = f"{self.ratio * 100:.2f}"
+        if language() == "de":
+            percent = percent.replace(".", ",")
         count = len(self.regions)
-        return f"{count} {'Bereich' if count == 1 else 'Bereiche'} verändert · {percent} % der Pixel"
+        if count == 1:
+            return tr("{count} Bereich verändert · {percent} % der Pixel", count=count, percent=percent)
+        return tr("{count} Bereiche verändert · {percent} % der Pixel", count=count, percent=percent)
 
 
 def align(first, second):
@@ -162,28 +167,30 @@ class CompareCanvas(QWidget):
 class CompareWindow(QWidget):
     """Eigenes Fenster: links/vorher gegen rechts/nachher, Toleranz einstellbar, Markierung als Aufnahme speichern."""
 
-    def __init__(self, before, after, titles=("Vorher", "Nachher"), on_save=None):
+    def __init__(self, before, after, titles=(N_("Vorher"), N_("Nachher")), on_save=None):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.before, self.after, self.titles, self.on_save = before, after, list(titles), on_save
+        self.before, self.after, self.on_save = before, after, on_save
+        self.titles = ([tr(t) for t in titles]
+                       if titles == (N_("Vorher"), N_("Nachher")) else list(titles))
         self.diff = None
         self.resize(1100, 760)
         layout = QVBoxLayout(self)
         top = QHBoxLayout()
         self.mode = QComboBox()
         for value, label in MODES:
-            self.mode.addItem(label, value)
-        top.addWidget(QLabel("Ansicht"))
+            self.mode.addItem(tr(label), value)
+        top.addWidget(QLabel(tr("Ansicht")))
         top.addWidget(self.mode)
         top.addSpacing(16)
-        top.addWidget(QLabel("Toleranz"))
+        top.addWidget(QLabel(tr("Toleranz")))
         self.threshold = QSpinBox()
         self.threshold.setRange(0, 128)
         self.threshold.setValue(DEFAULT_THRESHOLD)
-        self.threshold.setToolTip("Wie stark eine Farbe abweichen darf, bevor sie als Unterschied zählt")
+        self.threshold.setToolTip(tr("Wie stark eine Farbe abweichen darf, bevor sie als Unterschied zählt"))
         top.addWidget(self.threshold)
         top.addStretch()
-        self.swap_button = QPushButton("Seiten tauschen")
+        self.swap_button = QPushButton(tr("Seiten tauschen"))
         top.addWidget(self.swap_button)
         layout.addLayout(top)
         self.labels = QHBoxLayout()
@@ -201,10 +208,10 @@ class CompareWindow(QWidget):
         bottom = QHBoxLayout()
         self.summary = QLabel()
         bottom.addWidget(self.summary, 1)
-        self.save_button = QPushButton("Markierung als Aufnahme speichern")
+        self.save_button = QPushButton(tr("Markierung als Aufnahme speichern"))
         self.save_button.setEnabled(on_save is not None)
         bottom.addWidget(self.save_button)
-        close = QPushButton("Schließen")
+        close = QPushButton(tr("Schließen"))
         close.clicked.connect(self.close)
         bottom.addWidget(close)
         layout.addLayout(bottom)
@@ -227,9 +234,9 @@ class CompareWindow(QWidget):
         self.marked = highlight(self.before, self.after, self.diff)
         size_note = ""
         if self.before.size != self.after.size:
-            size_note = f" · Größe {self.before.width}×{self.before.height} → {self.after.width}×{self.after.height}"
+            size_note = tr(' · Größe {width1}×{height1} → {width2}×{height2}', width1=self.before.width, height1=self.before.height, width2=self.after.width, height2=self.after.height)
         self.summary.setText(self.diff.summary() + size_note)
-        self.setWindowTitle(f"Vergleichen: {self.titles[0]} ↔ {self.titles[1]}")
+        self.setWindowTitle(tr('Vergleichen: {before} ↔ {after}', before=self.titles[0], after=self.titles[1]))
         self.left_label.setText("◀ " + self.titles[0])
         self.right_label.setText(self.titles[1] + " ▶")
         before, after = align(self.before, self.after)
@@ -253,7 +260,7 @@ class CompareWindow(QWidget):
     def save_marked(self):
         if self.on_save:
             self.on_save(self.marked)
-            self.save_button.setText("Gespeichert ✓")
+            self.save_button.setText(tr("Gespeichert ✓"))
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
@@ -267,7 +274,7 @@ class CompareWindow(QWidget):
 OPEN = []
 
 
-def compare(before, after, titles=("Vorher", "Nachher"), on_save=None):
+def compare(before, after, titles=(N_("Vorher"), N_("Nachher")), on_save=None):
     window = CompareWindow(before, after, titles, on_save)
     OPEN.append(window)
     window.destroyed.connect(lambda *_: OPEN.remove(window) if window in OPEN else None)
