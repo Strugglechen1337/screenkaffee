@@ -68,6 +68,11 @@ class EditorView(QGraphicsView):
         self.copy_shortcut.activated.connect(self.copy_annotations)
         self.paste_shortcut = QShortcut(QKeySequence("Ctrl+V"), self)
         self.paste_shortcut.activated.connect(self.paste_annotations)
+        self.order_shortcuts = []
+        for mode, keys in self.ORDER_KEYS.items():
+            shortcut = QShortcut(QKeySequence(keys), self)
+            shortcut.activated.connect(lambda mode=mode: self.reorder_selected(mode))
+            self.order_shortcuts.append(shortcut)
         dpr = self._screen_dpr()
         if dpr != 1.0:
             self.scale(1.0 / dpr, 1.0 / dpr)
@@ -396,6 +401,142 @@ class EditorView(QGraphicsView):
             self.undo.push(DataCommand(item, before, after))
         self.undo.endMacro()
 
+    def selected_annotations(self, movable=False):
+        """Ausgewählte Markierungen von unten nach oben; mit movable=True ohne gesperrte."""
+        return [x for x in self.annotations() if x.isSelected() and not (movable and x.locked())]
+
+    ORDER_ACTIONS = (("Ganz nach vorne", "front"), ("Nach vorne", "forward"),
+                     ("Nach hinten", "backward"), ("Ganz nach hinten", "back"))
+    ORDER_KEYS = {"front": "Ctrl+Shift+PgUp", "forward": "Ctrl+PgUp", "backward": "Ctrl+PgDown", "back": "Ctrl+Shift+PgDown"}
+
+    def reorder_selected(self, mode):
+        """Ebenen: "forward" (eins nach vorne), "backward", "front" (ganz nach vorne) oder "back"."""
+        order = self.annotations()
+        chosen = [x for x in order if x.isSelected()]
+        if not chosen:
+            return False
+        if mode == "front":
+            new = [x for x in order if not x.isSelected()] + chosen
+        elif mode == "back":
+            new = chosen + [x for x in order if not x.isSelected()]
+        else:
+            new = list(order)
+            indices = range(len(new) - 2, -1, -1) if mode == "forward" else range(1, len(new))
+            for index in indices:
+                other = index + 1 if mode == "forward" else index - 1
+                if new[index].isSelected() and not new[other].isSelected():
+                    new[index], new[other] = new[other], new[index]
+        if new == order:
+            return False
+        texts = {"forward": "Nach vorne", "backward": "Nach hinten", "front": "Ganz nach vorne", "back": "Ganz nach hinten"}
+        self.undo.push(ZOrderCommand(self, new, texts.get(mode, "Ebenenreihenfolge ändern")))
+        return True
+
+    def toggle_lock(self):
+        """Sperrt die Auswahl; sind schon alle gesperrt, wird sie entsperrt (ein Undo-Schritt)."""
+        items = self.selected_annotations()
+        if not items:
+            return False
+        lock = not all(x.locked() for x in items)
+        self.undo.beginMacro("Markierung sperren" if lock else "Markierung entsperren")
+        for item in items:
+            before = item.serialize()
+            after = dict(before, locked=True) if lock else {k: v for k, v in before.items() if k != "locked"}
+            self.undo.push(DataCommand(item, before, after))
+        self.undo.endMacro()
+        return True
+
+    def _scene_body(self, item):
+        return item.mapRectToScene(item.body_rect())
+
+    def align_selected(self, mode):
+        """Ausrichten an der gemeinsamen Umgebung: left, hcenter, right, top, vcenter, bottom."""
+        items = self.selected_annotations(movable=True)
+        if len(items) < 2:
+            return False
+        rects = [self._scene_body(x) for x in items]
+        bounds = rects[0]
+        for rect in rects[1:]:
+            bounds = bounds.united(rect)
+        moves = []
+        for item, rect in zip(items, rects):
+            dx = {"left": bounds.left() - rect.left(), "right": bounds.right() - rect.right(),
+                  "hcenter": bounds.center().x() - rect.center().x()}.get(mode, 0)
+            dy = {"top": bounds.top() - rect.top(), "bottom": bounds.bottom() - rect.bottom(),
+                  "vcenter": bounds.center().y() - rect.center().y()}.get(mode, 0)
+            if dx or dy:
+                moves.append((item, QPointF(dx, dy)))
+        return self._push_moves(moves, "Ausrichten")
+
+    def distribute_selected(self, axis):
+        """Gleichmäßig verteilen ("x" = horizontal, "y" = vertikal): gleiche Abstände, äußere bleiben stehen."""
+        items = self.selected_annotations(movable=True)
+        if len(items) < 3:
+            return False
+        horizontal = axis == "x"
+        pairs = sorted(((x, self._scene_body(x)) for x in items),
+                       key=lambda p: p[1].center().x() if horizontal else p[1].center().y())
+        size = lambda r: r.width() if horizontal else r.height()
+        low = lambda r: r.left() if horizontal else r.top()
+        start, end = low(pairs[0][1]), low(pairs[-1][1]) + size(pairs[-1][1])
+        gap = (end - start - sum(size(r) for _, r in pairs)) / (len(pairs) - 1)
+        moves, cursor = [], start
+        for item, rect in pairs:
+            delta = cursor - low(rect)
+            if abs(delta) > 1e-6:
+                moves.append((item, QPointF(delta, 0) if horizontal else QPointF(0, delta)))
+            cursor += size(rect) + gap
+        return self._push_moves(moves, "Verteilen")
+
+    def _push_moves(self, moves, text):
+        if not moves:
+            return False
+        self.undo.beginMacro(text)
+        for item, delta in moves:
+            self.undo.push(MoveCommand(item, item.pos(), item.pos() + delta))
+        self.undo.endMacro()
+        return True
+
+    def nudge_selected(self, dx, dy):
+        """Pfeiltasten: Auswahl verschieben; folgende Tastendrücke werden zu einem Undo-Schritt."""
+        items = self.selected_annotations(movable=True)
+        if not items:
+            return False
+        self.undo.push(NudgeCommand(items, QPointF(dx, dy)))
+        return True
+
+    def auto_trim(self, tolerance=8):
+        """Einfarbige oder durchsichtige Ränder innerhalb des aktuellen Zuschnitts entfernen (Zuschnitt mit Undo)."""
+        from .effects import trim_bounds
+        crop = self.crop_rect.toAlignedRect()
+        box = trim_bounds(self.source.crop((crop.left(), crop.top(), crop.right() + 1, crop.bottom() + 1)), tolerance)
+        if box is None:
+            return False
+        left, top, right, bottom = box
+        rect = QRectF(crop.left() + left, crop.top() + top, right - left, bottom - top)
+        if rect == self.crop_rect:
+            return False
+        self.undo.push(CropCommand(self, rect))
+        return True
+
+    def fill_arrange_menu(self, menu):
+        """Gemeinsame Einträge für Kontextmenü und „Weitere Bildaktionen“: Ebenen, Ausrichten, Sperren."""
+        order = menu.addMenu("Anordnen (Ebenen)")
+        for text, mode in self.ORDER_ACTIONS:
+            keys = QKeySequence(self.ORDER_KEYS[mode]).toString(QKeySequence.SequenceFormat.NativeText)
+            order.addAction(f"{text}\t{keys}", lambda mode=mode: self.reorder_selected(mode))
+        align = menu.addMenu("Ausrichten / Verteilen")
+        for text, mode in (("Links ausrichten", "left"), ("Horizontal zentrieren", "hcenter"), ("Rechts ausrichten", "right"),
+                           ("Oben ausrichten", "top"), ("Vertikal zentrieren", "vcenter"), ("Unten ausrichten", "bottom")):
+            align.addAction(text, lambda mode=mode: self.align_selected(mode))
+        align.addSeparator()
+        align.addAction("Horizontal gleichmäßig verteilen", lambda: self.distribute_selected("x"))
+        align.addAction("Vertikal gleichmäßig verteilen", lambda: self.distribute_selected("y"))
+        items = self.selected_annotations()
+        locked = bool(items) and all(x.locked() for x in items)
+        menu.addAction("Entsperren" if locked else "Sperren (nicht verschiebbar)", self.toggle_lock)
+        return order, align
+
     def copy_annotations(self):
         from PySide6.QtCore import QMimeData
         from PySide6.QtWidgets import QApplication
@@ -670,6 +811,14 @@ class EditorView(QGraphicsView):
         if self.tool == "polygon" and self.polygon_points and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.finish_polygon(bool(event.modifiers() & Qt.KeyboardModifier.AltModifier))
             return
+        arrows = {Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0), Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1)}
+        if self.tool == "select" and event.key() in arrows and not event.modifiers() & (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
+            step = 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1
+            dx, dy = arrows[event.key()]
+            if self.nudge_selected(dx * step, dy * step):
+                event.accept()
+                return
         super().keyPressEvent(event)
 
     def view_scale(self):
@@ -764,9 +913,13 @@ class EditorView(QGraphicsView):
             if hasattr(window, "save_tool_defaults"):
                 menu.addAction("Als Standardstil speichern", window.save_tool_defaults)
             menu.addSeparator()
+            self.fill_arrange_menu(menu)
+            menu.addSeparator()
             menu.addAction("Entfernen", self.delete_selected)
         else:
             menu.addAction("Markierung einfügen", self.paste_annotations)
+            if hasattr(window, "auto_trim_borders"):
+                menu.addAction("Ränder automatisch zuschneiden", window.auto_trim_borders)
             if hasattr(window, "replace_image"):
                 menu.addAction("Hauptbild ersetzen …", window.replace_image)
             if hasattr(window, "canvas_dialog"):
@@ -928,6 +1081,10 @@ class EditorWindow(QMainWindow):
         extra.addAction("Hauptbild ersetzen …", self.replace_image)
         extra.addAction("In externem Editor öffnen …", self.open_external)
         extra.addAction("Bereich ausschneiden (Pixelwerte / Gezackt) …", self.cut_out_dialog)
+        extra.addAction("Ränder automatisch zuschneiden", self.auto_trim_borders)
+        self.arrange_menu = extra.addMenu("Markierungen anordnen")
+        self.arrange_menu.aboutToShow.connect(self.fill_arrange_menu)
+        self.fill_arrange_menu()
         extra.addAction("Größe / Rahmen / Effekte …", self.image_effects)
         extra.addAction("Ausgabe-Vorschau (live)", self.preview_output)
         extra.addAction("Anheften (immer im Vordergrund)", self.pin_current)
@@ -1866,8 +2023,11 @@ class EditorWindow(QMainWindow):
             form.addRow("Zahlenformat (Schritte)", step_format)
         lock_sample = QCheckBox("Lupenquelle an aktueller Bildposition sperren")
         lock_sample.setChecked("sample_box" in data)
+        magnifier_lines = QCheckBox("Rahmen um den Quellbereich und Verbindungslinien zum Glas zeichnen")
+        magnifier_lines.setChecked(bool(data.get("magnifier_lines")))
         if data["kind"] == "magnifier":
             form.addRow(lock_sample)
+            form.addRow(magnifier_lines)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
@@ -1905,8 +2065,24 @@ class EditorWindow(QMainWindow):
                         center.y() + rect.height() / zoom / 2]))
                 else:
                     after.pop("sample_box", None)
+                if magnifier_lines.isChecked():
+                    after["magnifier_lines"] = True
+                else:
+                    after.pop("magnifier_lines", None)
             self.view.undo.push(DataCommand(item, before, after))
         self.view.undo.endMacro()
+
+    def fill_arrange_menu(self):
+        """Untermenü „Markierungen anordnen“ bei jedem Öffnen neu füllen (Sperren/Entsperren je nach Auswahl)."""
+        self.arrange_menu.clear()
+        self.view.fill_arrange_menu(self.arrange_menu)
+
+    def auto_trim_borders(self):
+        if self.view.auto_trim():
+            self.update_size_label()
+            self.statusBar().showMessage("Einfarbige Ränder entfernt (Rückgängig stellt sie wieder her).")
+        else:
+            self.statusBar().showMessage("Keine einfarbigen oder durchsichtigen Ränder gefunden.")
 
     def scale_selected(self):
         value, ok = QInputDialog.getDouble(self, "Auswahl skalieren", "Größe in Prozent", 100, 5, 2000, 1)

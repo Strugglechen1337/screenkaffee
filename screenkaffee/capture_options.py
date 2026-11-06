@@ -13,6 +13,7 @@ DEFAULTS = {
     "auto_border": 0,
     "auto_shadow": 0,
     "auto_watermark": "",
+    "auto_trim": False,                  # einfarbige/durchsichtige Ränder nach der Aufnahme abschneiden
     "auto_print": False,
     "follow_mouse_screen": False,
     "capture_context": True,
@@ -134,6 +135,11 @@ def effects_for(settings):
 
 
 def post_process(image, settings):
+    if settings.get("auto_trim"):
+        from .effects import trim_bounds
+        box = trim_bounds(image)
+        if box is not None:
+            image = image.crop(box)
     options = effects_for(settings)
     if not options:
         return image

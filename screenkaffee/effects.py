@@ -155,6 +155,33 @@ def apply_effects(image, options):
     return canvas if e.transparent_background else canvas.convert("RGB")
 
 
+def trim_bounds(image, tolerance=8):
+    """Bereich (links, oben, rechts, unten) ohne einfarbige oder transparente Ränder.
+
+    Die Randfarbe ist die Farbe der linken oberen Ecke; ist die Ecke (fast) durchsichtig, zählen alle
+    Pixel mit Deckkraft <= tolerance als Rand. tolerance ist die erlaubte Abweichung je Farbkanal (0–255).
+    Liefert None, wenn es nichts abzuschneiden gibt oder das ganze Bild einfarbig ist."""
+    tolerance = max(0, min(255, int(tolerance)))
+    rgba = image.convert("RGBA")
+    if not rgba.width or not rgba.height:
+        return None
+    corner = rgba.getpixel((0, 0))
+    if corner[3] <= tolerance:
+        content = rgba.getchannel("A").point(lambda a: 255 if a > tolerance else 0)
+    else:
+        rgb = rgba.convert("RGB")
+        diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, corner[:3]))
+        red, green, blue = diff.split()
+        spread = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+        content = spread.point(lambda v: 255 if v > tolerance else 0)
+        if "A" in image.getbands():           # durchsichtige Pixel gehören ebenfalls zum Rand
+            content = ImageChops.multiply(content, rgba.getchannel("A").point(lambda a: 255 if a > tolerance else 0))
+    box = content.getbbox()
+    if box is None or box == (0, 0, rgba.width, rgba.height):
+        return None
+    return box
+
+
 def cut_out(image, axis, start, end, gap=0, torn=0):
     """Remove the strip [start, end) along axis ('y' = horizontal strip, 'x' = vertical) and join the rest."""
     size = image.height if axis == "y" else image.width

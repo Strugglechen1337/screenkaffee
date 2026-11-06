@@ -2189,6 +2189,7 @@ class MainWindow(QMainWindow):
         option_boxes = {}
         for key, label in [("clipboard_only", "Aufnahmen nur in die Zwischenablage legen (nicht speichern)"),
                            ("auto_print", "Neue Aufnahmen automatisch drucken"), ("confirm_delete", "Vor dem Entfernen nachfragen"),
+                           ("auto_trim", "Einfarbige Ränder neuer Aufnahmen automatisch abschneiden"),
                            ("follow_mouse_screen", "Nur den Bildschirm unter dem Mauszeiger aufnehmen"),
                            ("capture_context", "Aufnahmekontext (aktives Fenster, Programm und URL) in Metadaten speichern")]:
             box = QCheckBox(label)

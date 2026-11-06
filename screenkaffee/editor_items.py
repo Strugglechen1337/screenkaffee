@@ -101,8 +101,52 @@ class Annotation(QGraphicsItem):
         self.tail_before = None
         self.setTransformOriginPoint(self.body_rect().center())
         self.setRotation(data.get("rotation", 0))
+        self.apply_lock()
+
+    def locked(self):
+        return bool(self.data.get("locked"))
+
+    def apply_lock(self):
+        """Gesperrte Markierungen bleiben auswählbar (für Kontextmenü/Entsperren), lassen sich aber nicht ziehen."""
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not self.locked())
+
+    def sample_box(self):
+        """Quellbereich einer Lupe in Bildkoordinaten (gesperrt oder unter dem Glas)."""
+        rect = self.body_rect()
+        zoom = max(1, self.data.get("zoom", 2))
+        center = rect.center() + self.pos()
+        return list(self.data.get("sample_box", [center.x() - rect.width() / zoom / 2,
+            center.y() - rect.height() / zoom / 2, center.x() + rect.width() / zoom / 2,
+            center.y() + rect.height() / zoom / 2]))
+
+    def magnifier_link(self):
+        """Rahmen um den Quellbereich und zwei Verbindungslinien zum Glas, in Item-Koordinaten.
+        Liefert (QRectF, [(Start, Ende), ...]) oder None, wenn die Option aus ist."""
+        if self.data.get("kind") != "magnifier" or not self.data.get("magnifier_lines"):
+            return None
+        x1, y1, x2, y2 = self.sample_box()
+        box = QRectF(self.mapFromScene(QPointF(x1, y1)), self.mapFromScene(QPointF(x2, y2))).normalized()
+        glass = self.body_rect()
+        a, b = box.center(), glass.center()
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        distance = math.hypot(dx, dy)
+        radius = min(glass.width(), glass.height()) / 2
+        lines = []
+        if distance > radius:                               # Quellbereich liegt neben dem Glas
+            ux, uy = dx / distance, dy / distance
+            nx, ny = -uy, ux                                # Senkrechte zur Verbindung der Mittelpunkte
+            half = max(box.width(), box.height()) / 2
+            for side in (1, -1):
+                start = QPointF(a.x() + side * nx * half, a.y() + side * ny * half)
+                # Endpunkt auf dem Glasrand, um 45° zur Verbindungslinie versetzt
+                angle = math.atan2(-uy, -ux) + side * -math.pi / 4
+                end = QPointF(b.x() + radius * math.cos(angle), b.y() + radius * math.sin(angle))
+                lines.append((start, end))
+        return box, lines
 
     def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.data.get("magnifier_lines"):
+            self.prepareGeometryChange()        # Quellrahmen bleibt stehen, die Item-Grenzen wandern mit
         # Magnet: only while the user drags this item with the mouse, never for undo/redo or code moves.
         if (change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and getattr(self.view, "magnet", False)
                 and self.scene() is not None and self.scene().mouseGrabberItem() is self):
@@ -141,7 +185,12 @@ class Annotation(QGraphicsItem):
                          self.data.get("shadow_radius", 0) * 3 + abs(self.data.get("shadow_offset", 0)))
             return rect.adjusted(-margin, -margin, margin, margin)
         margin = max(22, self.data.get("shadow_radius", 0) * 3 + abs(self.data.get("shadow_offset", 0)))
-        return rect.adjusted(-margin, -margin, margin, margin)
+        bounds = rect.adjusted(-margin, -margin, margin, margin)
+        link = self.magnifier_link() if self.data["kind"] == "magnifier" else None
+        if link is not None:
+            pad = self.data.get("width", 4) + 2
+            bounds = bounds.united(link[0].adjusted(-pad, -pad, pad, pad))
+        return bounds
 
     def previous_step_center(self):
         """Center of the step numbered one lower, in this item's coordinates."""
@@ -163,6 +212,9 @@ class Annotation(QGraphicsItem):
             if self.isSelected():
                 for handle in self.handles():
                     path.addRect(QRectF(handle - QPointF(6, 6), handle + QPointF(6, 6)))
+        elif self.data["kind"] == "magnifier":
+            # Nur das Glas ist anklickbar, nicht der (evtl. entfernte) Quellbereich.
+            path.addRect(self.body_rect().adjusted(-22, -22, 22, 22))
         else:
             path.addRect(self.boundingRect())
         return path
@@ -260,11 +312,16 @@ class Annotation(QGraphicsItem):
                 data = base64.b64decode(d["image"])
                 stamp = QImage.fromData(data, "PNG")
             else:
-                zoom = max(1, d.get("zoom", 2))
-                center = rect.center() + self.pos()
-                box = d.get("sample_box", [center.x() - rect.width() / zoom / 2,
-                    center.y() - rect.height() / zoom / 2, center.x() + rect.width() / zoom / 2,
-                    center.y() + rect.height() / zoom / 2])
+                box = self.sample_box()
+                link = self.magnifier_link()
+                if link is not None:
+                    frame, lines = link
+                    painter.save()
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(frame)
+                    for start, end in lines:
+                        painter.drawLine(start, end)
+                    painter.restore()
                 stamp = pil_to_qimage(self.view.source.crop(tuple(round(v) for v in box)))
                 painter.save()
                 clip = QPainterPath()
@@ -345,7 +402,7 @@ class Annotation(QGraphicsItem):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             selection = self.body_rect().adjusted(-8, -8, 8, 8)
             painter.drawRect(selection)
-            for handle in self.handles():
+            for handle in ([] if self.locked() else self.handles()):
                 painter.fillRect(QRectF(handle - QPointF(4, 4), handle + QPointF(4, 4)), QColor("#2563eb"))
             if kind == "speech":
                 painter.setBrush(QColor("#f59e0b"))
@@ -355,7 +412,7 @@ class Annotation(QGraphicsItem):
         self.original_pos = self.pos()
         self.text_only = bool(event.modifiers() & Qt.KeyboardModifier.AltModifier)
         self.ctrl_duplicate = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier and not self.text_only)
-        if self.isSelected():
+        if self.isSelected() and not self.locked():
             if self.data["kind"] == "speech" and (event.pos() - self.tail_tip()).manhattanLength() < 12:
                 self.tail_before = self.serialize()
                 self.ctrl_duplicate = False
@@ -493,6 +550,36 @@ class MoveCommand(QUndoCommand):
         self.item.setPos(self.before)
 
 
+class NudgeCommand(MoveCommand):
+    """Pfeiltasten: Markierungen um wenige Pixel verschieben; direkt folgende Tastendrücke
+    auf dieselbe Auswahl werden zu einem Undo-Schritt zusammengefasst."""
+    ID = 4711
+
+    def __init__(self, items, delta):
+        super().__init__(items[0], items[0].pos(), items[0].pos() + delta)
+        self.setText("Markierung mit Pfeiltasten verschieben")
+        self.items = list(items)
+        self.befores = [item.pos() for item in self.items]
+        self.delta = QPointF(delta)
+
+    def id(self):
+        return self.ID
+
+    def mergeWith(self, other):
+        if not isinstance(other, NudgeCommand) or [id(x) for x in other.items] != [id(x) for x in self.items]:
+            return False
+        self.delta += other.delta
+        return True
+
+    def redo(self):
+        for item, before in zip(self.items, self.befores):
+            item.setPos(before + self.delta)
+
+    def undo(self):
+        for item, before in zip(self.items, self.befores):
+            item.setPos(before)
+
+
 class DataCommand(QUndoCommand):
     def __init__(self, item, before, after):
         super().__init__("Text ändern")
@@ -504,6 +591,7 @@ class DataCommand(QUndoCommand):
         self.item.setPos(*value.get("pos", [0, 0]))
         self.item.setTransformOriginPoint(self.item.body_rect().center())
         self.item.setRotation(value.get("rotation", 0))
+        self.item.apply_lock()
         self.item.update()
 
     def redo(self):
