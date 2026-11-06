@@ -46,6 +46,7 @@ class Entry:
     width: int = 0
     height: int = 0
     hash: int = None
+    favorite: bool = False
 
 
 @dataclass
@@ -56,14 +57,14 @@ class Report:
     scanned: int = 0
 
     def suggested(self):
-        """IDs, die standardmäßig angekreuzt sind: alles außer dem ersten Bild jeder Gruppe."""
-        return [entry.ident for group in self.groups for entry in group[1:]]
+        """IDs, die standardmäßig angekreuzt sind: alles außer dem ersten Bild jeder Gruppe (nie Favoriten)."""
+        return [entry.ident for group in self.groups for entry in group[1:] if not entry.favorite]
 
     def reclaimable(self, ids=None):
         ids = set(self.suggested() if ids is None else ids)
         seen, total = set(), 0
         for entry in [e for group in self.groups for e in group] + [e for e, _ in self.videos]:
-            if entry.ident in ids and entry.ident not in seen:
+            if entry.ident in ids and entry.ident not in seen and not entry.favorite:
                 seen.add(entry.ident)
                 total += entry.bytes
         return total
@@ -82,7 +83,7 @@ def folder_bytes(folder):
 
 
 def group_similar(entries, threshold=SIMILAR):
-    """Gruppen ähnlicher Bilder (Union-Find über alle Paare); je Gruppe das neueste zuerst."""
+    """Gruppen ähnlicher Bilder (Union-Find über alle Paare); je Gruppe Favoriten und das neueste zuerst."""
     entries = [e for e in entries if e.hash is not None]
     parent = list(range(len(entries)))
 
@@ -98,8 +99,10 @@ def group_similar(entries, threshold=SIMILAR):
     groups = {}
     for i, entry in enumerate(entries):
         groups.setdefault(root(i), []).append(entry)
-    result = [sorted(group, key=lambda e: e.created, reverse=True) for group in groups.values() if len(group) > 1]
-    return sorted(result, key=lambda group: -sum(e.bytes for e in group[1:]))
+    result = [sorted(group, key=lambda e: (bool(e.favorite), e.created), reverse=True)
+              for group in groups.values() if len(group) > 1]
+    result = [group for group in result if any(not e.favorite for e in group[1:])]
+    return sorted(result, key=lambda group: -sum(e.bytes for e in group[1:] if not e.favorite))
 
 
 def is_identical(first, second):
@@ -111,7 +114,8 @@ def scan(workspace, now=None, progress=None):
     rows = workspace.rows()
     images, report = [], Report(scanned=len(rows))
     for index, row in enumerate(rows):
-        entry = Entry(row["id"], row["title"], row["created"], row["kind"], entry_bytes(workspace, row), row["width"] or 0, row["height"] or 0)
+        entry = Entry(row["id"], row["title"], row["created"], row["kind"], entry_bytes(workspace, row),
+                      row["width"] or 0, row["height"] or 0, favorite=bool(row["favorite"]))
         if row["kind"] == "image":
             try:
                 with Image.open(workspace.thumbnail_path(row["id"])) as image:
@@ -119,7 +123,7 @@ def scan(workspace, now=None, progress=None):
             except (OSError, ValueError):
                 pass
             images.append(entry)
-        elif row["kind"] == "video":
+        elif row["kind"] == "video" and not entry.favorite:
             created = datetime.fromisoformat(row["created"])
             if created.tzinfo is None:
                 created = created.replace(tzinfo=timezone.utc)
@@ -160,8 +164,9 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
     def add_entry(section, entry, note=""):
         item = QTreeWidgetItem(section, [entry.title + (f"  ({note})" if note else ""), human(entry.bytes), entry.created[:16].replace("T", " ")])
         item.setData(0, Qt.ItemDataRole.UserRole, entry.ident)
-        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item.setCheckState(0, Qt.CheckState.Checked if entry.ident in suggested else Qt.CheckState.Unchecked)
+        if not entry.favorite:
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.CheckState.Checked if entry.ident in suggested else Qt.CheckState.Unchecked)
         try:
             item.setIcon(0, QIcon(QPixmap(str(workspace.thumbnail_path(entry.ident)))))
         except Exception:
@@ -173,7 +178,8 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
             kind = "gleich" if all(is_identical(group[0], other) for other in group[1:]) else "sehr ähnlich"
             node = QTreeWidgetItem(section, [f"Gruppe {number}: {len(group)} Bilder, {kind}"])
             for position, entry in enumerate(group):
-                add_entry(node, entry, "neuestes – behalten" if position == 0 else "")
+                note = "Favorit – behalten" if entry.favorite else ("neuestes – behalten" if position == 0 else "")
+                add_entry(node, entry, note)
     if report.videos:
         section = QTreeWidgetItem(tree, [f"Große und alte Videos ({len(report.videos)})"])
         for entry, reason in report.videos:
@@ -203,7 +209,7 @@ def cleanup_dialog(parent, workspace, report, on_change=None):
     update_summary()
 
     def remove():
-        ids = checked()
+        ids = [ident for ident in checked() if (workspace.get(ident) and not workspace.get(ident)["favorite"])]
         if not ids:
             return
         if QMessageBox.question(dialog, "Aufräumen", f"{len(ids)} Aufnahmen in den Papierkorb verschieben?") != QMessageBox.StandardButton.Yes:

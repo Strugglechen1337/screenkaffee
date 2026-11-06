@@ -9,6 +9,21 @@ import shutil
 from .color import save_png, import_srgb
 
 
+def parse_tags(value):
+    """Zerlegt einen Tag-String oder eine Liste in eindeutige Tags in Originalreihenfolge."""
+    if isinstance(value, (list, tuple, set)):
+        raw = [str(x).strip() for x in value]
+    else:
+        text = str(value or "")
+        raw = [x.strip() for x in (text.split(",") if "," in text else text.split())]
+    seen, result = set(), []
+    for tag in raw:
+        if tag and tag.casefold() not in seen:
+            seen.add(tag.casefold())
+            result.append(tag)
+    return result
+
+
 def portable_root():
     override = os.environ.get("SCREENKAFFEE_DATA")
     if override:
@@ -69,6 +84,8 @@ class Workspace:
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(captures)")}
         if "kind" not in columns:
             self.db.execute("ALTER TABLE captures ADD COLUMN kind TEXT NOT NULL DEFAULT 'image'")
+        if "favorite" not in columns:
+            self.db.execute("ALTER TABLE captures ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
         self.db.execute("CREATE TABLE IF NOT EXISTS collections(name TEXT PRIMARY KEY)")
         collection_columns = {row[1] for row in self.db.execute("PRAGMA table_info(collections)")}
         if "position" not in collection_columns:
@@ -103,8 +120,15 @@ class Workspace:
         filename = ident + source.suffix.lower()
         target = self.images / filename
         shutil.copy2(source, target)
+        copied_sidecars = []
         thumb_path = self.images / (ident + ".thumb.png")
         try:
+            for suffix in (".srt", ".txt"):
+                sidecar = source.with_suffix(suffix)
+                if sidecar.is_file() and sidecar != source:
+                    dst_sidecar = target.with_suffix(suffix)
+                    copied_sidecars.append(dst_sidecar)
+                    shutil.copy2(sidecar, dst_sidecar)
             if thumbnail:
                 save_png(thumbnail, thumb_path)
             self.db.execute("INSERT INTO captures (id,title,created,filename,width,height,tags,collection,metadata,kind) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -115,6 +139,8 @@ class Workspace:
         except Exception:
             target.unlink(missing_ok=True)
             thumb_path.unlink(missing_ok=True)
+            for sc in copied_sidecars:
+                sc.unlink(missing_ok=True)
             raise
         return ident
 
@@ -130,16 +156,41 @@ class Workspace:
         self.db.execute("UPDATE captures SET width=?, height=? WHERE id=?", (image.width, image.height, ident))
         self.db.commit()
 
-    def rows(self, query="", collection=None, kind=None, sort="newest", days=None):
-        pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        sql = "SELECT * FROM captures WHERE (title LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')"
-        args = [pattern, pattern]
+    def _matches_query(self, row, query):
+        needle = query.casefold()
+        if needle in (row["title"] or "").casefold() or needle in (row["tags"] or "").casefold():
+            return True
+        try:
+            meta = json.loads(row["metadata"] or "{}")
+        except (ValueError, TypeError):
+            meta = {}
+        if isinstance(meta, dict):
+            for key in ("window", "window_title", "app", "application", "process_name", "url"):
+                val = meta.get(key)
+                if val and needle in str(val).casefold():
+                    return True
+        path = self.images / row["filename"]
+        for suffix in (".srt", ".txt"):
+            sidecar = path.with_suffix(suffix)
+            if sidecar != path and sidecar.is_file():
+                try:
+                    if needle in sidecar.read_text(encoding="utf-8", errors="replace").casefold():
+                        return True
+                except OSError:
+                    pass
+        return False
+
+    def rows(self, query="", collection=None, kind=None, sort="newest", days=None, favorites_only=False):
+        sql = "SELECT * FROM captures WHERE 1=1"
+        args = []
         if collection and collection != "Alle Aufnahmen":
             sql += " AND collection=?"
             args.append(collection)
         if kind:
             sql += " AND kind=?"
             args.append(kind)
+        if favorites_only:
+            sql += " AND favorite=1"
         if days:
             sql += " AND julianday(created)>=julianday(?)"
             args.append((datetime.now(timezone.utc) - timedelta(days=float(days))).isoformat())
@@ -147,7 +198,10 @@ class Workspace:
                   "title": "title COLLATE NOCASE, rowid DESC", "type": "kind, created DESC", "size": "width*height DESC, rowid DESC"}
         if sort not in orders:
             raise ValueError("Unbekannte Sortierung.")
-        return self.db.execute(sql + " ORDER BY " + orders[sort], args).fetchall()
+        fetched = self.db.execute(sql + " ORDER BY " + orders[sort], args).fetchall()
+        if not query:
+            return fetched
+        return [row for row in fetched if self._matches_query(row, query)]
 
     def get(self, ident):
         return self.db.execute("SELECT * FROM captures WHERE id=?", (ident,)).fetchone()
@@ -170,6 +224,53 @@ class Workspace:
         self.db.execute("UPDATE captures SET title=?, tags=?, collection=? WHERE id=?",
                         (title, tags, collection, ident))
         self.db.commit()
+
+    def set_favorite(self, ident, favorite=True):
+        ids = [ident] if isinstance(ident, str) else list(ident)
+        for item in ids:
+            if self.get(item) is None:
+                raise KeyError(item)
+        flag = 1 if favorite else 0
+        self.db.executemany("UPDATE captures SET favorite=? WHERE id=?", [(flag, item) for item in ids])
+        self.db.commit()
+
+    def toggle_favorite(self, ident):
+        row = self.get(ident)
+        if row is None:
+            raise KeyError(ident)
+        new_flag = 0 if row["favorite"] else 1
+        self.db.execute("UPDATE captures SET favorite=? WHERE id=?", (new_flag, ident))
+        self.db.commit()
+        return bool(new_flag)
+
+    def update_tags(self, ids, add=(), remove=(), collection=None):
+        ids = list(ids)
+        if any(self.get(ident) is None for ident in ids):
+            raise KeyError("Aufnahme nicht gefunden.")
+        add_list = parse_tags(add)
+        remove_set = {t.casefold() for t in parse_tags(remove)}
+        target_col = collection.strip() if isinstance(collection, str) and collection.strip() else None
+        if target_col and target_col != self.DEFAULT_COLLECTION:
+            self.create_collection(target_col)
+        for ident in ids:
+            row = self.get(ident)
+            if row is None:
+                raise KeyError(ident)
+            current = [t for t in parse_tags(row["tags"]) if t.casefold() not in remove_set]
+            existing = {t.casefold() for t in current}
+            for tag in add_list:
+                if tag.casefold() not in existing:
+                    current.append(tag)
+                    existing.add(tag.casefold())
+            col = target_col if target_col is not None else row["collection"]
+            self.db.execute("UPDATE captures SET tags=?, collection=? WHERE id=?", (", ".join(current), col, ident))
+        self.db.commit()
+
+    def add_tags(self, ids, tags):
+        self.update_tags(ids, add=tags)
+
+    def remove_tags(self, ids, tags):
+        self.update_tags(ids, remove=tags)
 
     DEFAULT_COLLECTION = "Alle Aufnahmen"
 
@@ -258,7 +359,7 @@ class Workspace:
         threshold = datetime.now(timezone.utc) - timedelta(days=max_age_days)
         result = []
         for index, row in enumerate(self.rows()):
-            if row["id"] in exclude:
+            if row["id"] in exclude or row["favorite"]:
                 continue
             older = datetime.fromisoformat(row["created"])
             if older.tzinfo is None:
@@ -321,14 +422,14 @@ class Workspace:
         for name in files:
             if (self.images / name).exists():
                 raise ValueError("Zieldatei existiert bereits: " + name)
-        columns = ("id", "title", "created", "filename", "width", "height", "tags", "collection", "metadata", "kind")
+        columns = ("id", "title", "created", "filename", "width", "height", "tags", "collection", "metadata", "kind", "favorite")
         moved = []
         try:
             for name in files:
                 (trash / name).replace(self.images / name)
                 moved.append(name)
             self.db.execute("INSERT INTO captures (" + ",".join(columns) + ") VALUES (" + ",".join("?" for _ in columns) + ")",
-                [row.get(key, "image" if key == "kind" else "") for key in columns])
+                [row.get(key, "image" if key == "kind" else (0 if key == "favorite" else "")) for key in columns])
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -352,3 +453,69 @@ class Workspace:
     def close(self):
         self.db.close()
 
+
+def details_dialog(parent, workspace, ids, on_export_copy=None):
+    """Ein Dialog für Titel, Tags und Sammlung (Einzelauswahl) bzw. Tags hinzufügen/entfernen und Sammlung (Mehrfachauswahl)."""
+    from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLineEdit
+    ids = list(ids)
+    dialog = QDialog(parent)
+    form = QFormLayout(dialog)
+    dialog._applied = False
+    collections = [workspace.DEFAULT_COLLECTION] + [c for c in workspace.collections() if c != workspace.DEFAULT_COLLECTION]
+    if len(ids) == 1:
+        ident = ids[0]
+        row = workspace.get(ident)
+        dialog.setWindowTitle("Details bearbeiten")
+        dialog.title_edit = QLineEdit(row["title"])
+        dialog.tags_edit = QLineEdit(row["tags"])
+        dialog.collection_combo = QComboBox()
+        dialog.collection_combo.setEditable(True)
+        dialog.collection_combo.addItems(collections)
+        dialog.collection_combo.setCurrentText(row["collection"])
+        dialog.collection_edit = dialog.collection_combo.lineEdit()
+        form.addRow("Titel", dialog.title_edit)
+        form.addRow("Suchbegriffe / Tags", dialog.tags_edit)
+        form.addRow("Sammlung", dialog.collection_combo)
+
+        def apply():
+            if dialog._applied:
+                return
+            dialog._applied = True
+            from .batch import split_title_extension
+            title, extension = split_title_extension(dialog.title_edit.text().strip())
+            if extension and row["kind"] == "image" and on_export_copy is not None:
+                on_export_copy(ident, title, extension)
+            col = dialog.collection_combo.currentText().strip() or workspace.DEFAULT_COLLECTION
+            if col != workspace.DEFAULT_COLLECTION:
+                workspace.create_collection(col)
+            workspace.update(ident, title or row["title"], dialog.tags_edit.text().strip(), col)
+    else:
+        dialog.setWindowTitle(f"Details bearbeiten ({len(ids)} Aufnahmen)")
+        dialog.add_tags_edit = QLineEdit()
+        dialog.add_tags_edit.setPlaceholderText("Kommagetrennte Tags …")
+        dialog.remove_tags_edit = QLineEdit()
+        dialog.remove_tags_edit.setPlaceholderText("Zu entfernende Tags …")
+        dialog.collection_combo = QComboBox()
+        dialog.collection_combo.setEditable(True)
+        dialog.collection_combo.addItem("", None)
+        dialog.collection_combo.addItems(collections)
+        dialog.collection_combo.setCurrentText("")
+        dialog.collection_edit = dialog.collection_combo.lineEdit()
+        form.addRow("Tags hinzufügen", dialog.add_tags_edit)
+        form.addRow("Tags entfernen", dialog.remove_tags_edit)
+        form.addRow("Sammlung (leer = unverändert)", dialog.collection_combo)
+
+        def apply():
+            if dialog._applied:
+                return
+            dialog._applied = True
+            col = dialog.collection_combo.currentText().strip() or None
+            workspace.update_tags(ids, add=dialog.add_tags_edit.text(), remove=dialog.remove_tags_edit.text(), collection=col)
+
+    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    dialog.accepted.connect(apply)
+    dialog.apply = apply
+    form.addRow(buttons)
+    return dialog

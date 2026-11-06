@@ -288,8 +288,8 @@ class ThumbnailLoader(QObject):
         self.timer.stop()
         self.jobs.clear()
 
-    def enqueue(self, item, source, kind):
-        self.jobs.append((item, source, kind))
+    def enqueue(self, item, source, kind, favorite=False):
+        self.jobs.append((item, source, kind, favorite))
         self.timer.start()
 
     def load_next(self):
@@ -297,10 +297,10 @@ class ThumbnailLoader(QObject):
         if not self.jobs:
             self.timer.stop()
             return
-        item, source, kind = self.jobs.popleft()
+        item, source, kind, favorite = self.jobs.popleft()
         try:
             pixmap = QPixmap(str(self.cache.get(source)))
-            item.setIcon(styled_thumbnail(pixmap, kind, 172, 118))
+            item.setIcon(styled_thumbnail(pixmap, kind, 172, 118, favorite=favorite))
         except (OSError, ValueError):
             LOG.debug("Vorschau konnte nicht geladen werden: %s", source, exc_info=True)
         if not self.jobs:
