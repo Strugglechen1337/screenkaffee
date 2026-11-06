@@ -392,7 +392,11 @@ class VideoEditor(QMainWindow):
             widget.setRange(0, maximum)
             widget.setSingleStep(2)
             widget.setValue(default)
+            # Erst nach Enter/Tab/Fokuswechsel begrenzen und zurückschreiben, sonst hängt die nächste getippte Ziffer
+            # an einen schon veränderten Wert an. Während des Tippens folgt nur der Rahmen (textEdited).
+            widget.setKeyboardTracking(False)
             widget.valueChanged.connect(self._on_crop_spinbox_changed)
+            widget.lineEdit().textEdited.connect(self._on_crop_text_edited)
             self.crop.append(widget)
             form3.addRow(name, widget)
         self.crop_widget = VideoCropWidget(self.info.width, self.info.height, self)
@@ -485,6 +489,25 @@ class VideoEditor(QMainWindow):
             finally:
                 self._syncing_crop = False
 
+    def _on_crop_text_edited(self, *_):
+        """Rahmen beim Tippen live nachführen, ohne die Felder selbst zu verändern."""
+        if self._syncing_crop:
+            return
+        raw = []
+        for widget in self.crop:
+            try:
+                value = int(widget.cleanText())
+            except ValueError:
+                value = widget.value()
+            raw.append(max(widget.minimum(), min(widget.maximum(), value)))
+        self.crop_widget.set_crop(tuple(raw), emit=False)
+
+    def crop_values(self):
+        """Begrenzter Zuschnitt (x, y, w, h); übernimmt vorher noch nicht bestätigte Eingaben."""
+        for widget in self.crop:
+            widget.interpretText()
+        return tuple(w.value() for w in self.crop)
+
     def _crop_video_frame(self, frame):
         """Standbild beim Abspielen und beim Springen synchron halten."""
         if frame.isValid():
@@ -556,7 +579,7 @@ class VideoEditor(QMainWindow):
             return
         options = {"start": self.start.value(), "end": self.end.value(), "speed": self.speed.value(),
             "mute": self.mute.isChecked(), "volume": self.volume.value(), "width": self.width.value(),
-            "crop": tuple(w.value() for w in self.crop) if self.crop_enabled.isChecked() else None,
+            "crop": self.crop_values() if self.crop_enabled.isChecked() else None,
             "size": self.size_box.currentData(), "resize_mode": self.resize_mode.currentData(),
             "quality": self.quality.currentData(), "fps": self.fps.value(), "loops": self.animation_loops,
             "cuts": list(self.cuts)}

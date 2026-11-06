@@ -43,17 +43,28 @@ class ThumbnailCache:
         self.limit = max(1, limit)
         self.created = 0
 
-    def get(self, source):
+    def target(self, source):
         import hashlib
-        from PIL import Image
         source = Path(source)
         stat = source.stat()
         signature = f"{source.resolve()}:{stat.st_mtime_ns}:{stat.st_size}"
-        target = self.root / (hashlib.sha256(signature.encode()).hexdigest() + ".png")
-        self.root.mkdir(parents=True, exist_ok=True)
+        return self.root / (hashlib.sha256(signature.encode()).hexdigest() + ".png")
+
+    def cached(self, source):
+        """Vorhandene Vorschau ohne Dekodieren, sonst None."""
+        target = self.target(source)
         if target.exists():
             target.touch()
             return target
+        return None
+
+    def get(self, source):
+        from PIL import Image
+        target = self.cached(source)
+        if target is not None:
+            return target
+        target = self.target(source)
+        self.root.mkdir(parents=True, exist_ok=True)
         with Image.open(source) as image:
             image.thumbnail((344, 236), Image.Resampling.LANCZOS)
             image.convert("RGBA").save(target)

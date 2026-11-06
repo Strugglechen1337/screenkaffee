@@ -9,6 +9,7 @@ import logging
 LOG = logging.getLogger(__name__)
 PATTERN = "frame_%06d.jpg"
 MAX_FAILURES = 5          # so viele Fehlversuche hintereinander beenden den Zeitraffer
+STOP_TIMEOUT = 30         # so lange wartet stop() auf das Ende des Aufnahme-Threads
 
 
 def video_seconds(duration_seconds, interval, fps):
@@ -84,14 +85,20 @@ class Timelapse:
             self.last_error = exc
             LOG.warning("Zeitraffer-Bild fehlgeschlagen", exc_info=True)
 
-    def stop(self):
+    def stop(self, timeout=None):
+        """Beendet die Aufnahme; True, wenn der Aufnahme-Thread wirklich beendet ist."""
         self.stop_event.set()
         if self.thread is not None:
-            self.thread.join(timeout=30)
+            self.thread.join(timeout=STOP_TIMEOUT if timeout is None else timeout)
+        return not self.active
 
-    def render(self, destination=None):
+    def render(self, destination=None, timeout=None):
         """Bilder zu einem MP4 zusammensetzen; danach werden die Einzelbilder gelöscht (bei Fehlern bleiben sie)."""
-        self.stop()
+        if not self.stop(timeout):
+            # Ein hängendes Bild läuft noch: weder rendern noch löschen, sonst geht es verloren oder landet im Nichts.
+            raise RuntimeError("Die Zeitraffer-Aufnahme reagiert nicht (die letzte Bildaufnahme hängt). "
+                               f"Das Video wurde nicht erstellt; die bisherigen {self.frames} Einzelbilder bleiben "
+                               f"erhalten in:\n{self.folder}")
         if self.frames < 2:
             self.discard()
             raise RuntimeError("Zu wenige Bilder für einen Zeitraffer (mindestens 2). Bitte länger aufnehmen.")
