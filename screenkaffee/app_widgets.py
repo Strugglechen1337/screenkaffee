@@ -270,3 +270,38 @@ class TaskDelivery(QObject):
     @Slot(str)
     def failure(self, message):
         self.window.fail(message)
+
+
+class ThumbnailLoader(QObject):
+    """Pro Ereignisschleife nur eine Vorschau laden; neue Listen ersetzen alte Aufträge."""
+    def __init__(self, owner):
+        super().__init__(owner)
+        from .workspace import ThumbnailCache
+        self.cache = ThumbnailCache(owner.workspace.root)
+        from collections import deque
+        self.jobs = deque()
+        self.timer = QTimer(self)
+        self.timer.setInterval(10)
+        self.timer.timeout.connect(self.load_next)
+
+    def reset(self):
+        self.timer.stop()
+        self.jobs.clear()
+
+    def enqueue(self, item, source, kind):
+        self.jobs.append((item, source, kind))
+        self.timer.start()
+
+    def load_next(self):
+        from .icons import styled_thumbnail
+        if not self.jobs:
+            self.timer.stop()
+            return
+        item, source, kind = self.jobs.popleft()
+        try:
+            pixmap = QPixmap(str(self.cache.get(source)))
+            item.setIcon(styled_thumbnail(pixmap, kind, 172, 118))
+        except (OSError, ValueError):
+            LOG.debug("Vorschau konnte nicht geladen werden: %s", source, exc_info=True)
+        if not self.jobs:
+            self.timer.stop()

@@ -19,6 +19,32 @@ def portable_root():
     return executable / "data"
 
 
+class ThumbnailCache:
+    """Kleine persistente Vorschauen mit begrenzter Dateianzahl."""
+    def __init__(self, root, limit=256):
+        self.root = Path(root) / "thumbnails"
+        self.limit = max(1, limit)
+
+    def get(self, source):
+        import hashlib
+        from PIL import Image
+        source = Path(source)
+        stat = source.stat()
+        signature = f"{source.resolve()}:{stat.st_mtime_ns}:{stat.st_size}"
+        target = self.root / (hashlib.sha256(signature.encode()).hexdigest() + ".png")
+        self.root.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target.touch()
+            return target
+        with Image.open(source) as image:
+            image.thumbnail((344, 236), Image.Resampling.LANCZOS)
+            image.convert("RGBA").save(target)
+        files = sorted(self.root.glob("*.png"), key=lambda path: path.stat().st_mtime_ns, reverse=True)
+        for path in files[self.limit:]:
+            path.unlink(missing_ok=True)
+        return target
+
+
 class Workspace:
     def __init__(self, root=None):
         self.root = Path(root) if root else portable_root()

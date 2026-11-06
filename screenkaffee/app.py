@@ -1317,7 +1317,9 @@ class MainWindow(QMainWindow):
         self.sync_collection_list()
 
     def refresh(self, *args):
-        from .icons import styled_thumbnail
+        if not hasattr(self, "thumbnail_loader"):
+            self.thumbnail_loader = ThumbnailLoader(self)
+        self.thumbnail_loader.reset()
         selected = set(self.selected_ids())
         self.list.clear()
         rows = self.workspace.rows(self.search.text(), self.collection.currentText(), kind=self.type_filter.currentData(),
@@ -1327,8 +1329,7 @@ class MainWindow(QMainWindow):
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             item.setData(Qt.ItemDataRole.UserRole, row["id"])
             item.setToolTip(f"{row['title']}\n{row['width']} × {row['height']} px\n{row['tags']}".strip())
-            pixmap = QPixmap(str(self.workspace.thumbnail_path(row["id"])))
-            item.setIcon(styled_thumbnail(pixmap, row["kind"], 172, 118))
+            self.thumbnail_loader.enqueue(item, self.workspace.thumbnail_path(row["id"]), row["kind"])
             self.list.addItem(item)
             item.setSelected(row["id"] in selected)
         self.count_label.setText(f"{len(rows)} Aufnahmen")

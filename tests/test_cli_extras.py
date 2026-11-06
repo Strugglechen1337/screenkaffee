@@ -38,7 +38,7 @@ def reset():
 def test_video_region_records_until_the_delay_and_copies_the_result(tmp_path):
     target = tmp_path / "ordner" / "film.mp4"
     code = cli.run_capture(["--videoregion", "--rect", "10;20;640;480", "--delay", "0.02", "--filepath", str(target)],
-                           recorder_factory=FakeRecorder, sleep=lambda seconds: None)
+                           recorder_factory=FakeRecorder, sleep=lambda seconds: None, clock=iter([0, 0, 0, .5, .5, 1, 1, 1.5]).__next__)
     recorder = FakeRecorder.created[0]
     assert code == 0 and recorder.stopped and target.read_bytes() == b"video"
     assert recorder.started[1]["region"] == [10, 20, 640, 480] and recorder.polls == 3        # 1.2 s in 0.5 s steps
