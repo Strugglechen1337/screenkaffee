@@ -30,12 +30,33 @@ def desktop_bounds():
     return (round(geometry.x() * scale), round(geometry.y() * scale), round(geometry.width() * scale), round(geometry.height() * scale))
 
 
-def run_video(args, recorder_factory=None, sleep=None):
+def cli_policy(*features):
+    """Richtlinien vor jeder Aufnahme und Medienaktion prüfen."""
+    import json
+    from .policy import load_policy, apply_policy
+    from .workspace import portable_root
+    policy = load_policy()
+    for feature in features:
+        if feature in policy["disabled"]:
+            raise RuntimeError(f"Die Funktion {feature} ist durch eine Richtlinie gesperrt.")
+    settings = {}
+    try:
+        data = json.loads((portable_root() / "settings.json").read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            settings.update(data)
+    except (OSError, ValueError):
+        pass
+    return apply_policy(settings, policy)
+
+
+def run_video(args, recorder_factory=None, sleep=None, clock=None):
     """Record a fixed region without a window until --delay minutes have passed (default 60) or Ctrl+C."""
     import shutil
     import tempfile
     import time
+    settings = cli_policy("capture", "capture.cli", "video")
     sleep = sleep or time.sleep
+    clock = clock or time.monotonic
     if args.rect is None:
         raise SystemExit("Für Videos wird --rect X;Y;Breite;Höhe benötigt (-1;-1;-1;-1 = ganzer Desktop).")
     bounds = parse_rect(args.rect)
@@ -46,28 +67,35 @@ def run_video(args, recorder_factory=None, sleep=None):
         from .integrations import VideoRecorder as recorder_factory
     recorder = recorder_factory()
     folder = Path(tempfile.mkdtemp(prefix="screenkaffee-video-"))
-    recorder.start(folder, region=list(bounds) if bounds else None, fps=30, quality="high")
-    elapsed = 0.0
     try:
-        while elapsed < minutes * 60:
-            sleep(.5)
-            elapsed += .5
-            error = recorder.error_if_stopped()
-            if error:
-                raise RuntimeError(error)
-    except KeyboardInterrupt:
-        pass
-    result = recorder.stop()
-    if not result:
-        raise RuntimeError("Die Aufnahme lieferte kein Video.")
-    target = args.filepath or Path.cwd() / Path(result).name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(result, target)
+        try:
+            recorder.start(folder, region=list(bounds) if bounds else None,
+                           fps=settings.get("video_fps", 30), quality=settings.get("video_quality", "high"))
+            deadline = clock() + minutes * 60
+            try:
+                while clock() < deadline:
+                    sleep(min(.5, max(0, deadline - clock())))
+                    error = recorder.error_if_stopped()
+                    if error:
+                        raise RuntimeError(error)
+            except KeyboardInterrupt:
+                pass
+        finally:
+            result = recorder.stop()
+        if not result:
+            raise RuntimeError("Die Aufnahme lieferte kein Video.")
+        target = args.filepath or Path.cwd() / Path(result).name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(result, target)
+    except BaseException:
+        print(f"Aufnahmedaten zur Wiederherstellung bleiben erhalten: {folder}", file=sys.stderr)
+        raise
+    shutil.rmtree(folder)
     print(target)
     return 0
 
 
-def run_capture(argv, capture=None, recorder_factory=None, sleep=None):
+def run_capture(argv, capture=None, recorder_factory=None, sleep=None, clock=None):
     parser = argparse.ArgumentParser(prog="screenkaffee capture", description="Bereich ohne Fenster aufnehmen und speichern.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--screenshotregion", "-screenshotregion", action="store_true")
@@ -82,12 +110,14 @@ def run_capture(argv, capture=None, recorder_factory=None, sleep=None):
             break
     args = parser.parse_args(argv)
     if args.videoregion:
-        return run_video(args, recorder_factory, sleep)
+        return run_video(args, recorder_factory, sleep, clock)
+    settings = cli_policy("capture", "capture.cli", "capture.region")
     bounds = parse_rect(args.rect) if args.rect else None
     if args.rect is None:
         raise SystemExit("Ohne --rect wird der Bereich interaktiv gewählt: screenkaffee --capture region")
     if capture is None:
-        from .capture import capture_region as capture
+        from .capture import capture_region
+        capture = lambda bounds: capture_region(bounds, settings.get("tone_mapping", "neutral"), settings.get("capture_cursor", False))
     image, metadata = capture(bounds or desktop_bounds())
     if args.filepath:
         from .color import save_image
@@ -104,6 +134,7 @@ def run_capture(argv, capture=None, recorder_factory=None, sleep=None):
 
 
 def run_videos(argv):
+    cli_policy("video", "videos")
     parser = argparse.ArgumentParser(prog="screenkaffee videos", description="Videos mit gleichem Format zusammenfügen.")
     parser.add_argument("--merge", "-merge", nargs="+", type=Path, required=True, metavar="DATEI",
                         help="Zwei oder mehr Videos; die Ausgabe landet neben dem ersten Video")
