@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 
 from PIL import Image
+from .i18n import tr
 
 MAX_HEIGHT = 30000
 
@@ -48,10 +49,10 @@ class WebSocket:
         while b"\r\n\r\n" not in response:
             chunk = self.sock.recv(1024)
             if not chunk:
-                raise ConnectionError("WebSocket-Handshake fehlgeschlagen")
+                raise ConnectionError(tr("WebSocket-Handshake fehlgeschlagen"))
             response += chunk
         if b" 101 " not in response.split(b"\r\n", 1)[0]:
-            raise ConnectionError("WebSocket-Handshake abgelehnt")
+            raise ConnectionError(tr("WebSocket-Handshake abgelehnt"))
         self.buffer = response.split(b"\r\n\r\n", 1)[1]
 
     def send(self, text):
@@ -71,7 +72,7 @@ class WebSocket:
         while len(self.buffer) < n:
             chunk = self.sock.recv(1 << 16)
             if not chunk:
-                raise ConnectionError("Browser hat die Verbindung beendet")
+                raise ConnectionError(tr("Browser hat die Verbindung beendet"))
             self.buffer += chunk
         data, self.buffer = self.buffer[:n], self.buffer[n:]
         return data
@@ -87,7 +88,7 @@ class WebSocket:
                 n = struct.unpack(">Q", self._read(8))[0]
             payload = self._read(n)
             if b1 & 0x0F == 8:
-                raise ConnectionError("Browser hat die Verbindung geschlossen")
+                raise ConnectionError(tr("Browser hat die Verbindung geschlossen"))
             if b1 & 0x0F in (0, 1, 2):
                 message += payload
                 if b1 & 0x80:
@@ -108,7 +109,7 @@ class Devtools:
             message = json.loads(self.ws.receive())
             if message.get("id") == self.next_id:
                 if "error" in message:
-                    raise RuntimeError(message["error"].get("message", "DevTools-Fehler"))
+                    raise RuntimeError(message["error"].get("message", tr("DevTools-Fehler")))
                 return message.get("result", {})
 
     def wait_event(self, name, timeout):
@@ -126,10 +127,10 @@ class Devtools:
 
 def capture_webpage(url, width=1280, browser=None, timeout=45, settle=1.0):
     if not url.startswith(("http://", "https://", "file://")):
-        raise ValueError("Nur http-, https- und file-Adressen werden unterstützt.")
+        raise ValueError(tr("Nur http-, https- und file-Adressen werden unterstützt."))
     browser = browser or find_browser()
     if not browser:
-        raise RuntimeError("Für Webseiten-Aufnahmen wird Chrome oder Edge benötigt.")
+        raise RuntimeError(tr("Für Webseiten-Aufnahmen wird Chrome oder Edge benötigt."))
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -149,14 +150,14 @@ def capture_webpage(url, width=1280, browser=None, timeout=45, settle=1.0):
             except OSError:
                 time.sleep(.2)
         if not target:
-            raise RuntimeError("Der Browser konnte nicht gestartet werden.")
+            raise RuntimeError(tr("Der Browser konnte nicht gestartet werden."))
         ws = WebSocket(target, timeout=timeout)
         cdp = Devtools(ws)
         cdp.call("Page.enable")
         cdp.call("Emulation.setDeviceMetricsOverride", width=int(width), height=800, deviceScaleFactor=1, mobile=False)
         cdp.call("Page.navigate", url=url)
         if not cdp.wait_event("Page.loadEventFired", timeout):
-            raise RuntimeError("Die Seite wurde nicht rechtzeitig geladen.")
+            raise RuntimeError(tr("Die Seite wurde nicht rechtzeitig geladen."))
         time.sleep(settle)
         size = cdp.call("Page.getLayoutMetrics")["cssContentSize"]
         height = min(MAX_HEIGHT, max(1, int(size["height"])))

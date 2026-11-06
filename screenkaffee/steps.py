@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass, field
 
 from PIL import Image, ImageDraw, ImageFont
+from .i18n import N_, tr
 
 MAX_STEPS = 200
 MIN_GAP = .35            # Sekunden zwischen zwei Schritten (Doppelklick = ein Schritt)
@@ -39,7 +40,7 @@ def mark_click(image, x, y, number, scale=1.0, color="#e5332a"):
 
 
 def collection_name(now=None):
-    return time.strftime("Anleitung %d.%m.%Y %H:%M", time.localtime(now))
+    return time.strftime(tr("Anleitung %d.%m.%Y %H:%M"), time.localtime(now))
 
 
 @dataclass
@@ -83,8 +84,9 @@ def foreground_title():
 
 
 def describe(step, number):
-    where = f" in „{step.window}“" if step.window else ""
-    return f"Schritt {number}: An der markierten Stelle klicken{where}."
+    where = step.window
+    return (tr("Schritt {number}: An der markierten Stelle klicken in „{window}“.", number=number, window=where)
+            if where else tr("Schritt {number}: An der markierten Stelle klicken.", number=number))
 
 
 class StepSession:
@@ -193,10 +195,10 @@ def _bar_class():
             layout.setContentsMargins(10, 6, 6, 6)
             self.label = QLabel()
             layout.addWidget(self.label)
-            finish = QPushButton("Fertig")
+            finish = QPushButton(tr("Fertig"))
             finish.setObjectName("finish")
             finish.clicked.connect(session.finish)
-            cancel = QPushButton("Abbrechen")
+            cancel = QPushButton(tr("Abbrechen"))
             cancel.clicked.connect(session.cancel)
             layout.addWidget(finish)
             layout.addWidget(cancel)
@@ -212,7 +214,7 @@ def _bar_class():
             exclude_from_capture(self)
 
         def update_count(self, count):
-            self.label.setText(f"● Schritt-Anleitung · {count} Schritt{'e' if count != 1 else ''} · jeder Klick wird festgehalten")
+            self.label.setText(tr(N_("● Schritt-Anleitung · {count} Schritt · jeder Klick wird festgehalten") if count == 1 else N_("● Schritt-Anleitung · {count} Schritte · jeder Klick wird festgehalten"), count=count))
             self.adjustSize()
 
     return _StepBar

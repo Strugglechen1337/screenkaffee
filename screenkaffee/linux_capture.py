@@ -9,13 +9,14 @@ import uuid
 from urllib.parse import urlparse, unquote
 from PySide6.QtCore import QObject, Slot, SLOT, QEventLoop, QTimer
 from .color import import_srgb
+from .i18n import tr
 
 
 def portal_screenshot():
     from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBusObjectPath
     bus = QDBusConnection.sessionBus()
     if not bus.isConnected():
-        raise RuntimeError("Keine D-Bus-Sitzung verfügbar.")
+        raise RuntimeError(tr("Keine D-Bus-Sitzung verfügbar."))
     token = "prism_" + uuid.uuid4().hex
     sender = bus.baseService().lstrip(":").replace(".", "_")
     predicted = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
@@ -34,7 +35,7 @@ def portal_screenshot():
     service = "org.freedesktop.portal.Desktop"
     interface = "org.freedesktop.portal.Request"
     if not bus.connect(service, predicted, interface, "Response", receiver, SlotSignature):
-        raise RuntimeError("Portal-Antwort konnte nicht abonniert werden.")
+        raise RuntimeError(tr("Portal-Antwort konnte nicht abonniert werden."))
     actual_path = predicted
     timer = QTimer()
     timer.setSingleShot(True)
@@ -45,7 +46,7 @@ def portal_screenshot():
         message.setArguments(["", {"handle_token": token, "interactive": True, "modal": True}])
         reply = bus.call(message)
         if reply.type() == QDBusMessage.MessageType.ErrorMessage:
-            raise RuntimeError(f"Screenshot-Portal: {reply.errorMessage()}")
+            raise RuntimeError(tr("Screenshot-Portal: {error}", error=reply.errorMessage()))
         handle = reply.arguments()[0]
         actual_path = handle.path() if isinstance(handle, QDBusObjectPath) else str(handle)
         if actual_path != predicted:
@@ -56,15 +57,15 @@ def portal_screenshot():
         if receiver.code is None:
             close = QDBusMessage.createMethodCall(service, actual_path, interface, "Close")
             bus.asyncCall(close)
-            raise RuntimeError("Screenshot-Auswahl hat das Zeitlimit überschritten.")
+            raise RuntimeError(tr("Screenshot-Auswahl hat das Zeitlimit überschritten."))
         if receiver.code == 1:
             return None
         if receiver.code != 0:
-            raise RuntimeError("Der Desktop hat die Screenshot-Anfrage abgelehnt.")
+            raise RuntimeError(tr("Der Desktop hat die Screenshot-Anfrage abgelehnt."))
         uri = receiver.result.get("uri", "")
         parsed = urlparse(uri)
         if parsed.scheme != "file" or parsed.netloc not in ("", "localhost"):
-            raise RuntimeError("Portal lieferte keine lokale Bilddatei.")
+            raise RuntimeError(tr("Portal lieferte keine lokale Bilddatei."))
         return import_srgb(unquote(parsed.path))
     finally:
         timer.stop()

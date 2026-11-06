@@ -4,6 +4,7 @@ from pathlib import Path
 import uuid
 from .color import save_png, import_srgb
 from .stitch import stitch_scroll
+from .i18n import tr
 
 
 class ManualScrollSession:
@@ -14,9 +15,9 @@ class ManualScrollSession:
 
     def append(self, image):
         if len(self.paths) >= 200:
-            raise ValueError("Maximal 200 Scrollbilder pro Serie.")
+            raise ValueError(tr("Maximal 200 Scrollbilder pro Serie."))
         if self.paths and import_srgb(self.paths[0]).size != image.size:
-            raise ValueError("Der Scrollbereich hat seine Größe geändert.")
+            raise ValueError(tr("Der Scrollbereich hat seine Größe geändert."))
         path = self.folder / f"{len(self.paths):04}.png"
         save_png(image, path)
         self.paths.append(path)

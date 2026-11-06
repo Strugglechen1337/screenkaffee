@@ -11,12 +11,13 @@ import numpy as np
 from PIL import Image
 from .integrations import tool, run
 from .stitch import overlap_rows
+from .i18n import tr
 
 
 def capture_region(bounds, tone_mapping="neutral", cursor=False):
     left, top, width, height = map(int, bounds)
     if min(width, height) < 2 or width * height > 150_000_000:
-        raise ValueError("Ungültiger Aufnahmebereich.")
+        raise ValueError(tr("Ungültiger Aufnahmebereich."))
     if sys.platform == "win32":
         from .windows_capture import capture_monitors
         try:
@@ -32,35 +33,35 @@ def capture_region(bounds, tone_mapping="neutral", cursor=False):
                 image.paste(monitor.image.crop((x1 - ml, y1 - mt, x2 - ml, y2 - mt)), (x1 - left, y1 - top))
                 intersections.append(monitor.metadata)
         if not intersections:
-            raise ValueError("Bereich liegt außerhalb der aktiven Monitore.")
+            raise ValueError(tr("Bereich liegt außerhalb der aktiven Monitore."))
         return image, {"backend": "Windows Graphics Capture", "region": list(bounds), "monitors": intersections}
     from .linux_capture import is_wayland
     if not is_wayland():
         from PySide6.QtGui import QGuiApplication, QImage
         app = QGuiApplication.instance()
         if not app or app.platformName() != "xcb":
-            raise RuntimeError("X11-Aufnahme benötigt eine aktive Qt-XCB-Sitzung.")
+            raise RuntimeError(tr("X11-Aufnahme benötigt eine aktive Qt-XCB-Sitzung."))
         if cursor:
-            raise RuntimeError("X11-Aufnahme mit Mauszeiger wird nicht unterstützt.")
+            raise RuntimeError(tr("X11-Aufnahme mit Mauszeiger wird nicht unterstützt."))
         screens = app.screens()
         if not screens or any(screen.devicePixelRatio() != 1 for screen in screens):
-            raise RuntimeError("X11-Aufnahme mit Qt-Bildschirmskalierung wird nicht unterstützt.")
+            raise RuntimeError(tr("X11-Aufnahme mit Qt-Bildschirmskalierung wird nicht unterstützt."))
         screen = app.primaryScreen()
         geometry = screen.virtualGeometry()
         pixmap = screen.grabWindow(0)
         if pixmap.isNull():
-            raise RuntimeError("X11-Bildschirmaufnahme fehlgeschlagen.")
+            raise RuntimeError(tr("X11-Bildschirmaufnahme fehlgeschlagen."))
         qimage = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
         if (qimage.width(), qimage.height()) != (geometry.width(), geometry.height()):
-            raise RuntimeError("X11-Bildschirmgeometrie stimmt nicht mit der Aufnahme überein.")
+            raise RuntimeError(tr("X11-Bildschirmgeometrie stimmt nicht mit der Aufnahme überein."))
         desktop = Image.frombytes("RGBA", (qimage.width(), qimage.height()), bytes(qimage.bits()), "raw", "RGBA", qimage.bytesPerLine()).convert("RGB")
         x, y = left - geometry.x(), top - geometry.y()
         if x >= desktop.width or y >= desktop.height or x + width <= 0 or y + height <= 0:
-            raise ValueError("Bereich liegt außerhalb der aktiven Monitore.")
+            raise ValueError(tr("Bereich liegt außerhalb der aktiven Monitore."))
         return desktop.crop((x, y, x + width, y + height)), {"backend": "X11 / Qt", "region": list(bounds), "hdr_validated": False}
     grim = tool("grim")
     if not grim:
-        raise RuntimeError("Feste Bereiche unter Wayland benötigen grim.")
+        raise RuntimeError(tr("Feste Bereiche unter Wayland benötigen grim."))
     args = [grim, "-t", "png", "-g", f"{left},{top} {width}x{height}"]
     if cursor:
         args.append("-c")
@@ -88,11 +89,11 @@ def scroll_down(bounds, amount=3, direction="vertical"):
             0x1000 if direction == "horizontal" else 0x0800, 0, 0)))
         api.SendInput.argtypes = [ctypes.c_uint32, ctypes.POINTER(Input), ctypes.c_int]
         if api.SendInput(1, ctypes.byref(event), ctypes.sizeof(event)) != 1:
-            raise RuntimeError("Scrollen wurde vom Zielprogramm blockiert.")
+            raise RuntimeError(tr("Scrollen wurde vom Zielprogramm blockiert."))
     else:
         hyprctl = tool("hyprctl")
         if not hyprctl:
-            raise RuntimeError("Automatisches Scrollen benötigt Hyprland / hyprctl.")
+            raise RuntimeError(tr("Automatisches Scrollen benötigt Hyprland / hyprctl."))
         key = "Right" if direction == "horizontal" else "Next"
         result = run([hyprctl, "dispatch", "sendshortcut", f",{key},activewindow"])
         if result.returncode:
@@ -109,7 +110,7 @@ class ScrollResult:
 def scroll_capture(bounds, tone_mapping="neutral", max_frames=40, pause=.45,
                    cancel=None, progress=None, capture=None, scroll=None, direction="vertical", header=0, footer=0):
     if not 2 <= max_frames <= 200 or not .1 <= pause <= 5:
-        raise ValueError("Ungültige Scrollparameter.")
+        raise ValueError(tr("Ungültige Scrollparameter."))
     capture = capture or (lambda: capture_region(bounds, tone_mapping)[0])
     scroll = scroll or (lambda: scroll_down(bounds, direction=direction))
     cancel = cancel or threading.Event()
@@ -118,28 +119,28 @@ def scroll_capture(bounds, tone_mapping="neutral", max_frames=40, pause=.45,
     last = first
     body = scroll_body(first, direction, header, footer)[1]
     result, previous, count = body.copy(), body, 1
-    reason = "Aufnahmelimit erreicht"
+    reason = tr("Aufnahmelimit erreicht")
     for _ in range(max_frames - 1):
         if cancel.is_set():
-            reason = "Vom Nutzer beendet"
+            reason = tr("Vom Nutzer beendet")
             break
         scroll()
         if cancel.wait(pause):
-            reason = "Vom Nutzer beendet"
+            reason = tr("Vom Nutzer beendet")
             break
         frame = capture()
         raw = frame
         frame = scroll_body(frame, direction, header, footer)[1]
         if frame.size != previous.size:
-            raise RuntimeError("Der Aufnahmebereich hat seine Größe geändert.")
+            raise RuntimeError(tr("Der Aufnahmebereich hat seine Größe geändert."))
         difference = np.asarray(frame, dtype=np.int16) - np.asarray(previous, dtype=np.int16)
         if float(np.abs(difference).mean()) < .6:
-            reason = "Ende des Scrollbereichs erreicht"
+            reason = tr("Ende des Scrollbereichs erreicht")
             break
         rows = overlap_rows(previous, frame)
         extra = frame.height - rows
         if (result.height + extra) * result.width > 150_000_000:
-            reason = "Bildgrößenlimit erreicht"
+            reason = tr("Bildgrößenlimit erreicht")
             break
         canvas = Image.new("RGB", (result.width, result.height + extra))
         canvas.paste(result)

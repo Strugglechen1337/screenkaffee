@@ -7,6 +7,7 @@ across captures. The shoulder is an SDR rendering choice, not HDR preservation.
 import numpy as np
 from pathlib import Path
 from PIL import Image, ImageCms, PngImagePlugin
+from .i18n import tr
 
 try:                                            # registers the JPEG XL reader/writer with Pillow
     import pillow_jxl  # noqa: F401
@@ -38,7 +39,7 @@ def linear_to_srgb(value):
 
 def scrgb_to_srgb(rgb, white_nits, mode="neutral"):
     if not np.isfinite(white_nits) or not 40 <= white_nits <= 1000:
-        raise ValueError("Ungültiger SDR-Weißpegel (40–1000 cd/m² erforderlich).")
+        raise ValueError(tr("Ungültiger SDR-Weißpegel (40–1000 cd/m² erforderlich)."))
     if isinstance(rgb, np.ndarray) and rgb.dtype == np.float16 and rgb.ndim == 3 and rgb.shape[-1] == 3:
         if mode == "neutral":
             return _f16_neutral_lut(white_nits)[rgb.view(np.uint16)]
@@ -52,7 +53,7 @@ def scrgb_to_srgb(rgb, white_nits, mode="neutral"):
             return out
     rgb = np.asarray(rgb, dtype=np.float32)
     if rgb.ndim != 3 or rgb.shape[-1] != 3:
-        raise ValueError("RGB-Array mit drei Kanälen erforderlich.")
+        raise ValueError(tr("RGB-Array mit drei Kanälen erforderlich."))
     rgb = np.nan_to_num(rgb, nan=0, posinf=125, neginf=0)
     rgb = np.maximum(rgb / (white_nits / 80), 0)
     if mode == "highlights":
@@ -61,7 +62,7 @@ def scrgb_to_srgb(rgb, white_nits, mode="neutral"):
         mapped = np.where(peak > .8, .8 + .2 * (1 - np.exp(-np.maximum(peak - .8, 0) / .2)), peak)
         rgb *= mapped / np.maximum(peak, 1e-8)
     elif mode != "neutral":
-        raise ValueError("Unbekanntes Tone-Mapping.")
+        raise ValueError(tr("Unbekanntes Tone-Mapping."))
     # Neutral deliberately preserves SDR pixels exactly, clipping HDR highlights.
     return np.rint(np.clip(linear_to_srgb(np.clip(rgb, 0, 1)), 0, 1) * 255).astype(np.uint8)
 
@@ -101,10 +102,10 @@ def save_image(image, path, quality=95, metadata=None):
     formats = {".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP", ".tif": "TIFF", ".tiff": "TIFF", ".bmp": "BMP", ".gif": "GIF"}
     if suffix == ".jxl":
         if not JXL_AVAILABLE:
-            raise ValueError("JPEG XL braucht das Paket pillow-jxl-plugin.")
+            raise ValueError(tr("JPEG XL braucht das Paket pillow-jxl-plugin."))
         formats[".jxl"] = "JXL"
     if suffix not in formats:
-        raise ValueError("Unterstützte Bildformate: PNG, JPEG, JPEG XL, WebP, TIFF, BMP und GIF.")
+        raise ValueError(tr("Unterstützte Bildformate: PNG, JPEG, JPEG XL, WebP, TIFF, BMP und GIF."))
     output = image
     if suffix in (".jpg", ".jpeg", ".bmp"):
         if "A" in image.getbands():

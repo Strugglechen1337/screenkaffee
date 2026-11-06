@@ -8,6 +8,7 @@ from pathlib import Path
 import threading
 import time
 import wave
+from .i18n import tr
 
 
 @dataclass
@@ -27,11 +28,11 @@ def audio_chain(clip, video_started, duration, noise_gate_db=0, timeshift_ms=0, 
     timeshift_ms: delays (+) or advances (-) every track against the video to fine-tune lip sync.
     loopback_balance: 0.1..1.0, system sound volume relative to the microphone."""
     if not 0 <= -noise_gate_db <= 90:
-        raise ValueError("Der Rauschfilter-Pegel muss zwischen -90 und 0 dB liegen.")
+        raise ValueError(tr("Der Rauschfilter-Pegel muss zwischen -90 und 0 dB liegen."))
     if not -2000 <= timeshift_ms <= 2000:
-        raise ValueError("Der Audio-Zeitversatz muss zwischen -2000 und 2000 ms liegen.")
+        raise ValueError(tr("Der Audio-Zeitversatz muss zwischen -2000 und 2000 ms liegen."))
     if not .1 <= loopback_balance <= 1:
-        raise ValueError("Die Systemton-Balance muss zwischen 0,1 und 1,0 liegen.")
+        raise ValueError(tr("Die Systemton-Balance muss zwischen 0,1 und 1,0 liegen."))
     offset = clip.started - video_started + timeshift_ms / 1000
     timing = f"adelay={max(0, round(offset * 1000))}:all=1" if offset >= 0 else f"atrim=start={-offset:.6f},asetpts=PTS-STARTPTS"
     gate = f"agate=threshold={10 ** (noise_gate_db / 20):.6g}:ratio=20:attack=5:release=250," if noise_gate_db and clip.kind == "microphone" else ""
@@ -60,7 +61,7 @@ class WasapiSession:
             host = self.manager.get_host_api_info_by_type(pa.paWASAPI)
             for index, (kind, selector, volume) in enumerate(sources):
                 if not 0 <= volume <= 4:
-                    raise ValueError("Ungültige Audio-Lautstärke.")
+                    raise ValueError(tr("Ungültige Audio-Lautstärke."))
                 if selector in ("default_output", "__wasapi_loopback__"):
                     device = self.manager.get_default_wasapi_loopback()
                 elif selector == "default_input":
@@ -71,11 +72,11 @@ class WasapiSession:
                     devices = [d for d in self.manager.get_device_info_generator_by_host_api(int(host["index"]))
                                if d["maxInputChannels"] > 0 and selector.casefold() in d["name"].casefold()]
                     if len(devices) != 1:
-                        raise RuntimeError("Audioquelle nicht eindeutig gefunden: " + selector)
+                        raise RuntimeError(tr("Audioquelle nicht eindeutig gefunden: {source}", source=selector))
                     device = devices[0]
                 channels, rate = int(device["maxInputChannels"]), int(device["defaultSampleRate"])
                 if channels < 1:
-                    raise RuntimeError("Audioquelle hat keine Eingangskanäle.")
+                    raise RuntimeError(tr("Audioquelle hat keine Eingangskanäle."))
                 path = Path(folder) / f"audio-{index}-{kind}.wav"
                 handle = wave.open(str(path), "wb")
                 handle.setnchannels(channels)
@@ -136,7 +137,7 @@ def mux_recorded_audio(video, clips, video_started, noise_gate_db=0, timeshift_m
     from .media import _render, probe_media
     duration = probe_media(video).duration
     if duration <= 0:
-        raise RuntimeError("Videodauer konnte für die Ton-Synchronisierung nicht bestimmt werden.")
+        raise RuntimeError(tr("Videodauer konnte für die Ton-Synchronisierung nicht bestimmt werden."))
     args, graph = ["-i", str(video)], []
     for index, clip in enumerate(clips):
         if clip.frames:
@@ -147,6 +148,6 @@ def mux_recorded_audio(video, clips, video_started, noise_gate_db=0, timeshift_m
             args += ["-f", "lavfi", "-t", str(duration), "-i", "anullsrc=r=48000:cl=stereo"]
             graph.append(f"[{index + 1}:a]anull[a{index}]")
     graph.append("".join(f"[a{i}]" for i in range(len(clips))) + f"amix=inputs={len(clips)}:normalize=0,alimiter=limit=.95:latency=1[mix]")
-    output = Path(video).with_name(Path(video).stem + "-mit-ton.mp4")
+    output = Path(video).with_name(Path(video).stem + "-mit-ton.mp4")  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
     return _render([*args, "-filter_complex", ";".join(graph), "-map", "0:v:0", "-map", "[mix]",
         "-c:v", "copy", "-c:a", "aac", "-t", str(duration), "-movflags", "+faststart"], output, [video])

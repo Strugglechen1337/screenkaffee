@@ -1,4 +1,5 @@
 """Movable camera overlay, rendered as regular pixels on both desktops."""
+from .i18n import tr
 from PySide6.QtCore import Qt, Slot, QPoint
 from PySide6.QtGui import QPainter, QPainterPath, QColor, QImage
 from PySide6.QtWidgets import QWidget, QApplication
@@ -14,7 +15,7 @@ class WebcamOverlay(QWidget):
         self.circle = circle
         self.mirror = mirror
         self.image = QImage()
-        self.message = "Kamera startet …"
+        self.message = tr("Kamera startet …")
         self.drag_offset = None
         self.camera = QCamera(device, self)
         self.session = QMediaCaptureSession(self)
@@ -43,7 +44,7 @@ class WebcamOverlay(QWidget):
             self.update()
 
     def error(self, error, message):
-        self.message = "Kamerafehler: " + message
+        self.message = tr("Kamerafehler: {message}", message=message)
         self.update()
 
     def paintEvent(self, event):

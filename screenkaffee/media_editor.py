@@ -8,8 +8,9 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
     QLabel, QDoubleSpinBox, QSpinBox, QCheckBox, QFileDialog, QSlider, QFormLayout, QMessageBox,
     QDialog, QDialogButtonBox, QTableWidget, QTableWidgetItem, QInputDialog, QComboBox, QListWidget)
 from .media import probe_media, edit_video, merge_videos, extract_frame, export_html_page, VIDEO_SIZES
+from .i18n import N_, tr
 
-CROP_RATIOS = [("Frei", None), ("16:9", (16, 9)), ("4:3", (4, 3)), ("1:1", (1, 1)), ("9:16", (9, 16))]
+CROP_RATIOS = [(N_("Frei"), None), ("16:9", (16, 9)), ("4:3", (4, 3)), ("1:1", (1, 1)), ("9:16", (9, 16))]
 CORNER_HANDLES = ("nw", "ne", "sw", "se")
 
 
@@ -254,7 +255,7 @@ class VideoEditor(QMainWindow):
         self.animation_loops = animation_loops
         self.path = Path(path)
         self.info = probe_media(self.path)
-        self.setWindowTitle(self.path.name + " — Video · screenkaffee")
+        self.setWindowTitle(tr("{name} — Video · screenkaffee", name=self.path.name))
         self.resize(1120, 820)
         self.job = None
         self.captions = []
@@ -273,7 +274,7 @@ class VideoEditor(QMainWindow):
         self.player.setVideoOutput(self.video)
         self.player.setSource(QUrl.fromLocalFile(str(self.path.resolve())))
         controls = QHBoxLayout()
-        play = QPushButton("Wiedergabe / Pause")
+        play = QPushButton(tr("Wiedergabe / Pause"))
         play.clicked.connect(self.toggle_play)
         controls.addWidget(play)
         self.position = QSlider(Qt.Orientation.Horizontal)
@@ -282,7 +283,7 @@ class VideoEditor(QMainWindow):
         self.player.positionChanged.connect(self.position.setValue)
         self.player.positionChanged.connect(self.caption_position)
         controls.addWidget(self.position, 1)
-        frame = QPushButton("Aktuelles Bild übernehmen")
+        frame = QPushButton(tr("Aktuelles Bild übernehmen"))
         frame.clicked.connect(self.extract_current_frame)
         controls.addWidget(frame)
         layout.addLayout(controls)
@@ -290,7 +291,7 @@ class VideoEditor(QMainWindow):
         self.caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.caption_label.setWordWrap(True)
         layout.addWidget(self.caption_label)
-        self.show_captions = QCheckBox("Untertitel anzeigen")
+        self.show_captions = QCheckBox(tr("Untertitel anzeigen"))
         self.show_captions.setChecked(True)
         self.show_captions.toggled.connect(lambda: self.caption_position(self.player.position()))
         layout.addWidget(self.show_captions)
@@ -303,12 +304,12 @@ class VideoEditor(QMainWindow):
             widget.setDecimals(3)
             widget.setSuffix(" s")
         self.end.setValue(self.info.duration)
-        form.addRow("Beginn", self.start)
-        form.addRow("Ende", self.end)
-        start_button = QPushButton("Aktuelle Position als Beginn")
+        form.addRow(tr("Beginn"), self.start)
+        form.addRow(tr("Ende"), self.end)
+        start_button = QPushButton(tr("Aktuelle Position als Beginn"))
         start_button.clicked.connect(lambda: self.start.setValue(self.player.position() / 1000))
         form.addRow(start_button)
-        end_button = QPushButton("Aktuelle Position als Ende")
+        end_button = QPushButton(tr("Aktuelle Position als Ende"))
         end_button.clicked.connect(lambda: self.end.setValue(self.player.position() / 1000))
         form.addRow(end_button)
         self.cut_start = QDoubleSpinBox()
@@ -317,25 +318,25 @@ class VideoEditor(QMainWindow):
             widget.setRange(0, max(1, self.info.duration))
             widget.setDecimals(3)
             widget.setSuffix(" s")
-        form.addRow("Schnitt-Beginn", self.cut_start)
-        form.addRow("Schnitt-Ende", self.cut_end)
-        self.cut_start_button = QPushButton("Aktuelle Position als Schnitt-Beginn")
+        form.addRow(tr("Schnitt-Beginn"), self.cut_start)
+        form.addRow(tr("Schnitt-Ende"), self.cut_end)
+        self.cut_start_button = QPushButton(tr("Aktuelle Position als Schnitt-Beginn"))
         self.cut_start_button.clicked.connect(lambda: self.set_cut_start())
         form.addRow(self.cut_start_button)
-        self.cut_end_button = QPushButton("Aktuelle Position als Schnitt-Ende")
+        self.cut_end_button = QPushButton(tr("Aktuelle Position als Schnitt-Ende"))
         self.cut_end_button.clicked.connect(lambda: self.set_cut_end())
         form.addRow(self.cut_end_button)
         cut_buttons = QHBoxLayout()
-        self.add_cut_button = QPushButton("Schnitt hinzufügen")
+        self.add_cut_button = QPushButton(tr("Schnitt hinzufügen"))
         self.add_cut_button.clicked.connect(self._on_add_cut_clicked)
         cut_buttons.addWidget(self.add_cut_button)
-        self.remove_cut_button = QPushButton("Schnitt entfernen")
+        self.remove_cut_button = QPushButton(tr("Schnitt entfernen"))
         self.remove_cut_button.clicked.connect(lambda: self.remove_cut())
         cut_buttons.addWidget(self.remove_cut_button)
         form.addRow(cut_buttons)
         self.cut_list = QListWidget()
         self.cut_list.setMaximumHeight(72)
-        form.addRow("Entfernte Abschnitte", self.cut_list)
+        form.addRow(tr("Entfernte Abschnitte"), self.cut_list)
         options.addLayout(form)
         form2 = QFormLayout()
         self.speed = QDoubleSpinBox()
@@ -344,50 +345,50 @@ class VideoEditor(QMainWindow):
         self.speed.setSingleStep(.25)
         self.speed.setValue(1)
         self.speed.valueChanged.connect(self.player.setPlaybackRate)
-        form2.addRow("Geschwindigkeit", self.speed)
+        form2.addRow(tr("Geschwindigkeit"), self.speed)
         self.volume = QDoubleSpinBox()
         self.volume.setRange(0, 4)
         self.volume.setSingleStep(.1)
         self.volume.setValue(1)
         self.volume.valueChanged.connect(lambda value: self.audio.setVolume(min(1, value)))
-        form2.addRow("Lautstärke", self.volume)
-        self.mute = QCheckBox("Ton entfernen")
+        form2.addRow(tr("Lautstärke"), self.volume)
+        self.mute = QCheckBox(tr("Ton entfernen"))
         self.mute.toggled.connect(self.audio.setMuted)
         form2.addRow(self.mute)
         self.width = QSpinBox()
         self.width.setRange(16, 16384)
         self.width.setValue(self.info.width)
-        form2.addRow("Ausgabebreite", self.width)
+        form2.addRow(tr("Ausgabebreite"), self.width)
         self.size_box = QComboBox()
         for label, value in VIDEO_SIZES:
-            self.size_box.addItem(label, value)
-        form2.addRow("Ausgabegröße", self.size_box)
+            self.size_box.addItem(tr(label), value)
+        form2.addRow(tr("Ausgabegröße"), self.size_box)
         self.resize_mode = QComboBox()
-        for label, value in [("Einpassen (Fit Max)", "fitmax"), ("Nie vergrößern (Max)", "max"), ("Exakt mit Rändern (Exact)", "exact")]:
+        for label, value in [(tr("Einpassen (Fit Max)"), "fitmax"), (tr("Nie vergrößern (Max)"), "max"), (tr("Exakt mit Rändern (Exact)"), "exact")]:
             self.resize_mode.addItem(label, value)
-        form2.addRow("Skalierung", self.resize_mode)
+        form2.addRow(tr("Skalierung"), self.resize_mode)
         self.quality = QComboBox()
-        for label, value in [("Niedrig (klein)", "low"), ("Mittel", "medium"), ("Hoch", "high")]:
+        for label, value in [(tr("Niedrig (klein)"), "low"), (tr("Mittel"), "medium"), (tr("Hoch"), "high")]:
             self.quality.addItem(label, value)
         self.quality.setCurrentIndex(1)
-        form2.addRow("Qualität", self.quality)
+        form2.addRow(tr("Qualität"), self.quality)
         self.fps = QSpinBox()
         self.fps.setRange(1, 60)
         self.fps.setValue(animation_fps)
-        self.fps.setToolTip("Bilder pro Sekunde für GIF, animiertes PNG und animiertes WebP")
-        form2.addRow("Animation: Bilder/s", self.fps)
+        self.fps.setToolTip(tr("Bilder pro Sekunde für GIF, animiertes PNG und animiertes WebP"))
+        form2.addRow(tr("Animation: Bilder/s"), self.fps)
         options.addLayout(form2)
         form3 = QFormLayout()
-        self.crop_enabled = QCheckBox("Bild zuschneiden")
+        self.crop_enabled = QCheckBox(tr("Bild zuschneiden"))
         form3.addRow(self.crop_enabled)
         self.crop_ratio = QComboBox()
         for label, value in CROP_RATIOS:
-            self.crop_ratio.addItem(label, value)
-        form3.addRow("Seitenverhältnis", self.crop_ratio)
+            self.crop_ratio.addItem(tr(label), value)
+        form3.addRow(tr("Seitenverhältnis"), self.crop_ratio)
         self.crop = []
         even_w, even_h = even_value(self.info.width, 2), even_value(self.info.height, 2)
         for name, default, maximum in [("X", 0, even_w), ("Y", 0, even_h),
-            ("Breite", even_w, even_w), ("Höhe", even_h, even_h)]:
+            (tr("Breite"), even_w, even_w), (tr("Höhe"), even_h, even_h)]:
             widget = QSpinBox()
             widget.setRange(0, maximum)
             widget.setSingleStep(2)
@@ -404,27 +405,27 @@ class VideoEditor(QMainWindow):
         self.video.videoSink().videoFrameChanged.connect(self._crop_video_frame)
         self.crop_ratio.currentIndexChanged.connect(lambda: self.crop_widget.set_ratio(self.crop_ratio.currentData(), emit=True))
         form3.addRow(self.crop_widget)
-        self.refresh_crop_frame_button = QPushButton("Standbild an aktueller Position")
+        self.refresh_crop_frame_button = QPushButton(tr("Standbild an aktueller Position"))
         self.refresh_crop_frame_button.clicked.connect(lambda: self.update_crop_frame())
         form3.addRow(self.refresh_crop_frame_button)
         options.addLayout(form3)
         layout.addLayout(options)
         self.update_crop_frame(0)
         actions = QHBoxLayout()
-        self.apply_button = QPushButton("Bearbeitetes Video exportieren …")
+        self.apply_button = QPushButton(tr("Bearbeitetes Video exportieren …"))
         self.apply_button.setObjectName("primary")
         self.apply_button.clicked.connect(self.export_video)
         actions.addWidget(self.apply_button)
-        merge = QPushButton("Weitere Videos anhängen …")
+        merge = QPushButton(tr("Weitere Videos anhängen …"))
         merge.clicked.connect(self.merge)
         actions.addWidget(merge)
         self.status = QLabel(f"{self.info.width} × {self.info.height} · {self.info.duration:.2f} s · {self.info.fps:.2f} FPS")
         actions.addWidget(self.status, 1)
         layout.addLayout(actions)
         subtitles = QHBoxLayout()
-        for title, callback in [("Untertitel lokal erzeugen", self.generate_subtitles),
-            ("SRT öffnen …", self.load_subtitles), ("Untertitel bearbeiten …", self.edit_subtitles),
-            ("SRT / Transkript speichern …", self.save_subtitles), ("Untertitel in MP4 einbetten …", self.embed_subtitles)]:
+        for title, callback in [(tr("Untertitel lokal erzeugen"), self.generate_subtitles),
+            (tr("SRT öffnen …"), self.load_subtitles), (tr("Untertitel bearbeiten …"), self.edit_subtitles),
+            (tr("SRT / Transkript speichern …"), self.save_subtitles), (tr("Untertitel in MP4 einbetten …"), self.embed_subtitles)]:
             button = QPushButton(title)
             button.clicked.connect(callback)
             subtitles.addWidget(button)
@@ -442,7 +443,7 @@ class VideoEditor(QMainWindow):
         start = self.cut_start.value() if start is None else float(start)
         end = self.cut_end.value() if end is None else float(end)
         if start < 0 or end <= start or (self.info.duration > 0 and end > self.info.duration + .1):
-            raise ValueError("Ungültiger Schnittbereich: Ende muss nach Beginn liegen.")
+            raise ValueError(tr("Ungültiger Schnittbereich: Ende muss nach Beginn liegen."))
         self.cuts.append((start, end))
         self._refresh_cut_list()
         return (start, end)
@@ -540,27 +541,27 @@ class VideoEditor(QMainWindow):
         self.job.finished.connect(self.job_finished)
         self.job.finished.connect(self.job.deleteLater)
         self.apply_button.setEnabled(False)
-        self.status.setText("Verarbeitung läuft …")
+        self.status.setText(tr("Verarbeitung läuft …"))
         self.job.start()
 
     @Slot(object)
     def operation_done(self, result):
         if self.job_kind == "frame":
             self.frameSaved.emit(result)
-            self.status.setText("Videobild übernommen")
+            self.status.setText(tr("Videobild übernommen"))
         elif self.job_kind == "subtitles":
             self.captions = result
             self.captions_dirty = True
-            self.status.setText(f"{len(result)} Untertitel lokal erzeugt")
+            self.status.setText(tr("{count} Untertitel lokal erzeugt", count=len(result)))
             self.edit_subtitles()
         else:
             self.videoSaved.emit(str(result))
-            self.status.setText("Video gespeichert: " + str(result))
+            self.status.setText(tr("Video gespeichert: {path}", path=result))
 
     @Slot(str)
     def operation_failed(self, message):
-        self.status.setText("Verarbeitung fehlgeschlagen; Original bleibt erhalten")
-        QMessageBox.warning(self, "Video konnte nicht verarbeitet werden", message)
+        self.status.setText(tr("Verarbeitung fehlgeschlagen; Original bleibt erhalten"))
+        QMessageBox.warning(self, tr("Video konnte nicht verarbeitet werden"), message)
 
     @Slot()
     def job_finished(self):
@@ -572,9 +573,9 @@ class VideoEditor(QMainWindow):
         self.submit(lambda: extract_frame(self.path, seconds), "frame")
 
     def export_video(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Video exportieren", str(self.path.with_name(self.path.stem + "-bearbeitet.mp4")),
+        path, _ = QFileDialog.getSaveFileName(self, tr("Video exportieren"), str(self.path.with_name(self.path.stem + "-bearbeitet.mp4")),
             "MP4 (*.mp4);;MKV (AV1) (*.mkv);;WebM (*.webm);;MOV (*.mov);;AVI (*.avi);;WMV (*.wmv);;OGV (*.ogv);;"
-            "GIF (*.gif);;Animiertes PNG (*.apng);;Animiertes WebP (*.webp);;HTML5-Webseite (*.html)")
+            + tr("GIF (*.gif);;Animiertes PNG (*.apng);;Animiertes WebP (*.webp);;HTML5-Webseite (*.html)"))
         if not path:
             return
         options = {"start": self.start.value(), "end": self.end.value(), "speed": self.speed.value(),
@@ -589,10 +590,10 @@ class VideoEditor(QMainWindow):
             self.submit(lambda: edit_video(self.path, path, **options))
 
     def merge(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, "Videos in Reihenfolge anhängen", "", "Videos (*.mp4 *.webm *.mov *.mkv *.avi)")
+        paths, _ = QFileDialog.getOpenFileNames(self, tr("Videos in Reihenfolge anhängen"), "", tr("Videos (*.mp4 *.webm *.mov *.mkv *.avi)"))
         if not paths:
             return
-        destination, _ = QFileDialog.getSaveFileName(self, "Zusammengeführtes Video", str(self.path.with_name(self.path.stem + "-kombiniert.mp4")), "MP4 (*.mp4)")
+        destination, _ = QFileDialog.getSaveFileName(self, tr("Zusammengeführtes Video"), str(self.path.with_name(self.path.stem + "-kombiniert.mp4")), "MP4 (*.mp4)")
         if destination:
             self.submit(lambda: merge_videos([self.path, *paths], destination))
 
@@ -601,12 +602,12 @@ class VideoEditor(QMainWindow):
         if prepare is not None and not prepare(self, self.generate_subtitles):
             return
         from .subtitles import transcribe
-        language, ok = QInputDialog.getItem(self, "Untertitelsprache", "Gesprochene Sprache", ["Automatisch", "de", "en", "fr", "es", "it", "nl"], editable=True)
+        language, ok = QInputDialog.getItem(self, tr("Untertitelsprache"), tr("Gesprochene Sprache"), [tr("Automatisch"), "de", "en", "fr", "es", "it", "nl"], editable=True)
         if ok:
-            self.submit(lambda: transcribe(self.path, None if language == "Automatisch" else language), "subtitles")
+            self.submit(lambda: transcribe(self.path, None if language == tr("Automatisch") else language), "subtitles")
 
     def load_subtitles(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Untertitel öffnen", "", "SRT (*.srt)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("Untertitel öffnen"), "", "SRT (*.srt)")
         if path:
             try:
                 from .subtitles import read_srt
@@ -619,18 +620,18 @@ class VideoEditor(QMainWindow):
     def edit_subtitles(self):
         from .subtitles import Subtitle, validate
         dialog = QDialog(self)
-        dialog.setWindowTitle("Untertitel: Text und Zeit")
+        dialog.setWindowTitle(tr("Untertitel: Text und Zeit"))
         dialog.resize(850, 550)
         layout = QVBoxLayout(dialog)
         table = QTableWidget(len(self.captions), 3)
-        table.setHorizontalHeaderLabels(["Beginn (s)", "Ende (s)", "Text"])
+        table.setHorizontalHeaderLabels([tr("Beginn (s)"), tr("Ende (s)"), tr("Text")])
         table.horizontalHeader().setStretchLastSection(True)
         for row, caption in enumerate(self.captions):
             for column, value in enumerate([f"{caption.start:.3f}", f"{caption.end:.3f}", caption.text]):
                 table.setItem(row, column, QTableWidgetItem(value))
         layout.addWidget(table)
         actions = QHBoxLayout()
-        add = QPushButton("Zeile hinzufügen")
+        add = QPushButton(tr("Zeile hinzufügen"))
         def add_row():
             row = table.rowCount()
             table.insertRow(row)
@@ -639,10 +640,10 @@ class VideoEditor(QMainWindow):
                 table.setItem(row, col, QTableWidgetItem(value))
         add.clicked.connect(add_row)
         actions.addWidget(add)
-        remove = QPushButton("Gewählte Zeile löschen")
+        remove = QPushButton(tr("Gewählte Zeile löschen"))
         remove.clicked.connect(lambda: table.removeRow(table.currentRow()) if table.currentRow() >= 0 else None)
         actions.addWidget(remove)
-        jump = QPushButton("Zur gewählten Zeit springen")
+        jump = QPushButton(tr("Zur gewählten Zeit springen"))
         def jump_to_row():
             row = table.currentRow()
             if row >= 0:
@@ -664,14 +665,14 @@ class VideoEditor(QMainWindow):
                 self.captions_dirty = True
                 dialog.accept()
             except ValueError as exc:
-                QMessageBox.warning(dialog, "Ungültige Untertitel", str(exc))
+                QMessageBox.warning(dialog, tr("Ungültige Untertitel"), str(exc))
         buttons.accepted.connect(accept)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
         dialog.exec()
 
     def save_subtitles(self):
-        path, selected = QFileDialog.getSaveFileName(self, "Untertitel / Transkript speichern", str(self.path.with_suffix(".srt")), "SRT (*.srt);;Transkript (*.txt)")
+        path, selected = QFileDialog.getSaveFileName(self, tr("Untertitel / Transkript speichern"), str(self.path.with_suffix(".srt")), tr("SRT (*.srt);;Transkript (*.txt)"))
         if path:
             try:
                 if Path(path).suffix.lower() == ".txt":
@@ -679,7 +680,7 @@ class VideoEditor(QMainWindow):
                 else:
                     from .subtitles import write_srt
                     write_srt(self.captions, path)
-                self.status.setText("Untertitel / Transkript gespeichert")
+                self.status.setText(tr("Untertitel / Transkript gespeichert"))
                 self.captions_dirty = False
             except Exception as exc:
                 self.operation_failed(str(exc))
@@ -692,7 +693,7 @@ class VideoEditor(QMainWindow):
             self.player.setActiveSubtitleTrack(0 if visible else -1)
 
     def embed_subtitles(self):
-        path, _ = QFileDialog.getSaveFileName(self, "MP4 mit Untertiteln", str(self.path.with_name(self.path.stem + "-untertitel.mp4")), "MP4 (*.mp4)")
+        path, _ = QFileDialog.getSaveFileName(self, tr("MP4 mit Untertiteln"), str(self.path.with_name(self.path.stem + "-untertitel.mp4")), "MP4 (*.mp4)")
         if path:
             from .subtitles import write_srt, embed_subtitles
             sidecar = Path(path).with_suffix(".srt")
@@ -704,11 +705,11 @@ class VideoEditor(QMainWindow):
 
     def closeEvent(self, event):
         if self.job:
-            QMessageBox.information(self, "Verarbeitung läuft", "Bitte den laufenden Videoexport zuerst abschließen.")
+            QMessageBox.information(self, tr("Verarbeitung läuft"), tr("Bitte den laufenden Videoexport zuerst abschließen."))
             event.ignore()
             return
         if self.captions_dirty:
-            answer = QMessageBox.question(self, "Untertitel speichern?", "Die Untertitel wurden geändert.",
+            answer = QMessageBox.question(self, tr("Untertitel speichern?"), tr("Die Untertitel wurden geändert."),
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
             if answer == QMessageBox.StandardButton.Cancel:
                 event.ignore()
@@ -718,7 +719,7 @@ class VideoEditor(QMainWindow):
                 try:
                     write_srt(self.captions, self.path.with_suffix(".srt"))
                 except Exception as exc:
-                    QMessageBox.warning(self, "Untertitel konnten nicht gespeichert werden", str(exc))
+                    QMessageBox.warning(self, tr("Untertitel konnten nicht gespeichert werden"), str(exc))
                     event.ignore()
                     return
         self.player.stop()

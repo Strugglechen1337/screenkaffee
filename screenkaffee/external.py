@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from .i18n import tr
 
 
 def export_temp(image, folder=None):
@@ -16,7 +17,7 @@ def export_temp(image, folder=None):
 def launch(program, path):
     """Start the chosen program with the file; no shell is involved."""
     if not Path(program).is_file():
-        raise FileNotFoundError("Programm nicht gefunden: " + program)
+        raise FileNotFoundError(tr("Programm nicht gefunden: {program}", program=program))
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     return subprocess.Popen([program, str(path)], creationflags=flags)
 

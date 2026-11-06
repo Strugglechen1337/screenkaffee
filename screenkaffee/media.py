@@ -12,8 +12,13 @@ import subprocess
 import uuid
 from PIL import Image
 from .integrations import tool, run
+from .i18n import N_, tr
 
 LOG = logging.getLogger(__name__)
+
+
+class NoVideoStreamError(ValueError):
+    """Kein Videostream: stabiler Fehlertyp für den Rückfall beim genauen Springen."""
 
 
 def ffmpeg_binary():
@@ -24,7 +29,7 @@ def ffmpeg_binary():
         import imageio_ffmpeg
         return imageio_ffmpeg.get_ffmpeg_exe()
     except (ImportError, RuntimeError) as exc:
-        raise RuntimeError("Die mitgelieferte FFmpeg-Laufzeit fehlt oder kann nicht gestartet werden.") from exc
+        raise RuntimeError(tr("Die mitgelieferte FFmpeg-Laufzeit fehlt oder kann nicht gestartet werden.")) from exc
 
 
 @dataclass
@@ -40,7 +45,7 @@ class MediaInfo:
 def probe_media(path):
     path = Path(path).resolve()
     if not path.is_file():
-        raise ValueError("Videodatei nicht gefunden.")
+        raise ValueError(tr("Videodatei nicht gefunden."))
     ffprobe = tool("ffprobe")
     if ffprobe:
         result = run([ffprobe, "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)])
@@ -49,7 +54,7 @@ def probe_media(path):
         data = json.loads(result.stdout)
         videos = [s for s in data["streams"] if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")]
         if not videos:
-            raise ValueError("Datei enthält keinen Videostream.")
+            raise NoVideoStreamError(tr("Datei enthält keinen Videostream."))
         video = videos[0]
         rate = video.get("avg_frame_rate", "0/1").split("/")
         fps = float(rate[0]) / max(1, float(rate[-1]))
@@ -72,18 +77,18 @@ def probe_media(path):
 
 def extract_frame(path, seconds=0):
     if not math.isfinite(seconds) or seconds < 0:
-        raise ValueError("Ungültige Bildposition.")
+        raise ValueError(tr("Ungültige Bildposition."))
     result = run([ffmpeg_binary(), "-hide_banner", "-loglevel", "error", "-ss", str(seconds), "-i", str(Path(path).resolve()),
         "-map", "0:v:0", "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"], timeout=60)
     if result.returncode or not result.stdout:
-        raise RuntimeError(result.stderr.decode(errors="replace")[-2000:] or "An dieser Position ist kein Videobild verfügbar.")
+        raise RuntimeError(result.stderr.decode(errors="replace")[-2000:] or tr("An dieser Position ist kein Videobild verfügbar."))
     with Image.open(io.BytesIO(result.stdout)) as image:
         return image.convert("RGB")
 
 
 def tempo_filters(speed):
     if not math.isfinite(speed) or not .125 <= speed <= 8:
-        raise ValueError("Geschwindigkeit muss zwischen 0,125 und 8 liegen.")
+        raise ValueError(tr("Geschwindigkeit muss zwischen 0,125 und 8 liegen."))
     remaining, factors = speed, []
     while remaining > 2:
         factors.append(2)
@@ -99,7 +104,7 @@ OUTPUT_FORMATS = (".mp4", ".mov", ".webm", ".avi", ".mkv", ".wmv", ".ogv", ".gif
 ANIMATED_FORMATS = (".gif", ".apng", ".webp")
 QUALITIES = ("low", "medium", "high")
 RESIZE_MODES = ("fitmax", "max", "exact")
-VIDEO_SIZES = [("Original", None), ("1920 × 1080", (1920, 1080)), ("1280 × 720", (1280, 720)),
+VIDEO_SIZES = [(N_("Original"), None), ("1920 × 1080", (1920, 1080)), ("1280 × 720", (1280, 720)),
                ("854 × 480", (854, 480)), ("640 × 360", (640, 360)), ("320 × 180", (320, 180))]
 
 
@@ -111,10 +116,10 @@ def target_size(width, height, size, mode="fitmax"):
     """Output size for a target box. fitmax: scale to fit (up or down); max: never enlarge;
     exact: fit and pad with black to exactly the box. Aspect ratio is always kept."""
     if mode not in RESIZE_MODES:
-        raise ValueError("Unbekannter Skalierungsmodus.")
+        raise ValueError(tr("Unbekannter Skalierungsmodus."))
     box_width, box_height = size
     if min(box_width, box_height, width, height) < 1:
-        raise ValueError("Ungültige Größe.")
+        raise ValueError(tr("Ungültige Größe."))
     scale = min(box_width / width, box_height / height)
     if mode == "max":
         scale = min(1, scale)
@@ -124,7 +129,7 @@ def target_size(width, height, size, mode="fitmax"):
 
 def _codec_options(suffix, quality="medium", loops=0):
     if quality not in QUALITIES:
-        raise ValueError("Unbekannte Qualitätsstufe.")
+        raise ValueError(tr("Unbekannte Qualitätsstufe."))
     level = QUALITIES.index(quality)
     if suffix == ".webm":
         return ["-c:v", "libvpx-vp9", "-crf", str((36, 30, 24)[level]), "-b:v", "0", "-c:a", "libopus"]
@@ -147,24 +152,24 @@ def _codec_options(suffix, quality="medium", loops=0):
 def _render(args, destination, inputs, timeout=3600):
     destination = Path(destination).resolve()
     if destination in [Path(p).resolve() for p in inputs]:
-        raise ValueError("Originalvideos werden nicht überschrieben. Bitte einen neuen Dateinamen verwenden.")
+        raise ValueError(tr("Originalvideos werden nicht überschrieben. Bitte einen neuen Dateinamen verwenden."))
     if destination.suffix.lower() not in OUTPUT_FORMATS:
-        raise ValueError("Unterstützte Zielformate: MP4, MOV, WebM, AVI, MKV (AV1), WMV, OGV, GIF, animiertes PNG (.apng), animiertes WebP.")
+        raise ValueError(tr("Unterstützte Zielformate: MP4, MOV, WebM, AVI, MKV (AV1), WMV, OGV, GIF, animiertes PNG (.apng), animiertes WebP."))
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(f".prism-{uuid.uuid4().hex}{destination.suffix}")
     try:
         result = run([ffmpeg_binary(), "-hide_banner", "-nostdin", "-loglevel", "error", *args, str(temporary)], timeout=timeout)
         if result.returncode or not temporary.exists() or temporary.stat().st_size == 0:
-            raise RuntimeError(result.stderr.decode(errors="replace")[-4000:] or "Videokonvertierung erzeugte keine Datei.")
+            raise RuntimeError(result.stderr.decode(errors="replace")[-4000:] or tr("Videokonvertierung erzeugte keine Datei."))
         if destination.suffix.lower() == ".webp":
             # Without ffprobe the bundled ffmpeg cannot size an animated WebP; check the RIFF header instead.
             head = temporary.read_bytes()[:12]
             if head[:4] != b"RIFF" or head[8:12] != b"WEBP":
-                raise RuntimeError("Videokonvertierung erzeugte kein gültiges WebP.")
+                raise RuntimeError(tr("Videokonvertierung erzeugte kein gültiges WebP."))
         else:
             info = probe_media(temporary)
             if info.width < 1 or info.height < 1:
-                raise RuntimeError("Videokonvertierung erzeugte kein gültiges Bild.")
+                raise RuntimeError(tr("Videokonvertierung erzeugte kein gültiges Bild."))
         temporary.replace(destination)
         return destination
     finally:
@@ -179,16 +184,16 @@ def kept_segments(start=0, end=None, cuts=None, duration=0, min_length=1e-3):
     clip_end = float(end if end is not None else duration)
     start = float(start)
     if clip_end <= start:
-        raise ValueError("Ungültiger Endzeitpunkt.")
+        raise ValueError(tr("Ungültiger Endzeitpunkt."))
     if not cuts:
         return [(start, clip_end)]
     clamped = []
     for item in cuts:
         if item is None or len(item) != 2:
-            raise ValueError("Ungültiger Schnittbereich.")
+            raise ValueError(tr("Ungültiger Schnittbereich."))
         cs, ce = float(item[0]), float(item[1])
         if not (math.isfinite(cs) and math.isfinite(ce)) or cs < 0 or ce <= cs or (duration > 0 and ce > duration + .1):
-            raise ValueError("Ungültiger Schnittbereich.")
+            raise ValueError(tr("Ungültiger Schnittbereich."))
         cs, ce = max(start, cs), min(clip_end, ce)
         if ce > cs:
             clamped.append((cs, ce))
@@ -209,9 +214,9 @@ def kept_segments(start=0, end=None, cuts=None, duration=0, min_length=1e-3):
         segments.append((cursor, clip_end))
     if not segments:
         if min_length > 1e-3 and clamped:
-            raise ValueError("Die Schnitte entfernen das gesamte Video: Übrig bliebe weniger als ein Videobild. "
-                             "Bitte einen Schnitt verkleinern.")
-        raise ValueError("Die Schnitte entfernen das gesamte Video.")
+            raise ValueError(tr("Die Schnitte entfernen das gesamte Video: Übrig bliebe weniger als ein Videobild. "
+                             "Bitte einen Schnitt verkleinern."))
+        raise ValueError(tr("Die Schnitte entfernen das gesamte Video."))
     return segments
 
 
@@ -219,15 +224,15 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
                size=None, resize_mode="fitmax", quality="medium", fps=15, loops=0, cuts=None):
     info = probe_media(source)
     if not 1 <= int(fps) <= 60:
-        raise ValueError("Bilder pro Sekunde müssen zwischen 1 und 60 liegen.")
+        raise ValueError(tr("Bilder pro Sekunde müssen zwischen 1 und 60 liegen."))
     if not 0 <= int(loops) <= 1000:
-        raise ValueError("Wiederholungen müssen zwischen 0 und 1000 liegen.")
+        raise ValueError(tr("Wiederholungen müssen zwischen 0 und 1000 liegen."))
     if not math.isfinite(start) or start < 0 or (info.duration > 0 and start >= info.duration):
-        raise ValueError("Ungültiger Startzeitpunkt.")
+        raise ValueError(tr("Ungültiger Startzeitpunkt."))
     if end is not None and (not math.isfinite(end) or end <= start or (info.duration > 0 and end > info.duration + .1)):
-        raise ValueError("Ungültiger Endzeitpunkt.")
+        raise ValueError(tr("Ungültiger Endzeitpunkt."))
     if not math.isfinite(volume) or not 0 <= volume <= 4:
-        raise ValueError("Lautstärke muss zwischen 0 und 4 liegen.")
+        raise ValueError(tr("Lautstärke muss zwischen 0 und 4 liegen."))
     tempo = tempo_filters(speed)
     cuts = list(cuts or [])
     frame = 1 / info.fps if info.fps and info.fps > 0 else 1 / 30
@@ -236,7 +241,7 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
     if crop is not None:
         x, y, w, h = map(int, crop)
         if min(x, y) < 0 or min(w, h) < 2 or x + w > info.width or y + h > info.height:
-            raise ValueError("Der Zuschnitt liegt außerhalb des Videos.")
+            raise ValueError(tr("Der Zuschnitt liegt außerhalb des Videos."))
         filters.append(f"crop={w}:{h}:{x}:{y}")
     if size:
         source_width, source_height = (crop[2], crop[3]) if crop is not None else (info.width, info.height)
@@ -249,7 +254,7 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
             filters.append(f"scale={new_width}:{new_height}:flags=lanczos")
     elif width:
         if not 16 <= int(width) <= 16384:
-            raise ValueError("Ungültige Zielbreite.")
+            raise ValueError(tr("Ungültige Zielbreite."))
         filters.append(f"scale={int(width)}:-2:flags=lanczos")
     if speed != 1:
         filters.append(f"setpts=PTS/{speed:.8g}")
@@ -292,7 +297,7 @@ def edit_video(source, destination, start=0, end=None, speed=1, mute=False, crop
         # Schnell: vor der Eingabe springen. Das braucht ein Schlüsselbild vor `start` und einen Index im Container.
         return _render(seek + source_args + output, destination, [source])
     except (RuntimeError, ValueError) as error:
-        if start <= 0 or (isinstance(error, ValueError) and "Videostream" not in str(error)):
+        if start <= 0 or (isinstance(error, ValueError) and not isinstance(error, NoVideoStreamError)):
             raise
         # Ohne Index (z. B. MPEG-TS) landet der Sprung hinter dem einzigen Schlüsselbild, und es entsteht kein
         # Videobild. Dann genau, aber langsamer: vollständig dekodieren und erst in der Ausgabe ab `start` schreiben.
@@ -344,10 +349,10 @@ def export_html_page(source, destination, quality="medium", **edit_options):
 
 def merge_videos(sources, destination):
     if len(sources) < 2:
-        raise ValueError("Mindestens zwei Videos auswählen.")
+        raise ValueError(tr("Mindestens zwei Videos auswählen."))
     infos = [probe_media(source) for source in sources]
     if any(info.duration <= 0 for info in infos):
-        raise ValueError("Die Dauer eines Videos konnte nicht bestimmt werden.")
+        raise ValueError(tr("Die Dauer eines Videos konnte nicht bestimmt werden."))
     width, height = infos[0].width // 2 * 2, infos[0].height // 2 * 2
     args, graph = [], []
     for index, (source, info) in enumerate(zip(sources, infos)):

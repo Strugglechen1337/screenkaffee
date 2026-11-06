@@ -20,6 +20,7 @@ import urllib.request
 import zipfile
 
 from .paths import application_root
+from .i18n import N_, tr
 
 REPOSITORY = "Strugglechen1337/screenkaffee"
 ASSETS = {"windows-x64": "screenkaffee-Windows-x64.zip", "windows-arm64": "screenkaffee-Windows-arm64.zip",
@@ -29,9 +30,9 @@ STAGING = "_update"
 PREVIOUS = "_previous"              # vorige Version zum Wiederherstellen (eine Generation)
 PREVIOUS_INFO = "_previous.json"
 KEEP = {"data", STAGING, PREVIOUS, PREVIOUS_INFO}     # wird beim Austausch nie angefasst
-MODES = [("off", "Aus – nur über „Mehr → Nach Updates suchen …“"),
-         ("ask", "Beim Start prüfen und nachfragen"),
-         ("auto", "Beim Start automatisch herunterladen und installieren")]
+MODES = [("off", N_("Aus – nur über „Mehr → Nach Updates suchen …“")),
+         ("ask", N_("Beim Start prüfen und nachfragen")),
+         ("auto", N_("Beim Start automatisch herunterladen und installieren"))]   # Anzeige: tr(label)
 
 
 class UpdateError(RuntimeError):
@@ -88,12 +89,12 @@ def _open(request, opener=None, timeout=30):
         return (opener or urllib.request.urlopen)(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
         if exc.code in (403, 429):
-            raise UpdateError("GitHub hat zu viele Anfragen gezählt. Bitte später noch einmal versuchen.") from exc
+            raise UpdateError(tr("GitHub hat zu viele Anfragen gezählt. Bitte später noch einmal versuchen.")) from exc
         if exc.code == 404:
-            raise UpdateError("Kein passendes Release auf GitHub gefunden.") from exc
-        raise UpdateError(f"GitHub antwortet mit Fehler {exc.code}.") from exc
+            raise UpdateError(tr("Kein passendes Release auf GitHub gefunden.")) from exc
+        raise UpdateError(tr("GitHub antwortet mit Fehler {code}.", code=exc.code)) from exc
     except (urllib.error.URLError, OSError) as exc:
-        raise UpdateError(f"GitHub ist nicht erreichbar: {getattr(exc, 'reason', exc)}") from exc
+        raise UpdateError(tr("GitHub ist nicht erreichbar: {reason}", reason=getattr(exc, "reason", exc))) from exc
 
 
 def latest_release(repo=REPOSITORY, opener=None):
@@ -126,13 +127,13 @@ def expected_sha256(release, name, opener=None):
         for artifact in data.get("artifacts", []):
             if artifact.get("name") == name and artifact.get("sha256"):
                 return artifact["sha256"].lower()
-    raise UpdateError("Für das Update fehlt eine Prüfsumme. Aus Sicherheitsgründen wird es nicht installiert.")
+    raise UpdateError(tr("Für das Update fehlt eine Prüfsumme. Aus Sicherheitsgründen wird es nicht installiert."))
 
 
 def download(release, name, target, opener=None, progress=None):
     asset = release.assets.get(name)
     if not asset:
-        raise UpdateError(f"Das Release {release.tag} enthält kein Paket „{name}“.")
+        raise UpdateError(tr("Das Release {tag} enthält kein Paket „{name}“.", tag=release.tag, name=name))
     expected = expected_sha256(release, name, opener)
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -147,7 +148,7 @@ def download(release, name, target, opener=None, progress=None):
                 progress(done, asset.get("size") or 0)
     if digest.hexdigest() != expected:
         target.unlink(missing_ok=True)
-        raise UpdateError("Die Prüfsumme des heruntergeladenen Pakets stimmt nicht. Das Update wurde verworfen.")
+        raise UpdateError(tr("Die Prüfsumme des heruntergeladenen Pakets stimmt nicht. Das Update wurde verworfen."))
     return target
 
 
@@ -162,7 +163,7 @@ def extract(archive, destination, progress=None):
             members = source.infolist()
             for member in members:
                 if not (destination / member.filename).resolve().is_relative_to(destination):
-                    raise UpdateError("Das Update-Archiv enthält ungültige Pfade.")
+                    raise UpdateError(tr("Das Update-Archiv enthält ungültige Pfade."))
             step = max(1, len(members) // 200)
             for index, member in enumerate(members, 1):
                 source.extract(member, destination)
@@ -178,10 +179,10 @@ def extract(archive, destination, progress=None):
                     if progress and (index % step == 0 or index == len(members)):
                         progress(index, len(members))
             except tarfile.FilterError as exc:
-                raise UpdateError("Das Update-Archiv enthält ungültige Pfade.") from exc
+                raise UpdateError(tr("Das Update-Archiv enthält ungültige Pfade.")) from exc
     package = destination / "screenkaffee"
     if not package.is_dir():
-        raise UpdateError("Das Update-Archiv hat nicht den erwarteten Aufbau.")
+        raise UpdateError(tr("Das Update-Archiv hat nicht den erwarteten Aufbau."))
     return package
 
 
@@ -206,7 +207,7 @@ def prepare(release, variant, root=None, opener=None, progress=None, stage=None)
         raise
     archive.unlink(missing_ok=True)
     if not (package / LAUNCHERS[variant]).is_file():
-        raise UpdateError("Im Update fehlt das Startprogramm.")
+        raise UpdateError(tr("Im Update fehlt das Startprogramm."))
     (staging / "release.json").write_text(json.dumps({"tag": release.tag, "notes": release.notes, "url": release.url},
                                                      ensure_ascii=False), encoding="utf-8")
     from . import __version__
@@ -251,7 +252,7 @@ def wait_for_exit(pid, timeout=120):
         if handle:
             try:
                 if kernel.WaitForSingleObject(handle, int(timeout * 1000)) != 0:
-                    raise UpdateError("screenkaffee hat sich nicht rechtzeitig beendet.")
+                    raise UpdateError(tr("screenkaffee hat sich nicht rechtzeitig beendet."))
             finally:
                 kernel.CloseHandle(handle)
         return
@@ -263,7 +264,7 @@ def wait_for_exit(pid, timeout=120):
         except PermissionError:
             pass
         time.sleep(0.2)
-    raise UpdateError("screenkaffee hat sich nicht rechtzeitig beendet.")
+    raise UpdateError(tr("screenkaffee hat sich nicht rechtzeitig beendet."))
 
 
 def _retry(action, attempts=40):
@@ -343,7 +344,7 @@ def run_helper(argv):
     package = package or Path(__file__).resolve().parent.parent.parent       # ARM64/Linux: <Paket>/source/screenkaffee
     variant = installed_variant(package)
     if variant is None:
-        print("Fehler: --apply-update läuft nur aus einem entpackten Update-Paket.", file=sys.stderr)
+        print(tr("Fehler: --apply-update läuft nur aus einem entpackten Update-Paket."), file=sys.stderr)
         return 1
     root = args.root.resolve()
     try:
@@ -427,13 +428,14 @@ def prepare_restore(root=None):
     root = Path(root or application_root())
     info = previous_version(root)
     if info is None:
-        raise UpdateError("Es ist keine vorige Version vorhanden. Sie wird beim nächsten Update aufbewahrt.")
+        raise UpdateError(tr("Es ist keine vorige Version vorhanden. Sie wird beim nächsten Update aufbewahrt."))
     staging = root / STAGING
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
     from . import __version__
-    notes = (f"Die vorige Version {info['version']} wurde wiederhergestellt (vorher installiert: {__version__}). "
-             "Automatische Updates sind ausgeschaltet, damit sie nicht gleich wieder ersetzt wird.")
+    notes = tr("Die vorige Version {version} wurde wiederhergestellt (vorher installiert: {installed}). "
+               "Automatische Updates sind ausgeschaltet, damit sie nicht gleich wieder ersetzt wird.",
+               version=info["version"], installed=__version__)
     (staging / "release.json").write_text(json.dumps({"tag": "v" + info["version"], "notes": notes}, ensure_ascii=False),
                                           encoding="utf-8")
     (staging / "previous.json").write_text(json.dumps({"version": __version__}), encoding="utf-8")

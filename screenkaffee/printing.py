@@ -1,6 +1,7 @@
 from PySide6.QtGui import QPainter
 from PySide6.QtCore import QRectF
 from .editor import pil_to_qimage
+from .i18n import tr
 
 
 def print_area(viewport, dpi_x, dpi_y, margin_mm=0):
@@ -13,7 +14,7 @@ def print_area(viewport, dpi_x, dpi_y, margin_mm=0):
 def paint_images(printer, images, margin_mm=0):
     painter = QPainter(printer)
     if not painter.isActive():
-        raise RuntimeError("Druckauftrag konnte nicht gestartet werden.")
+        raise RuntimeError(tr("Druckauftrag konnte nicht gestartet werden."))
     try:
         for index, image in enumerate(images):
             if index:

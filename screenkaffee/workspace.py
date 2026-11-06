@@ -7,6 +7,7 @@ import sys
 import uuid
 import shutil
 from .color import save_png, import_srgb
+from .i18n import tr
 
 
 def parse_tags(value):
@@ -106,10 +107,10 @@ class Workspace:
         self.db.execute("INSERT OR IGNORE INTO collections(name) SELECT DISTINCT collection FROM captures")
         self.db.commit()
 
-    def add(self, image, title=None, metadata=None, collection="Alle Aufnahmen"):
+    def add(self, image, title=None, metadata=None, collection="Alle Aufnahmen"):  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
         ident = uuid.uuid4().hex
         created = datetime.now().astimezone().isoformat(timespec="seconds")
-        title = title or datetime.now().strftime("Aufnahme %d.%m.%Y %H:%M:%S")
+        title = title or datetime.now().strftime("Aufnahme %d.%m.%Y %H:%M:%S")  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
         filename = ident + ".png"
         metadata = metadata or {}
         save_png(image, self.images / filename, metadata)
@@ -123,10 +124,10 @@ class Workspace:
             raise
         return ident
 
-    def add_file(self, path, kind="video", title=None, metadata=None, thumbnail=None, collection="Alle Aufnahmen"):
+    def add_file(self, path, kind="video", title=None, metadata=None, thumbnail=None, collection="Alle Aufnahmen"):  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
         source = Path(path).resolve()
         if kind not in ("video", "document") or not source.is_file():
-            raise ValueError("Ungültige Mediendatei.")
+            raise ValueError(tr("Ungültige Mediendatei."))
         ident = uuid.uuid4().hex
         filename = ident + source.suffix.lower()
         target = self.images / filename
@@ -194,7 +195,7 @@ class Workspace:
     def rows(self, query="", collection=None, kind=None, sort="newest", days=None, favorites_only=False):
         sql = "SELECT * FROM captures WHERE 1=1"
         args = []
-        if collection and collection != "Alle Aufnahmen":
+        if collection and collection != "Alle Aufnahmen":  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
             sql += " AND collection=?"
             args.append(collection)
         if kind:
@@ -208,7 +209,7 @@ class Workspace:
         orders = {"newest": "created DESC, rowid DESC", "oldest": "created ASC, rowid ASC",
                   "title": "title COLLATE NOCASE, rowid DESC", "type": "kind, created DESC", "size": "width*height DESC, rowid DESC"}
         if sort not in orders:
-            raise ValueError("Unbekannte Sortierung.")
+            raise ValueError(tr("Unbekannte Sortierung."))
         fetched = self.db.execute(sql + " ORDER BY " + orders[sort], args).fetchall()
         if not query:
             return fetched
@@ -257,7 +258,7 @@ class Workspace:
     def update_tags(self, ids, add=(), remove=(), collection=None):
         ids = list(ids)
         if any(self.get(ident) is None for ident in ids):
-            raise KeyError("Aufnahme nicht gefunden.")
+            raise KeyError(tr("Aufnahme nicht gefunden."))
         add_list = parse_tags(add)
         remove_set = {t.casefold() for t in parse_tags(remove)}
         target_col = collection.strip() if isinstance(collection, str) and collection.strip() else None
@@ -283,7 +284,7 @@ class Workspace:
     def remove_tags(self, ids, tags):
         self.update_tags(ids, remove=tags)
 
-    DEFAULT_COLLECTION = "Alle Aufnahmen"
+    DEFAULT_COLLECTION = "Alle Aufnahmen"  # i18n: ignore – Gespeicherter Schlüssel oder Dateinamensmuster bleibt sprachunabhängig.
 
     def collections(self):
         """Collection names in the user's order (position, then name), including any only referenced by captures."""
@@ -294,23 +295,23 @@ class Workspace:
     def create_collection(self, name):
         name = name.strip()
         if not name or len(name) > 200:
-            raise ValueError("Sammlungsname muss 1 bis 200 Zeichen enthalten.")
+            raise ValueError(tr("Sammlungsname muss 1 bis 200 Zeichen enthalten."))
         self.db.execute("INSERT OR IGNORE INTO collections(name) VALUES (?)", (name,))
         self.db.commit()
 
     def _editable_collection(self, name):
         if name == self.DEFAULT_COLLECTION:
-            raise ValueError("Die Sammlung „Alle Aufnahmen“ lässt sich nicht ändern.")
+            raise ValueError(tr("Die Sammlung „Alle Aufnahmen“ lässt sich nicht ändern."))
         if name not in self.collections():
-            raise ValueError("Sammlung nicht gefunden.")
+            raise ValueError(tr("Sammlung nicht gefunden."))
 
     def rename_collection(self, old, new):
         new = new.strip()
         self._editable_collection(old)
         if not new or len(new) > 200:
-            raise ValueError("Sammlungsname muss 1 bis 200 Zeichen enthalten.")
+            raise ValueError(tr("Sammlungsname muss 1 bis 200 Zeichen enthalten."))
         if new == self.DEFAULT_COLLECTION or (new != old and new in self.collections()):
-            raise ValueError("Eine Sammlung mit diesem Namen existiert bereits.")
+            raise ValueError(tr("Eine Sammlung mit diesem Namen existiert bereits."))
         self.create_collection(old)
         self.db.execute("UPDATE collections SET name=? WHERE name=?", (new, old))
         self.db.execute("UPDATE captures SET collection=? WHERE collection=?", (new, old))
@@ -366,7 +367,7 @@ class Workspace:
 
     def cleanup_candidates(self, keep_latest=0, max_age_days=0, exclude=()):
         if keep_latest < 0 or max_age_days < 0:
-            raise ValueError("Aufbewahrungswerte dürfen nicht negativ sein.")
+            raise ValueError(tr("Aufbewahrungswerte dürfen nicht negativ sein."))
         threshold = datetime.now(timezone.utc) - timedelta(days=max_age_days)
         result = []
         for index, row in enumerate(self.rows()):
@@ -386,7 +387,7 @@ class Workspace:
         trash.mkdir(exist_ok=True)
         info = trash / (ident + ".metadata.json")
         if any(p != info for p in trash.glob(ident + ".*")):
-            raise ValueError("Bitte zuerst die unvollständige Löschung wiederherstellen.")
+            raise ValueError(tr("Bitte zuerst die unvollständige Löschung wiederherstellen."))
         info.write_text(json.dumps(dict(self.get(ident)), ensure_ascii=False, indent=2), encoding="utf-8")
         files = [path, self.images / (ident + ".thumb.png")]
         files += [path.with_suffix(suffix) for suffix in (".prism.json", ".screenkaffee.json", ".srt", ".txt")]
@@ -396,7 +397,7 @@ class Workspace:
                 if source.exists():
                     target = trash / source.name
                     if target.exists():
-                        raise ValueError("Datei liegt bereits im Papierkorb: " + source.name)
+                        raise ValueError(tr("Datei liegt bereits im Papierkorb: {name}", name=source.name))
                     source.replace(target)
                     moved.append((source, target))
             self.db.execute("DELETE FROM captures WHERE id=?", (ident,))
@@ -426,23 +427,23 @@ class Workspace:
     def restore(self, ident):
         import re
         if not re.fullmatch(r"[a-f0-9]{32}", ident):
-            raise ValueError("Ungültige Aufnahme-ID.")
+            raise ValueError(tr("Ungültige Aufnahme-ID."))
         existing = self.get(ident)
         trash = self.root / "trash"
         info = trash / (ident + ".metadata.json")
         row = json.loads(info.read_text(encoding="utf-8"))
         filename = row["filename"]
         if row.get("id") != ident or Path(filename).name != filename or not filename.startswith(ident + "."):
-            raise ValueError("Ungültiger Aufnahmedateiname.")
+            raise ValueError(tr("Ungültiger Aufnahmedateiname."))
         path = self.images / filename
         files = [filename, ident + ".thumb.png", path.with_suffix(".prism.json").name, path.with_suffix(".screenkaffee.json").name,
                  path.with_suffix(".srt").name, path.with_suffix(".txt").name]
         files = [name for name in dict.fromkeys(files) if (trash / name).exists()]
         if filename not in files and not (existing and path.exists()):
-            raise ValueError("Originaldatei fehlt im Papierkorb.")
+            raise ValueError(tr("Originaldatei fehlt im Papierkorb."))
         for name in files:
             if (self.images / name).exists():
-                raise ValueError("Zieldatei existiert bereits: " + name)
+                raise ValueError(tr("Zieldatei existiert bereits: {name}", name=name))
         columns = ("id", "title", "created", "filename", "width", "height", "tags", "collection", "metadata", "kind", "favorite")
         moved = []
         try:
@@ -468,7 +469,7 @@ class Workspace:
             if self.get(ident):
                 continue
             if not re.fullmatch(r"[a-f0-9]{32}", ident):
-                raise ValueError("Ungültige Aufnahme-ID.")
+                raise ValueError(tr("Ungültige Aufnahme-ID."))
             for path in (self.root / "trash").glob(ident + ".*"):
                 if path.is_file():
                     size = path.stat().st_size
@@ -495,17 +496,18 @@ def details_dialog(parent, workspace, ids, on_export_copy=None):
     if len(ids) == 1:
         ident = ids[0]
         row = workspace.get(ident)
-        dialog.setWindowTitle("Details bearbeiten")
+        dialog.setWindowTitle(tr("Details bearbeiten"))
         dialog.title_edit = QLineEdit(row["title"])
         dialog.tags_edit = QLineEdit(row["tags"])
         dialog.collection_combo = QComboBox()
         dialog.collection_combo.setEditable(True)
-        dialog.collection_combo.addItems(collections)
-        dialog.collection_combo.setCurrentText(row["collection"])
+        for collection in collections:
+            dialog.collection_combo.addItem(tr("Alle Aufnahmen") if collection == workspace.DEFAULT_COLLECTION else collection, collection)
+        dialog.collection_combo.setCurrentIndex(dialog.collection_combo.findData(row["collection"]))
         dialog.collection_edit = dialog.collection_combo.lineEdit()
-        form.addRow("Titel", dialog.title_edit)
-        form.addRow("Suchbegriffe / Tags", dialog.tags_edit)
-        form.addRow("Sammlung", dialog.collection_combo)
+        form.addRow(tr("Titel"), dialog.title_edit)
+        form.addRow(tr("Suchbegriffe / Tags"), dialog.tags_edit)
+        form.addRow(tr("Sammlung"), dialog.collection_combo)
 
         def apply():
             if dialog._applied:
@@ -515,32 +517,40 @@ def details_dialog(parent, workspace, ids, on_export_copy=None):
             title, extension = split_title_extension(dialog.title_edit.text().strip())
             if extension and row["kind"] == "image" and on_export_copy is not None:
                 on_export_copy(ident, title, extension)
-            col = dialog.collection_combo.currentText().strip() or workspace.DEFAULT_COLLECTION
+            col = selected_collection() or workspace.DEFAULT_COLLECTION
             if col != workspace.DEFAULT_COLLECTION:
                 workspace.create_collection(col)
             workspace.update(ident, title or row["title"], dialog.tags_edit.text().strip(), col)
     else:
-        dialog.setWindowTitle(f"Details bearbeiten ({len(ids)} Aufnahmen)")
+        dialog.setWindowTitle(tr("Details bearbeiten ({count} Aufnahmen)", count=len(ids)))
         dialog.add_tags_edit = QLineEdit()
-        dialog.add_tags_edit.setPlaceholderText("Kommagetrennte Tags …")
+        dialog.add_tags_edit.setPlaceholderText(tr("Kommagetrennte Tags …"))
         dialog.remove_tags_edit = QLineEdit()
-        dialog.remove_tags_edit.setPlaceholderText("Zu entfernende Tags …")
+        dialog.remove_tags_edit.setPlaceholderText(tr("Zu entfernende Tags …"))
         dialog.collection_combo = QComboBox()
         dialog.collection_combo.setEditable(True)
         dialog.collection_combo.addItem("", None)
-        dialog.collection_combo.addItems(collections)
+        for collection in collections:
+            dialog.collection_combo.addItem(tr("Alle Aufnahmen") if collection == workspace.DEFAULT_COLLECTION else collection, collection)
         dialog.collection_combo.setCurrentText("")
         dialog.collection_edit = dialog.collection_combo.lineEdit()
-        form.addRow("Tags hinzufügen", dialog.add_tags_edit)
-        form.addRow("Tags entfernen", dialog.remove_tags_edit)
-        form.addRow("Sammlung (leer = unverändert)", dialog.collection_combo)
+        form.addRow(tr("Tags hinzufügen"), dialog.add_tags_edit)
+        form.addRow(tr("Tags entfernen"), dialog.remove_tags_edit)
+        form.addRow(tr("Sammlung (leer = unverändert)"), dialog.collection_combo)
 
         def apply():
             if dialog._applied:
                 return
             dialog._applied = True
-            col = dialog.collection_combo.currentText().strip() or None
+            col = selected_collection() or None
             workspace.update_tags(ids, add=dialog.add_tags_edit.text(), remove=dialog.remove_tags_edit.text(), collection=col)
+
+    def selected_collection():
+        combo = dialog.collection_combo
+        text = combo.currentText().strip()
+        if combo.currentIndex() >= 0 and text == combo.itemText(combo.currentIndex()):
+            return combo.currentData()
+        return text
 
     buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
     buttons.accepted.connect(dialog.accept)
