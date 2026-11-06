@@ -6,6 +6,12 @@ Maßgeblich ist `screenkaffee/parity.py` (`FEATURES`). Implementiert bedeutet: C
 
 ## Neu umgesetzt
 
+- **1.1.0 (06.11.2026)**, alles per Test geprüft, nicht von Hand am Bildschirm bedient:
+  - Editor: Markierungen nach vorne/hinten (Strg+Bild auf/ab), sperren, ausrichten und gleichmäßig verteilen, mit Pfeiltasten um 1 px bzw. 10 px verschieben; Ränder automatisch zuschneiden (auch als Aufnahmeoption); Lupe mit Rahmen um den Quellbereich und Verbindungslinien.
+  - Video-Editor: Abschnitte aus der Mitte herausschneiden; Zuschnittsrahmen mit der Maus und festen Seitenverhältnissen.
+  - Arbeitsbereich: Suche auch nach Fenster, App, URL und Untertiteln; Favoriten (werden nie aufgeräumt); ein gemeinsamer F2-Dialog, Tags für mehrere Aufnahmen; Miniaturen werden zwischengespeichert und nachgeladen.
+  - Kommandozeile: Richtlinien gelten auch hier; Videoaufnahme stoppt den Recorder bei Fehlern sicher.
+
 - Vier Editor-Eckgriffe, proportionale Stempelskalierung, Gruppen-Skalierung, separat verschiebbarer Sprechblasenzeiger.
 - Textglühen/-schatten, sperrbare Lupenquelle, lokale Stempelbibliothek und persistente Standardstile je Werkzeug.
 - Video-Ausgabe-Zoom: Strg+Alt+Pfeil auf/ab, Strg+Alt+Pos1 zum Rücksetzen. Zoomfokus wird an der Mausposition festgehalten. Die Aufnahme bleibt unverändert als Rohfassung erhalten; Zoom wird beim Speichern eingerechnet. Eine vergrößerte Live-Ansicht ist noch offen.
