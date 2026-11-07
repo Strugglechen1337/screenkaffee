@@ -210,8 +210,8 @@ def _capture_wgc(adapter, output, mode, cursor=False, window=None, target=None):
             if desc.name != target and not desc.name.endswith(target):
                 return None
         elif isinstance(target, (tuple, list)) and len(target) == 4:
-            tl, tt, tr, tb = map(int, target)
-            if min(tr, desc.rect.right) <= max(tl, desc.rect.left) or min(tb, desc.rect.bottom) <= max(tt, desc.rect.top):
+            tl, tt, tright, tb = map(int, target)
+            if min(tright, desc.rect.right) <= max(tl, desc.rect.left) or min(tb, desc.rect.bottom) <= max(tt, desc.rect.top):
                 return None
         elif isinstance(target, (tuple, list)) and len(target) >= 2:
             if (desc.rect.left, desc.rect.top) != (int(target[0]), int(target[1])):

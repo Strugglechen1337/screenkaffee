@@ -68,3 +68,29 @@ def test_every_tr_call_in_the_app_has_an_english_entry():
         missing, _ = i18n_check.check(path, CATALOG)
         problems += [f"{path.name}:{line}: {text}" for line, text in missing]
     assert not problems, "\n".join(problems[:40])
+
+
+def test_tr_is_never_shadowed_by_a_local_name():
+    """Eine lokale Variable namens tr/N_ macht tr() in der ganzen Funktion unbenutzbar (UnboundLocalError)."""
+    import ast
+    problems = []
+    for path in sorted((ROOT / "screenkaffee").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                continue
+            imported_at = {}
+            for node in ast.walk(function):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in ("tr", "N_"):
+                    problems.append(f"{path.name}:{node.lineno}: lokale Variable {node.id}")
+                if isinstance(node, ast.arg) and node.arg in ("tr", "N_"):
+                    problems.append(f"{path.name}:{function.lineno}: Parameter {node.arg}")
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    for alias in node.names:
+                        if (alias.asname or alias.name) in ("tr", "N_"):
+                            imported_at[alias.asname or alias.name] = node.lineno
+            for node in ast.walk(function):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in imported_at \
+                        and node.lineno < imported_at[node.id]:
+                    problems.append(f"{path.name}:{node.lineno}: {node.id} vor dem lokalen Import benutzt")
+    assert not problems, "\n".join(problems)
