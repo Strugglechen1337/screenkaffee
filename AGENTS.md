@@ -228,7 +228,7 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - **v1.2.0 ist als GitHub-Release (Latest) veröffentlicht** (520 Tests grün). SHA256: x64 `280efff756d1f09ce722ec2d115c6f2671a2aa73a64131e8734a585b14335dbc` (117 MB), ARM64 `e1edaa9048a7bf4a4e60c209cc0644e6f6a0fd4715cf065dbe7c03a128625f06` (104 MB), Linux `fd535f7ced06b95209d663697e21554220ae07fb95cf834cb1e1e1522a45e32f` (212 MB), Untertitel x64 `0854937faab2352347f24008a5a53e3e2a914d730073aece57a8ed2fdd8984a2`, Untertitel Linux `ee4b8c9aea8a412a54585cf004eb6e05d9a12917bf355317cacdbe125f95c6d8`.
 
 ## Funktions-Poster (README)
-- `docs/screenkaffee-features.png` steht oben in der README; Quelle ist `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
+- Ab 1.2.0 vom Nutzer gestaltete Poster: `docs/screenkaffee-features.png` (Deutsch, in `README.md`) und `docs/screenkaffee-features-en.png` (Englisch, in `README.en.md`). Englische README `README.en.md` bei README-Änderungen mitpflegen (Menünamen aus `i18n_en`). Ältere Vorlage: `docs/screenkaffee-features.png` stand oben in der README; Quelle war `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
   `msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1.5 --window-size=1600,1500 --screenshot=<Ziel>.png file:///<Pfad>/docs/poster.html` (Höhe an den Inhalt anpassen), danach mit Pillow `optimize=True` speichern.
 
 ## Release machen (Anleitung, gilt ab v0.7.0 – der Updater hängt davon ab)

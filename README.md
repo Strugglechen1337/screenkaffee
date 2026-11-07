@@ -1,10 +1,12 @@
 # screenkaffee
 
+[English](README.en.md) · **Deutsch**
+
 Portable Screenshot- und Video-App für Windows und Linux.
 Ziel: Windows und Omarchy/Hyprland, normale PNGs mit korrekter SDR-Farbwiedergabe
 auf HDR-Desktops. Oberfläche auf Deutsch und Englisch. Version **1.2.0**.
 
-*Portable screenshot and video app for Windows and Linux – the interface is available in German and English.*
+*Portable screenshot and video app for Windows and Linux – interface in English and German. **[Read this in English](README.en.md).***
 
 **Einige Funktionen sind noch nicht auf echter Hardware abgenommen.** Der genaue Stand steht in [FEATURES.md](FEATURES.md).
 
