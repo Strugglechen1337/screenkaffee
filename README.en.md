@@ -4,11 +4,13 @@
 
 Portable screenshot and video app for Windows and Linux.
 Goal: Windows and Omarchy/Hyprland, regular PNGs with correct SDR colors
-on HDR desktops. The interface is available in English and German. Version **1.2.0**.
+on HDR desktops. The interface is available in English and German. Version **1.3.0**.
 
 **Some features have not yet been tested on real hardware.** The exact status is listed in [FEATURES.md](FEATURES.md) (German).
 
-**⬇ Direct download:** [Windows (x64)](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-x64.zip) · [Windows ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-arm64.zip) · [Linux x86_64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Linux-x86_64.tar.gz) · [all releases](https://github.com/Strugglechen1337/screenkaffee/releases/latest)
+**⬇ Easiest (Windows): [download screenkaffee Setup](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Setup-Windows-x64.exe)** – double-click, done. No administrator rights needed, shortcuts on the desktop and in the Start menu, updates inside the app as usual. Windows on ARM: [Setup ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Setup-Windows-arm64.exe).
+
+**Without setup (portable):** [Windows (x64)](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-x64.zip) · [Windows ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-arm64.zip) · [Linux x86_64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Linux-x86_64.tar.gz) · [all releases](https://github.com/Strugglechen1337/screenkaffee/releases/latest)
 
 Extract the ZIP (right-click → "Extract All") and start **`screenkaffee.exe`** in the `screenkaffee` folder. The "Untertitel" (subtitle add-on) files in a release are downloaded by the app itself when needed.
 

@@ -6,6 +6,7 @@ Maßgeblich ist `screenkaffee/parity.py` (`FEATURES`). Implementiert bedeutet: C
 
 ## Neu umgesetzt
 
+- **1.3.0 (07.11.2026)**: Windows-Setup (x64/ARM64) ohne Adminrechte – Installation pro Benutzer nach `%LOCALAPPDATA%\Programs\screenkaffee`, Verknüpfungen, Deinstallation über „Apps & Features“ (Aufnahmen bleiben auf Wunsch); Updater funktioniert unverändert. Verknüpfungen auch für die ZIP-Version (Einrichtung bzw. „Hilfe und Updates“). Setup per stiller Installation/Deinstallation automatisch geprüft; SmartScreen-Hinweis ohne Signatur bleibt.
 - **1.2.0 (06.11.2026)**: Englische Oberfläche. Sprache wählbar beim ersten Start (vor der Tour) und in den Einstellungen; Wechsel mit automatischem Neustart; englische Tastennamen (Ctrl, Shift …) und Zahlenformat. Per Test geprüft und ohne Bildschirm gerendert, nicht von Hand bedient.
 - **1.1.1 (06.11.2026)**: Papierkorb als eigene Ansicht mit Symbol in der Sammlungsleiste; 14 Fehler aus zwei Code-Reviews behoben (sicheres Löschen, Ordnerabgleich inkl. Favoriten, Handy-Freigabe, Zeitraffer, Zuschnitt-Eingabe und kurze Reststücke im Video-Editor, Miniaturen beim Arbeitsbereichswechsel, CLI-Fehlermeldungen, Menü-Speicherleck, Mehrfachziehen mit Undo). Per Test geprüft, nicht von Hand bedient.
 - **1.1.0 (06.11.2026)**, alles per Test geprüft, nicht von Hand am Bildschirm bedient:

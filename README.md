@@ -4,13 +4,15 @@
 
 Portable Screenshot- und Video-App für Windows und Linux.
 Ziel: Windows und Omarchy/Hyprland, normale PNGs mit korrekter SDR-Farbwiedergabe
-auf HDR-Desktops. Oberfläche auf Deutsch und Englisch. Version **1.2.0**.
+auf HDR-Desktops. Oberfläche auf Deutsch und Englisch. Version **1.3.0**.
 
 *Portable screenshot and video app for Windows and Linux – interface in English and German. **[Read this in English](README.en.md).***
 
 **Einige Funktionen sind noch nicht auf echter Hardware abgenommen.** Der genaue Stand steht in [FEATURES.md](FEATURES.md).
 
-**⬇ Direkt herunterladen:** [Windows (x64)](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-x64.zip) · [Windows ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-arm64.zip) · [Linux x86_64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Linux-x86_64.tar.gz) · [alle Versionen](https://github.com/Strugglechen1337/screenkaffee/releases/latest)
+**⬇ Am einfachsten (Windows): [screenkaffee-Setup herunterladen](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Setup-Windows-x64.exe)** – Doppelklick, fertig. Keine Adminrechte nötig, Verknüpfungen auf Desktop und im Startmenü, Updates wie gewohnt in der App. Für Windows auf ARM: [Setup ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Setup-Windows-arm64.exe).
+
+**Ohne Setup (portabel):** [Windows (x64)](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-x64.zip) · [Windows ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-arm64.zip) · [Linux x86_64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Linux-x86_64.tar.gz) · [alle Versionen](https://github.com/Strugglechen1337/screenkaffee/releases/latest)
 
 ZIP entpacken (Rechtsklick → „Alle extrahieren“) und im Ordner `screenkaffee` die Datei **`screenkaffee.exe`** starten. Die „Untertitel“-Dateien im Release lädt die App bei Bedarf selbst.
 

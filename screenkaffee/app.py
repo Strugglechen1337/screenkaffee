@@ -3288,7 +3288,7 @@ class MainWindow(QMainWindow):
         dialog.setWindowTitle(tr("Willkommen bei screenkaffee"))
         dialog.resize(560, 0)
         layout = QVBoxLayout(dialog)
-        intro = QLabel(tr("Drei kurze Fragen, dann kann es losgehen. Alles lässt sich später unter Einstellungen ändern."))
+        intro = QLabel(tr("Ein paar kurze Fragen, dann kann es losgehen. Alles lässt sich später unter Einstellungen ändern."))
         intro.setWordWrap(True)
         layout.addWidget(intro)
         form = QFormLayout()

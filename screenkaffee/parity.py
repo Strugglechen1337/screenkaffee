@@ -107,6 +107,7 @@ FEATURES = [
     ("editor.align", "Markierungen ausrichten, verteilen und mit Pfeiltasten verschieben", "implemented", "Sechs Ausrichtungen, gleichmäßig verteilen (je ein Undo-Schritt), Pfeiltasten 1 px / Umschalt 10 px zusammengefasst; getestet (1.1.0)."),
     ("editor.autotrim", "Ränder automatisch zuschneiden", "implemented", "effects.trim_bounds erkennt einfarbige/transparente Ränder; Editorbefehl mit Undo und Aufnahmeoption auto_trim (Standard aus) getestet (1.1.0)."),
     ("workspace.favorites", "Favoriten", "implemented", "Stern im Kontextmenü und Raster, Datenbank-Migration alter Arbeitsbereiche, Schutz vor Aufräumen; getestet (1.1.0)."),
+    ("settings.setup", "Windows-Setup ohne Adminrechte und Verknüpfungen", "implemented", "Ab 1.3.0: Inno-Setup pro Benutzer (PrivilegesRequired=lowest, x64 und ARM64), Verknüpfungen, Deinstallation mit Rückfrage zu data/, Uninstall-Version wird nach Updates nachgeführt; Verknüpfungen auch für ZIP-Nutzer (shortcuts.py). x64-Setup per stiller Installation, Selbsttest und Deinstallation in verify_release geprüft; ARM64-Setup nur gebaut, nicht auf Gerät; nicht signiert."),
 ]
 
 

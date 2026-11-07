@@ -564,8 +564,8 @@ TEXTS = {
 
     # --- Einrichtung beim ersten Start, Beenden ------------------------------------------------------------------
     "Willkommen bei screenkaffee": "Welcome to screenkaffee",
-    "Drei kurze Fragen, dann kann es losgehen. Alles lässt sich später unter Einstellungen ändern.":
-        "Three quick questions and you're ready to go. You can change everything later in Settings.",
+    "Ein paar kurze Fragen, dann kann es losgehen. Alles lässt sich später unter Einstellungen ändern.":
+        "A few quick questions and you're ready to go. You can change everything later in Settings.",
     "Taste für Bereichsaufnahme": "Key for region capture",
     "Unter Omarchy/Hyprland legst du die Aufnahmetaste in ~/.config/hypr/hyprland.conf fest:":
         "On Omarchy/Hyprland, set the capture key in ~/.config/hypr/hyprland.conf:",
