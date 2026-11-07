@@ -240,7 +240,7 @@ Aktueller Stand: **v1.2.0** ist das neueste Release. Nutzer mit 0.7.0+ bekommen 
 5. Release anlegen, **als Latest, nicht als Entwurf/Vorabversion** (die API `releases/latest` ignoriert beide):
    `gh release create vX.Y.Z --title "screenkaffee X.Y.Z (Windows x64, Windows ARM64, Linux x86_64)" --latest --notes-file notes.md dist/screenkaffee-Windows-x64.zip dist/screenkaffee-Windows-arm64.zip dist/screenkaffee-Linux-x86_64.tar.gz dist/screenkaffee-Untertitel-Windows-x64.zip dist/screenkaffee-Untertitel-Linux-x86_64.zip dist/verification.json`
    (`release.py --upload` lädt nur zu einem schon vorhandenen Release hoch und fragt interaktiv.)
-6. **Release-Notizen auf Deutsch, in Markdown, für Nutzer verständlich** – genau dieser Text erscheint nach dem Update im Fenster „Neu in screenkaffee X“. Vorlage: Notizen von v0.7.0 (`gh release view v0.7.0`). Tabelle mit Dateien, Größen und SHA256 und ehrlicher Hinweis, was nur strukturell geprüft wurde.
+6. **Ganz oben in die Notizen den Kasten „⬇ Welche Datei herunterladen?“** (Vorlage: Release v1.2.0) – Nutzer haben sonst die Untertitel-Datei statt des Hauptpakets geladen und keine exe gefunden. **Release-Notizen auf Deutsch, in Markdown, für Nutzer verständlich** – genau dieser Text erscheint nach dem Update im Fenster „Neu in screenkaffee X“. Vorlage: Notizen von v0.7.0 (`gh release view v0.7.0`). Tabelle mit Dateien, Größen und SHA256 und ehrlicher Hinweis, was nur strukturell geprüft wurde.
 7. Kontrolle: `gh api repos/Strugglechen1337/screenkaffee/releases/latest --jq .tag_name` zeigt den neuen Tag; jedes Asset hat in `gh release view vX.Y.Z --json assets` einen `sha256:`-Digest.
 8. `AGENTS.md` (Abschnitt „Stand …“ mit SHA256) und `parity.py` nachziehen, committen, pushen.
 

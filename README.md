@@ -10,7 +10,9 @@ auf HDR-Desktops. Oberfläche auf Deutsch und Englisch. Version **1.2.0**.
 
 **Einige Funktionen sind noch nicht auf echter Hardware abgenommen.** Der genaue Stand steht in [FEATURES.md](FEATURES.md).
 
-**[⬇ Neueste Version herunterladen](https://github.com/Strugglechen1337/screenkaffee/releases/latest)**
+**⬇ Direkt herunterladen:** [Windows (x64)](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-x64.zip) · [Windows ARM64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Windows-arm64.zip) · [Linux x86_64](https://github.com/Strugglechen1337/screenkaffee/releases/latest/download/screenkaffee-Linux-x86_64.tar.gz) · [alle Versionen](https://github.com/Strugglechen1337/screenkaffee/releases/latest)
+
+ZIP entpacken (Rechtsklick → „Alle extrahieren“) und im Ordner `screenkaffee` die Datei **`screenkaffee.exe`** starten. Die „Untertitel“-Dateien im Release lädt die App bei Bedarf selbst.
 
 ![screenkaffee – alle Funktionen auf einen Blick](docs/screenkaffee-features.png)
 
