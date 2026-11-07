@@ -13,7 +13,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 ARCHIVES = ["screenkaffee-Windows-x64.zip", "screenkaffee-Windows-arm64.zip", "screenkaffee-Linux-x86_64.tar.gz",
-            "screenkaffee-Untertitel-Windows-x64.zip", "screenkaffee-Untertitel-Linux-x86_64.zip", "verification.json"]
+            "screenkaffee-Untertitel-Windows-x64.zip", "screenkaffee-Untertitel-Linux-x86_64.zip", "screenkaffee-Setup-Windows-x64.exe", "screenkaffee-Setup-Windows-arm64.exe", "verification.json"]
 
 
 def run(*args):
@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--tag", required=True, help="GitHub-Release-Tag, z. B. v0.6.0")
     parser.add_argument("--upload", action="store_true", help="Archive nach dem Bauen mit gh hochladen (fragt vorher)")
     parser.add_argument("--skip-tests", action="store_true")
-    parser.add_argument("--skip", nargs="*", default=[], choices=["x64", "arm64", "linux"], help="Pakete auslassen")
+    parser.add_argument("--skip", nargs="*", default=[], choices=["x64", "arm64", "linux", "setup"], help="Pakete auslassen")
     args = parser.parse_args()
     if sys.platform != "win32" and "x64" not in args.skip:
         raise SystemExit("Das x64-Paket (PyInstaller) lässt sich nur unter Windows bauen; mit --skip x64 überspringen.")
@@ -36,7 +36,9 @@ def main():
     for key, script in steps.items():
         if key not in args.skip:
             run(sys.executable, ROOT / "scripts" / script)
-    run(sys.executable, ROOT / "scripts" / "verify_release.py")
+    if "setup" not in args.skip:
+        run(sys.executable, ROOT / "scripts" / "package_setup.py")
+    run(sys.executable, ROOT / "scripts" / "verify_release.py", *( ["--skip-setup"] if "setup" in args.skip else []))
     files = [ROOT / "dist" / name for name in ARCHIVES if (ROOT / "dist" / name).is_file()]
     print("\nFertig. Archive in dist/:")
     for path in files:

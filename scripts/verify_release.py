@@ -1,4 +1,5 @@
 """Verify source parity, PE/ELF layout and a relocated Windows release across x64, ARM64 and Linux."""
+import argparse
 import hashlib
 import json
 import os
@@ -17,7 +18,49 @@ def pe_machine(data: bytes) -> int:
     return struct.unpack_from("<H", data, pe_offset + 4)[0]
 
 
+
+def verify_setup(setup, destination):
+    """Installiert nur, wenn kein bestehender Eintrag überschrieben werden kann."""
+    import winreg
+    key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{EA3D4BD5-CC56-41AF-87DE-3C0C5A17B724}_is1"
+    def registered():
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key):
+                return True
+        except FileNotFoundError:
+            return False
+    if registered():
+        raise RuntimeError("Setup-Prüfung abgebrochen: bestehender Deinstallationseintrag")
+    desktop = Path(os.environ["USERPROFILE"]) / "Desktop" / "screenkaffee.lnk"
+    start = Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs/screenkaffee"
+    before = {path: path.exists() for path in (desktop, start)}
+    destination = Path(destination)
+    app = destination / "installed"
+    data = app / "data"
+    try:
+        subprocess.run([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NOICONS", "/TASKS=", "/DIR=" + str(app)], check=True, timeout=180)
+        assert (app / "_internal").is_dir() and (app / "screenkaffee.exe").is_file()
+        data.mkdir(exist_ok=True)
+        (data / "keep.txt").write_text("keep", encoding="utf-8")
+        subprocess.run([str(app / "screenkaffee.exe"), "--self-test", "--data-dir", str(data)], check=True, timeout=60)
+        assert (data / "self-test-ok.txt").is_file()
+        # Unbekannte Dateien simulieren ein späteres Update.
+        (app / "_previous").mkdir()
+        (app / "_previous" / "old.txt").write_text("old", encoding="utf-8")
+        subprocess.run([str(app / "unins000.exe"), "/VERYSILENT", "/SUPPRESSMSGBOXES"], check=True, timeout=180)
+        assert (data / "keep.txt").is_file() and not (app / "screenkaffee.exe").exists()
+        assert not (app / "_internal").exists() and not (app / "_previous").exists()
+        assert not registered()
+        assert all(path.exists() == exists for path, exists in before.items())
+    finally:
+        if registered() and (app / "unins000.exe").is_file():
+            subprocess.run([str(app / "unins000.exe"), "/VERYSILENT", "/SUPPRESSMSGBOXES"], check=True, timeout=180)
+    return True
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--skip-setup", action="store_true")
+    args = parser.parse_args()
     windows = ROOT / "dist" / "screenkaffee-Windows-x64.zip"
     windows_arm64 = ROOT / "dist" / "screenkaffee-Windows-arm64.zip"
     linux = ROOT / "dist" / "screenkaffee-Linux-x86_64.tar.gz"
@@ -113,8 +156,23 @@ def main():
                 report["relocated_windows_capture"] = [m["backend"] for m in diagnostics["capture"]]
             finally:
                 temporary.cleanup()
+    setups = [ROOT / "dist" / f"screenkaffee-Setup-Windows-{variant}.exe" for variant in ("x64", "arm64")]
+    if not args.skip_setup:
+        assert all(p.is_file() for p in setups)
+        for variant, setup, archive in zip(("x64", "arm64"), setups, (windows, windows_arm64)):
+            manifest = json.loads(setup.with_name(setup.name + ".json").read_text(encoding="utf-8"))
+            assert manifest == {"variant": variant, "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                                "setup_sha256": hashlib.sha256(setup.read_bytes()).hexdigest()}
+        report["setup_arm64_package_matches"] = True
+        if os.name == "nt":
+            with tempfile.TemporaryDirectory(prefix="screenkaffee-setup-check-") as tmp:
+                report["setup_x64_install"] = verify_setup(setups[0], tmp)
+                report["setup_x64_uninstall"] = True
+        report["setup_arm64_exists"] = True
+    else:
+        setups = []
     report["artifacts"] = [{"name": p.name, "bytes": p.stat().st_size,
-        "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in (windows, windows_arm64, linux, speech_windows, speech_linux)]
+        "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in (windows, windows_arm64, linux, speech_windows, speech_linux, *setups)]
     report["windows_arm64_execution_tested"] = False
     report["linux_execution_tested"] = False
     report["physical_hdr_tested"] = False
