@@ -13,6 +13,16 @@ def qt_app():
 
 
 @pytest.fixture(autouse=True)
+def isolate_shortcuts(tmp_path_factory, monkeypatch):
+    """Tests legen nie echte Verknüpfungen im Benutzerprofil an."""
+    from screenkaffee import shortcuts
+    base = tmp_path_factory.mktemp("shortcuts")
+    monkeypatch.setattr(shortcuts, "locations", lambda desktop=True: shortcuts.Locations(
+        base / "Desktop" if desktop else None, base / "Programs", base / "icons"))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def dispose_test_windows():
     yield
     # Drain Qt's deferred destruction between tests, before Python's cycle GC

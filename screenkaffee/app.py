@@ -295,6 +295,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(tr("Nach Updates suchen …"), lambda: self.check_updates(manual=True))
         help_menu.addAction(tr("Vorige Version wiederherstellen …"), self.restore_previous_version)
         help_menu.addAction(tr("Einrichtung (Taste, Autostart, Updates) …"), self.first_run_setup)
+        help_menu.addAction(tr("Verknüpfungen anlegen (Desktop, Startmenü) …"), self.create_shortcuts)
         help_menu.addSeparator()
         help_menu.addAction(tr("Fehlerprotokoll öffnen"), self.open_log)
         help_menu.addAction(tr("Funktionsstand / Hinweise"), self.about)
@@ -2958,9 +2959,10 @@ class MainWindow(QMainWindow):
 
     def startup_update(self):
         """Erster Start nach einem Update: zeigen, was neu ist. Danach je nach Einstellung nach Updates suchen."""
-        from . import updater
+        from . import installed, updater
         updater.forget_token(self.workspace.root)
-        from . import updater
+        from . import __version__
+        installed.update_display_version(__version__)      # Setup-Installation: Version in „Apps & Features“ nachziehen
         try:
             finished = updater.finish_previous(keep_previous=self.settings.get("update_keep_previous", True))
         except OSError:
@@ -3281,7 +3283,7 @@ class MainWindow(QMainWindow):
     def first_run_setup(self):
         """Einrichtung beim ersten Start (und über „Mehr“): Aufnahmetaste, Autostart, Updates."""
         from PySide6.QtWidgets import QFormLayout
-        from . import autostart, updater
+        from . import autostart, installed, shortcuts, updater
         dialog = QDialog(self)
         dialog.setWindowTitle(tr("Willkommen bei screenkaffee"))
         dialog.resize(560, 0)
@@ -3318,6 +3320,17 @@ class MainWindow(QMainWindow):
         dialog.autostart = QCheckBox(tr("Beim Anmelden automatisch starten (im Infobereich, ohne Fenster)"))
         dialog.autostart.setChecked(autostart_now)
         form.addRow(dialog.autostart)
+        # Verknüpfungen: nicht anbieten, wenn das Setup sie schon angelegt hat (es entfernt sie auch wieder)
+        shortcuts_now = False
+        dialog.shortcuts = None
+        if not installed.is_installed_by_setup():
+            try:
+                shortcuts_now = shortcuts.is_complete(shortcuts.locations())
+            except OSError:
+                logging.warning("Verknüpfungen konnten nicht geprüft werden", exc_info=True)
+            dialog.shortcuts = QCheckBox(tr("Verknüpfungen auf dem Desktop und im Startmenü anlegen"))
+            dialog.shortcuts.setChecked(True)      # ZIP-Paket: standardmäßig an; bestehende Verknüpfungen bleiben angehakt
+            form.addRow(dialog.shortcuts)
         dialog.update_mode = QComboBox()
         for value, label in updater.MODES:
             dialog.update_mode.addItem(tr(label), value)
@@ -3342,6 +3355,12 @@ class MainWindow(QMainWindow):
                     autostart.set_enabled(dialog.autostart.isChecked())
                 except OSError as exc:
                     QMessageBox.warning(self, tr("Autostart"), tr("Der Autostart konnte nicht geändert werden:\n{error}", error=exc))
+            if dialog.shortcuts is not None:
+                if dialog.shortcuts.isChecked():
+                    if not shortcuts_now:
+                        self.create_shortcuts(confirm=False)
+                elif shortcuts_now:
+                    self.remove_shortcuts()
             self.settings["update_mode"] = dialog.update_mode.currentData()
 
         def finished(_result):
@@ -3352,6 +3371,29 @@ class MainWindow(QMainWindow):
         self.setup_dialog = dialog
         dialog.show()
         return dialog
+
+    def create_shortcuts(self, confirm=True):
+        """Verknüpfungen auf dem Desktop und im Startmenü (Linux: Anwendungsmenü) für diesen Benutzer anlegen."""
+        from . import shortcuts
+        try:
+            places = shortcuts.locations()
+            created = shortcuts.create(places, icon_writer=shortcuts.linux_icon_writer)
+        except Exception as exc:
+            logging.warning("Verknüpfungen konnten nicht angelegt werden", exc_info=True)
+            QMessageBox.warning(self, tr("Verknüpfungen"), tr("Die Verknüpfungen konnten nicht angelegt werden:\n{error}", error=exc))
+            return []
+        if confirm:
+            self.statusBar().showMessage(tr("{count} Verknüpfung(en) angelegt.", count=len(created)), 8000)
+        return created
+
+    def remove_shortcuts(self):
+        from . import shortcuts
+        try:
+            return shortcuts.remove(shortcuts.locations())
+        except Exception as exc:
+            logging.warning("Verknüpfungen konnten nicht entfernt werden", exc_info=True)
+            QMessageBox.warning(self, tr("Verknüpfungen"), tr("Die Verknüpfungen konnten nicht entfernt werden:\n{error}", error=exc))
+            return []
 
     def launch_pending_update(self):
         if not self.pending_update:
