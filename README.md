@@ -4,7 +4,7 @@
 
 Portable Screenshot- und Video-App für Windows und Linux.
 Ziel: Windows und Omarchy/Hyprland, normale PNGs mit korrekter SDR-Farbwiedergabe
-auf HDR-Desktops. Oberfläche auf Deutsch und Englisch. Version **1.3.0**.
+auf HDR-Desktops. Oberfläche auf Deutsch und Englisch. Version **1.3.1**.
 
 *Portable screenshot and video app for Windows and Linux – interface in English and German. **[Read this in English](README.en.md).***
 
