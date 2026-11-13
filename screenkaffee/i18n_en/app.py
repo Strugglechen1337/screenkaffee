@@ -356,6 +356,7 @@ TEXTS = {
     "Helle Details komprimieren · SDR-Weiß leicht dunkler": "Compress bright details · SDR white slightly darker",
     "Neue Aufnahmen automatisch kopieren": "Copy new captures automatically",
     "Mauszeiger mit aufnehmen": "Include mouse pointer",
+    "Nach Aufnahme das Hauptfenster anzeigen": "Show the main window after a capture",
     "Nach Aufnahme den Editor öffnen": "Open the Editor after capturing",
     "X und Minimieren: im Infobereich neben der Uhr weiterlaufen": "X and minimize: keep running in the system tray next to the clock",
     "Beim Anmelden automatisch starten (im Infobereich, ohne Fenster)": "Start automatically at sign-in (in the system tray, without a window)",

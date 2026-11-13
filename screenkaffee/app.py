@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.workspace = workspace or Workspace()
         self.settings_path = self.workspace.root / "settings.json"
-        self.settings = {"tone_mapping": "neutral", "auto_copy": True, "auto_edit": True,
+        self.settings = {"tone_mapping": "neutral", "auto_copy": True, "auto_edit": True, "show_after_capture": True,
                          "minimize_to_tray": True, "microphone": "", "capture_cursor": False,
                          "retention_count": 0, "retention_days": 0, "workspaces": [],
                          "hotkeys": dict(DEFAULT_HOTKEYS), **CAPTURE_DEFAULTS}
@@ -839,6 +839,12 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    def restore_after_capture(self):
+        """Nach einer gelungenen Aufnahme: Hauptfenster zeigen – außer der Nutzer hat das abgeschaltet
+        (dann bleibt es im Infobereich, nur der Editor öffnet sich, falls eingestellt)."""
+        if self.settings.get("show_after_capture", True):
+            self.restore()
+
     def _start_capture_escape_watch(self):
         from .overlay import _is_real_win32_display
         if _is_real_win32_display():
@@ -1328,7 +1334,7 @@ class MainWindow(QMainWindow):
             image = post_process(image, self.settings)
             if self.settings.get("clipboard_only"):
                 QApplication.clipboard().setImage(pil_to_qimage(image))
-                self.restore()
+                self.restore_after_capture()
                 self.statusBar().showMessage(tr("{width} × {height} px in die Zwischenablage kopiert (nicht gespeichert)",
                                                 width=image.width, height=image.height))
                 self.print_if_requested(image)
@@ -1340,7 +1346,7 @@ class MainWindow(QMainWindow):
             self.select_id(ident)
             if self.settings["auto_copy"]:
                 QApplication.clipboard().setImage(pil_to_qimage(image))
-            self.restore()
+            self.restore_after_capture()
             self.print_if_requested(image)
             if self.settings["auto_edit"]:
                 self.open_editor(ident)
@@ -2279,10 +2285,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(tone)
         boxes = {}
         for key, label in [("auto_copy", tr("Neue Aufnahmen automatisch kopieren")),
-            ("auto_edit", tr("Nach Aufnahme den Editor öffnen")), ("capture_cursor", tr("Mauszeiger mit aufnehmen")),
+            ("auto_edit", tr("Nach Aufnahme den Editor öffnen")),
+            ("show_after_capture", tr("Nach Aufnahme das Hauptfenster anzeigen")), ("capture_cursor", tr("Mauszeiger mit aufnehmen")),
             ("minimize_to_tray", tr("X und Minimieren: im Infobereich neben der Uhr weiterlaufen"))]:
             box = QCheckBox(label)
-            box.setChecked(self.settings[key])
+            box.setChecked(self.settings.get(key, True))
             boxes[key] = box
             layout.addWidget(box)
         from . import autostart

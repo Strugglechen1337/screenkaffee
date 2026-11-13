@@ -114,3 +114,20 @@ def test_capture_context_and_placeholders(qt_app, tmp_path, monkeypatch):
     meta = json.loads(row["metadata"])
     assert row["title"] == "firefox_1"
     assert meta["process_name"] == "firefox" and meta["url"] == "https://example.org/issues/42"
+
+
+def test_main_window_can_stay_hidden_after_a_capture(qt_app, tmp_path):
+    window = make_window(tmp_path)
+    window.hide()
+    window.finish_capture(Image.new("RGB", (40, 30), "red"), {"backend": "test"})
+    assert window.isVisible()                      # Standard: Hauptfenster kommt zurück
+    window.settings["show_after_capture"] = False
+    window.hide()
+    window.finish_capture(Image.new("RGB", (40, 30), "blue"), {"backend": "test"})
+    assert not window.isVisible() and len(window.workspace.rows()) == 2
+    window.settings["clipboard_only"] = True
+    window.finish_capture(Image.new("RGB", (40, 30), "green"), {"backend": "test"})
+    assert not window.isVisible()
+    window.finish_capture(None, {})                # Abbruch zeigt das Fenster weiterhin
+    assert window.isVisible()
+    window.close()
