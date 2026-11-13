@@ -234,6 +234,10 @@ Am 28./29.10.2026 umgesetzt: `capture.overlay.keys`, `capture.options`, `capture
 - Nicht geprüft: ARM64-Setup auf Gerät; Setup/Programm unsigniert (SmartScreen).
 - **v1.3.0 ist als GitHub-Release (Latest) veröffentlicht** (541 Tests grün). SHA256: Setup x64 `c393d7726c4cb933fcda28170bb4beab0b0deb27b9988689b91cf87b4a19ed14` (104 MB), Setup ARM64 `57dba65d6cd463dfa33ef1277155536656aae9a5103194dd78b360c2e5732d11` (90 MB), x64 `29c38e5e1024d72f74c8792519d19e4d4dc49091feaa89bc6f8d56c192fff5af` (117 MB), ARM64 `d7ae106198eff4f703753359b1d5722779a543e0fddff0bce7b6ac0943cd57a5` (104 MB), Linux `696b6c5b72fda962d88a6bf11bdd47eaeba55f3c70a822c45bd45fb8042540e5` (212 MB), Untertitel x64 `6e52566b2d6013e2b3e0c409420db432955b6cd08ad183bcabf3052aad48fbe1`, Untertitel Linux `cddb64fb335ea9fe726271c2d18e5b6a707688b21de440c8b77e88d1861cde61`.
 
+## Stand 13.11.2026 (Hauptfenster nach Aufnahme abschaltbar – Claude, Cloud-Session)
+- Einstellung `show_after_capture` (Standard an, Checkbox „Nach Aufnahme das Hauptfenster anzeigen“): aus → `MainWindow.restore_after_capture` lässt das Hauptfenster nach einer gelungenen Aufnahme im Infobereich; der Editor öffnet sich weiter (`auto_edit`). Abbruch und Fehler zeigen das Fenster wie bisher.
+- Test: `test_main_window_can_stay_hidden_after_a_capture` in `tests/test_capture_options.py`. Nicht am echten Windows-Rechner bedient; noch in keinem Release.
+
 ## Funktions-Poster (README)
 - Ab 1.2.0 vom Nutzer gestaltete Poster: `docs/screenkaffee-features.png` (Deutsch, in `README.md`) und `docs/screenkaffee-features-en.png` (Englisch, in `README.en.md`). Englische README `README.en.md` bei README-Änderungen mitpflegen (Menünamen aus `i18n_en`). Ältere Vorlage: `docs/screenkaffee-features.png` stand oben in der README; Quelle war `docs/poster.html` (reines HTML/CSS, 1600 px breit). Bei neuen großen Funktionen oder neuer Version Text dort ändern und neu rendern:
   `msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1.5 --window-size=1600,1500 --screenshot=<Ziel>.png file:///<Pfad>/docs/poster.html` (Höhe an den Inhalt anpassen), danach mit Pillow `optimize=True` speichern.
